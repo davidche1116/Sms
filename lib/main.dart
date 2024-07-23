@@ -183,7 +183,8 @@ class _SmsHomePageState extends State<SmsHomePage> {
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: Theme.of(context).dialogBackgroundColor,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius:
+                const BorderRadius.vertical(bottom: Radius.circular(20)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -209,6 +210,9 @@ class _SmsHomePageState extends State<SmsHomePage> {
                     child: const Icon(Icons.clear_outlined),
                   ),
                 ),
+                onSubmitted: (String smg) {
+                  _filterSubmit();
+                },
               ),
               const SizedBox(
                 height: 20,
@@ -248,6 +252,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
                 _deleteSubmit();
               },
               isDestructiveAction: true,
+              isDefaultAction: true,
               child: const Text('确认'),
             ),
           ],
@@ -347,6 +352,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
         title: Text(title),
         actions: [
           IconButton(
+            tooltip: '所有短信列表',
             onPressed: () {
               textController.text = '';
               _querySms();
@@ -354,6 +360,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
             icon: const Icon(Icons.list_alt_outlined),
           ),
           IconButton(
+            tooltip: '关键字过滤',
             onPressed: _filterMsg,
             icon: const Icon(Icons.filter_alt_outlined),
           ),
@@ -404,7 +411,11 @@ class _SmsHomePageState extends State<SmsHomePage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.message_outlined, size: 80),
+                      Icon(
+                        Icons.message_outlined,
+                        size: 80,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                       const SizedBox(height: 10),
                       Text(
                         '没有短信',
@@ -479,7 +490,6 @@ class _SmsHomePageState extends State<SmsHomePage> {
                                           Navigator.of(context).pop('remove');
                                           _removeIndex(index);
                                         },
-                                        isDefaultAction: true,
                                         child: const Text('移出列表'),
                                       ),
                                       CupertinoActionSheetAction(
@@ -488,6 +498,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
                                           _deleteIndex(index);
                                         },
                                         isDestructiveAction: true,
+                                        isDefaultAction: true,
                                         child: const Text('直接删除'),
                                       ),
                                       CupertinoActionSheetAction(
@@ -514,6 +525,9 @@ class _SmsHomePageState extends State<SmsHomePage> {
                   },
                 ),
       floatingActionButton: FloatingActionButton(
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        tooltip: '删除当前列表所有短信',
+        shape: const CircleBorder(),
         onPressed: _deleteMsg,
         child: const Icon(Icons.delete_forever_outlined),
       ),
