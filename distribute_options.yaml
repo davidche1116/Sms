@@ -1,0 +1,12 @@
+output: dist/
+releases:
+  - name: apk
+    jobs:
+      - name: apk
+        package:
+          platform: android
+          target: apk
+          build_args:
+            target-platform: android-arm64
+            obfuscate:
+            split-debug-info: build/symbols/apk
