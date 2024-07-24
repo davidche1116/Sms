@@ -143,9 +143,17 @@ class _SmsHomePageState extends State<SmsHomePage> {
     bool check = await _checkDefalutSmsApp();
     if (check) {
       SmsRemover smsRemover = SmsRemover();
-      await smsRemover.removeSmsById(
+      bool? ok = await smsRemover.removeSmsById(
           showMessageList[index].id!, showMessageList[index].threadId!);
-      _querySms();
+      if (ok != null) {
+        if (ok) {
+          showMessageList.removeAt(index);
+          title = '${showMessageList.length}条短信';
+          setState(() {});
+        } else {
+          _showToast('删除失败');
+        }
+      }
     }
   }
 
