@@ -349,8 +349,13 @@ class _SmsHomePageState extends State<SmsHomePage> {
 
   Widget _buildItem(int index, SmsMessage item, BuildContext context,
       Animation<double> animation) {
-    return SizeTransition(
-      sizeFactor: animation,
+    return SlideTransition(
+      position:
+          Tween<Offset>(begin: const Offset(1, 0), end: const Offset(0, 0))
+              .animate(CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeInBack,
+                  reverseCurve: Curves.easeInOutBack)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
