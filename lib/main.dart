@@ -1,9 +1,16 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:csv/csv.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:sms_advanced/sms_advanced.dart';
 
 void main() {
@@ -341,6 +348,61 @@ class _SmsHomePageState extends State<SmsHomePage> {
     }
   }
 
+  _delDir(FileSystemEntity file) async {
+    if (file is Directory) {
+      final List<FileSystemEntity> children = file.listSync();
+      for (final FileSystemEntity child in children) {
+        await _delDir(child);
+      }
+    }
+    await file.delete();
+  }
+
+  _export() async {
+    List<String> headerRow = [
+      'id',
+      'threadId',
+      'sim',
+      'address',
+      'body',
+      'read',
+      'date',
+      'dateSent',
+      'kind',
+      'state'
+    ];
+    List<List<String>> headerAndDataList = [];
+    headerAndDataList.add(headerRow);
+    for (SmsMessage m in showMessageList) {
+      List<String> dataRow = [
+        m.id.toString(),
+        m.threadId.toString(),
+        m.sim.toString(),
+        m.address.toString(),
+        m.body.toString(),
+        m.isRead.toString(),
+        m.date.toString(),
+        m.dateSent.toString(),
+        m.kind.toString(),
+        m.state.toString()
+      ];
+      headerAndDataList.add(dataRow);
+    }
+
+    String csvData = const ListToCsvConverter().convert(headerAndDataList);
+    final bytes = utf8.encode(csvData);
+    Uint8List data = Uint8List.fromList(bytes);
+    XFile xFile = XFile.fromData(data, mimeType: 'text/csv');
+    Directory tempDir = await getTemporaryDirectory();
+    String path = '${tempDir.path}/短信列表.csv';
+    xFile.saveTo(path);
+    ShareResult res = await Share.shareXFiles([XFile(path)], text: '短信列表');
+    _delDir(tempDir);
+    if (res.status == ShareResultStatus.success) {
+      _showToast('分享成功，需用utf-8格式打开');
+    }
+  }
+
   @override
   void initState() {
     _querySms();
@@ -470,6 +532,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
               _selectView(Icons.settings_outlined, '应用权限设置', 'B'),
               _selectView(Icons.admin_panel_settings_outlined, '设置默认短信应用', 'C'),
               _selectView(Icons.refresh_rounded, '恢复默认短信应用', 'D'),
+              _selectView(Icons.share_outlined, '导出csv并分享', 'E'),
             ],
             onSelected: (String action) {
               switch (action) {
@@ -484,6 +547,9 @@ class _SmsHomePageState extends State<SmsHomePage> {
                   break;
                 case 'D':
                   _resetDefaultSmsApp();
+                  break;
+                case 'E':
+                  _export();
                   break;
               }
             },
