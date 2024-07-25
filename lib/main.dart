@@ -54,6 +54,7 @@ class SmsHomePage extends StatefulWidget {
 }
 
 class _SmsHomePageState extends State<SmsHomePage> {
+  final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
   List<SmsMessage> allMessageList = [];
   List<SmsMessage> showMessageList = [];
   String title = '短信';
@@ -129,12 +130,21 @@ class _SmsHomePageState extends State<SmsHomePage> {
     } else {
       showMessageList = [];
       _showToast('需要申请短信权限或设置为短信默认应用');
+      setState(() {});
     }
-    setState(() {});
   }
 
   _removeIndex(int index) {
-    showMessageList.removeAt(index);
+    final removedItem = showMessageList.removeAt(index);
+    title = '${showMessageList.length}条短信';
+    _listKey.currentState!.removeItem(
+      index,
+      (BuildContext context, Animation<double> animation) {
+        return _buildItem(index, removedItem, context, animation);
+      },
+    );
+    // return removedItem;
+
     title = '${showMessageList.length}条短信';
     setState(() {});
   }
@@ -147,9 +157,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
           showMessageList[index].id!, showMessageList[index].threadId!);
       if (ok != null) {
         if (ok) {
-          showMessageList.removeAt(index);
-          title = '${showMessageList.length}条短信';
-          setState(() {});
+          _removeIndex(index);
         } else {
           _showToast('删除失败');
         }
@@ -206,7 +214,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
                 focusNode: focusNode,
                 decoration: InputDecoration(
                   labelText: "关键字",
-                  prefixIcon: const Icon(Icons.filter_alt_outlined),
+                  prefixIcon: const Icon(Icons.search_outlined),
                   suffixIcon: GestureDetector(
                     onTap: () {
                       if (textController.text.isNotEmpty) {
@@ -339,6 +347,85 @@ class _SmsHomePageState extends State<SmsHomePage> {
     super.initState();
   }
 
+  Widget _buildItem(int index, SmsMessage item, BuildContext context,
+      Animation<double> animation) {
+    return SizeTransition(
+      sizeFactor: animation,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            minVerticalPadding: 8,
+            minLeadingWidth: 4,
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [Text(item.body ?? ''), const SizedBox(height: 5)],
+            ),
+            subtitle: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  item.sender ?? '',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                Text(
+                  item.date.toString().substring(0, 19),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+            onTap: () {
+              showCupertinoModalPopup(
+                  context: context,
+                  builder: (context) {
+                    return CupertinoActionSheet(
+                      title: const Text('提示'),
+                      message: const Text('是否要删除或移出当前项？'),
+                      actions: <Widget>[
+                        CupertinoActionSheetAction(
+                          onPressed: () {
+                            Navigator.of(context).pop('remove');
+                            _removeIndex(index);
+                          },
+                          child: const Text('移出列表'),
+                        ),
+                        CupertinoActionSheetAction(
+                          onPressed: () {
+                            Navigator.of(context).pop('delete');
+                            _deleteIndex(index);
+                          },
+                          isDestructiveAction: true,
+                          isDefaultAction: true,
+                          child: const Text('直接删除'),
+                        ),
+                        CupertinoActionSheetAction(
+                          onPressed: () {
+                            Navigator.of(context).pop('same');
+                            _sameAddress(index);
+                          },
+                          child: const Text('同号短信'),
+                        ),
+                      ],
+                      cancelButton: CupertinoActionSheetAction(
+                        child: const Text('取消'),
+                        onPressed: () {
+                          Navigator.of(context).pop('cancel');
+                        },
+                      ),
+                    );
+                  });
+            },
+          ),
+          const Divider()
+        ],
+      ),
+    );
+  }
+
   _selectView(IconData icon, String text, String id) {
     return PopupMenuItem<String>(
       value: id,
@@ -365,12 +452,12 @@ class _SmsHomePageState extends State<SmsHomePage> {
               textController.text = '';
               _querySms();
             },
-            icon: const Icon(Icons.list_alt_outlined),
+            icon: const Icon(Icons.format_list_bulleted_outlined),
           ),
           IconButton(
             tooltip: '关键字过滤',
             onPressed: _filterMsg,
-            icon: const Icon(Icons.filter_alt_outlined),
+            icon: const Icon(Icons.search_outlined),
           ),
           PopupMenuButton(
             itemBuilder: (BuildContext context) => <PopupMenuItem<String>>[
@@ -449,87 +536,13 @@ class _SmsHomePageState extends State<SmsHomePage> {
                     ],
                   ),
                 )
-              : ListView.builder(
-                  itemCount: showMessageList.length,
-                  itemBuilder: (BuildContext context, int index) {
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ListTile(
-                          minVerticalPadding: 8,
-                          minLeadingWidth: 4,
-                          title: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(showMessageList[index].body ?? ''),
-                              const SizedBox(height: 5)
-                            ],
-                          ),
-                          subtitle: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                showMessageList[index].sender ?? '',
-                                style: TextStyle(
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                              ),
-                              Text(
-                                showMessageList[index]
-                                    .date
-                                    .toString()
-                                    .substring(0, 19),
-                                style: TextStyle(
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                              ),
-                            ],
-                          ),
-                          onTap: () {
-                            showCupertinoModalPopup(
-                                context: context,
-                                builder: (context) {
-                                  return CupertinoActionSheet(
-                                    title: const Text('提示'),
-                                    message: const Text('是否要删除或移出当前项？'),
-                                    actions: <Widget>[
-                                      CupertinoActionSheetAction(
-                                        onPressed: () {
-                                          Navigator.of(context).pop('remove');
-                                          _removeIndex(index);
-                                        },
-                                        child: const Text('移出列表'),
-                                      ),
-                                      CupertinoActionSheetAction(
-                                        onPressed: () {
-                                          Navigator.of(context).pop('delete');
-                                          _deleteIndex(index);
-                                        },
-                                        isDestructiveAction: true,
-                                        isDefaultAction: true,
-                                        child: const Text('直接删除'),
-                                      ),
-                                      CupertinoActionSheetAction(
-                                        onPressed: () {
-                                          Navigator.of(context).pop('same');
-                                          _sameAddress(index);
-                                        },
-                                        child: const Text('同号短信'),
-                                      ),
-                                    ],
-                                    cancelButton: CupertinoActionSheetAction(
-                                      child: const Text('取消'),
-                                      onPressed: () {
-                                        Navigator.of(context).pop('cancel');
-                                      },
-                                    ),
-                                  );
-                                });
-                          },
-                        ),
-                        const Divider()
-                      ],
-                    );
+              : AnimatedList(
+                  key: _listKey,
+                  initialItemCount: showMessageList.length,
+                  itemBuilder: (BuildContext context, int index,
+                      Animation<double> animation) {
+                    SmsMessage item = showMessageList[index];
+                    return _buildItem(index, item, context, animation);
                   },
                 ),
       floatingActionButton: FloatingActionButton(
