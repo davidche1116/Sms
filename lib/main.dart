@@ -220,13 +220,13 @@ class _SmsHomePageState extends State<SmsHomePage> {
                       if (textController.text.isNotEmpty) {
                         textController.text = '';
                       } else {
-                        _filterSubmit();
+                        SmartDialog.dismiss(status: SmartStatus.custom);
                       }
                     },
                     child: const Icon(Icons.clear_outlined),
                   ),
                 ),
-                onSubmitted: (String smg) {
+                onSubmitted: (_) {
                   _filterSubmit();
                 },
               ),
@@ -305,7 +305,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
   _requestPermission() async {
     PermissionStatus status = await Permission.sms.request();
     bool ok = (status == PermissionStatus.granted);
-    if (ok) {
+    if (ok && showMessageList.isEmpty) {
       _querySms();
     }
     _showToast('操作${ok ? '成功' : '失败'}');
