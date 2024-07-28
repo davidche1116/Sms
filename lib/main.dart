@@ -137,7 +137,9 @@ class _SmsHomePageState extends State<SmsHomePage> {
     } else {
       showMessageList = [];
       _showToast('需要申请短信权限或设置为短信默认应用');
-      setState(() {});
+      setState(() {
+        showLoading = false;
+      });
     }
   }
 
