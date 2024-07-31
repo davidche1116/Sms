@@ -478,6 +478,16 @@ class _SmsHomePageState extends State<SmsHomePage> {
                           },
                           child: const Text('同号短信'),
                         ),
+                        CupertinoActionSheetAction(
+                          onPressed: () {
+                            Navigator.of(context).pop('copy');
+                            Clipboard.setData(ClipboardData(
+                                text:
+                                    '${showMessageList[index].address}\r\n${showMessageList[index].date}\r\n${showMessageList[index].body}'));
+                            _showToast('已复制到剪切板');
+                          },
+                          child: const Text('复制'),
+                        ),
                       ],
                       cancelButton: CupertinoActionSheetAction(
                         child: const Text('取消'),
