@@ -35,7 +35,7 @@ dependencies:
     sdk: flutter
 
   # 跨平台文件
-  cross_file: ^0.3.4+1
+  cross_file: ^0.3.4+2
   # 导出csv
   csv: ^6.0.0
   # 对话框loading

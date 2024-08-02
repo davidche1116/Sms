@@ -28,12 +28,16 @@ class SmsApp extends StatelessWidget {
     return MaterialApp(
       title: '短信清理',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: themeColor),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: themeColor,
+          dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+        ),
       ),
       darkTheme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: themeColor,
           brightness: Brightness.dark,
+          dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
         ),
         brightness: Brightness.dark,
       ),
@@ -207,7 +211,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
         return Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Theme.of(context).dialogBackgroundColor,
+            color: Theme.of(context).colorScheme.surfaceContainer,
             borderRadius:
                 const BorderRadius.vertical(bottom: Radius.circular(20)),
           ),
