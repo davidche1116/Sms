@@ -55,6 +55,10 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- EnableImpeller -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="true" />
 
         <!-- BroadcastReceiver that listens for incoming SMS messages -->
         <receiver android:name=".SmsReceiver"
