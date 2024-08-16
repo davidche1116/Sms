@@ -12,7 +12,15 @@ subprojects {
 subprojects {
     project.evaluationDependsOn(":app")
 }
-
+subprojects {
+    buildscript {
+        ext.kotlin_version = '1.8.22'
+        dependencies {
+            classpath 'com.android.tools.build:gradle:7.4.2'
+            classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        }
+    }
+}
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
 }
