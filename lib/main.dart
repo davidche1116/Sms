@@ -66,7 +66,6 @@ class SmsHomePage extends StatefulWidget {
 
 class _SmsHomePageState extends State<SmsHomePage> {
   final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
-  List<SmsMessage> allMessageList = [];
   List<SmsMessage> showMessageList = [];
   String title = '短信';
   TextEditingController textController = TextEditingController();
@@ -118,7 +117,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
       setState(() {
         showLoading = true;
       });
-      allMessageList = [];
+      List<SmsMessage> allMessageList = [];
       SmsQuery query = SmsQuery();
       allMessageList = await query.getAllSms;
       if (textController.text.isNotEmpty) {
@@ -185,7 +184,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
       setState(() {
         showLoading = true;
       });
-      allMessageList = [];
+
       SmsQuery query = SmsQuery();
       showMessageList =
           await query.querySms(address: showMessageList[index].address);
