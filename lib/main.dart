@@ -65,14 +65,14 @@ class SmsHomePage extends StatefulWidget {
 }
 
 class _SmsHomePageState extends State<SmsHomePage> {
+  static const _platform = MethodChannel('com.dc16.sms/smsApp');
+  static const String _packageId = 'com.dc16.sms';
   final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
-  List<SmsMessage> showMessageList = [];
-  String title = '短信';
-  TextEditingController textController = TextEditingController();
-  FocusNode focusNode = FocusNode();
-  static const platform = MethodChannel('com.dc16.sms/smsApp');
-  static const String packageId = 'com.dc16.sms';
-  bool showLoading = true;
+  final ValueNotifier<List<SmsMessage>> _showList =
+      ValueNotifier<List<SmsMessage>>([]);
+  final TextEditingController _textController = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
+  final ValueNotifier<bool> _showLoading = ValueNotifier<bool>(true);
 
   _showToast(String msg) async {
     SmartDialog.showToast(
@@ -99,8 +99,8 @@ class _SmsHomePageState extends State<SmsHomePage> {
 
   Future<bool> _checkDefalutSmsApp() async {
     try {
-      final smsApp = await platform.invokeMethod<String>('getDefaultSmsApp');
-      bool same = (smsApp == packageId);
+      final smsApp = await _platform.invokeMethod<String>('getDefaultSmsApp');
+      bool same = (smsApp == _packageId);
       if (!same) {
         _showToast('需要在系统设置中将本应用设置为默认短信应用才能删除短信');
       }
@@ -113,17 +113,15 @@ class _SmsHomePageState extends State<SmsHomePage> {
 
   _querySms() async {
     bool ok = await Permission.sms.isGranted;
+    List<SmsMessage> showMessageList = [];
     if (ok) {
-      setState(() {
-        showLoading = true;
-      });
+      _showLoading.value = true;
       List<SmsMessage> allMessageList = [];
       SmsQuery query = SmsQuery();
       allMessageList = await query.getAllSms;
-      if (textController.text.isNotEmpty) {
-        showMessageList = [];
+      if (_textController.text.isNotEmpty) {
         for (int i = 0; i < allMessageList.length; ++i) {
-          if (allMessageList[i].body!.contains(textController.text)) {
+          if (allMessageList[i].body!.contains(_textController.text)) {
             showMessageList.add(allMessageList[i]);
           }
         }
@@ -132,23 +130,19 @@ class _SmsHomePageState extends State<SmsHomePage> {
       }
 
       showMessageList.sort((a, b) => b.date!.compareTo(a.date!));
-      title = '${showMessageList.length}条短信';
 
-      setState(() {
-        showLoading = false;
-      });
+      _showLoading.value = false;
     } else {
       showMessageList = [];
       _showToast('需要申请短信权限或设置为短信默认应用');
-      setState(() {
-        showLoading = false;
-      });
+      _showLoading.value = false;
     }
+    _showList.value = showMessageList;
   }
 
   _removeIndex(int index) {
-    final removedItem = showMessageList.removeAt(index);
-    title = '${showMessageList.length}条短信';
+    final removedItem = _showList.value.removeAt(index);
+    _showList.value = [..._showList.value];
     _listKey.currentState!.removeItem(
       index,
       (BuildContext context, Animation<double> animation) {
@@ -156,9 +150,6 @@ class _SmsHomePageState extends State<SmsHomePage> {
       },
     );
     // return removedItem;
-
-    title = '${showMessageList.length}条短信';
-    setState(() {});
   }
 
   _deleteIndex(int index) async {
@@ -166,7 +157,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
     if (check) {
       SmsRemover smsRemover = SmsRemover();
       bool? ok = await smsRemover.removeSmsById(
-          showMessageList[index].id!, showMessageList[index].threadId!);
+          _showList.value[index].id!, _showList.value[index].threadId!);
       if (ok != null) {
         if (ok) {
           _removeIndex(index);
@@ -178,32 +169,29 @@ class _SmsHomePageState extends State<SmsHomePage> {
   }
 
   _sameAddress(int index) async {
-    textController.text = '';
+    _textController.text = '';
+    List<SmsMessage> showMessageList = [];
     bool ok = await Permission.sms.isGranted;
     if (ok) {
-      setState(() {
-        showLoading = true;
-      });
+      _showLoading.value = true;
 
       SmsQuery query = SmsQuery();
       showMessageList =
-          await query.querySms(address: showMessageList[index].address);
-      title = '${showMessageList.length}条短信';
+          await query.querySms(address: _showList.value[index].address);
       showMessageList.sort((a, b) => b.date!.compareTo(a.date!));
 
-      setState(() {
-        showLoading = false;
-      });
+      _showLoading.value = false;
     } else {
       showMessageList = [];
     }
-    setState(() {});
+
+    _showList.value = showMessageList;
   }
 
   _filterMsg() {
     double top = MediaQuery.of(context).padding.top;
     double width = MediaQuery.of(context).size.width / 2;
-    focusNode.requestFocus();
+    _focusNode.requestFocus();
     SmartDialog.show(
       alignment: Alignment.topCenter,
       builder: (_) {
@@ -222,15 +210,15 @@ class _SmsHomePageState extends State<SmsHomePage> {
               ),
               TextField(
                 autofocus: true,
-                controller: textController,
-                focusNode: focusNode,
+                controller: _textController,
+                focusNode: _focusNode,
                 decoration: InputDecoration(
                   labelText: "关键字",
                   prefixIcon: const Icon(Icons.search_outlined),
                   suffixIcon: GestureDetector(
                     onTap: () {
-                      if (textController.text.isNotEmpty) {
-                        textController.text = '';
+                      if (_textController.text.isNotEmpty) {
+                        _textController.text = '';
                       } else {
                         SmartDialog.dismiss(status: SmartStatus.custom);
                       }
@@ -272,7 +260,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
       builder: (context) {
         return CupertinoActionSheet(
           title: const Text('确认删除'),
-          message: Text('是否删除这${showMessageList.length}条短信？'),
+          message: Text('是否删除这${_showList.value.length}条短信？'),
           actions: <Widget>[
             CupertinoActionSheetAction(
               onPressed: () {
@@ -298,18 +286,12 @@ class _SmsHomePageState extends State<SmsHomePage> {
   _deleteSubmit() async {
     bool check = await _checkDefalutSmsApp();
     if (check) {
-      setState(() {
-        showLoading = true;
-      });
+      _showLoading.value = true;
       SmsRemover smsRemover = SmsRemover();
-      for (int i = 0; i < showMessageList.length; ++i) {
+      for (int i = 0; i < _showList.value.length; ++i) {
         await smsRemover.removeSmsById(
-            showMessageList[i].id!, showMessageList[i].threadId!);
+            _showList.value[i].id!, _showList.value[i].threadId!);
       }
-
-      setState(() {
-        showLoading = false;
-      });
       _querySms();
     }
   }
@@ -317,7 +299,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
   _requestPermission() async {
     PermissionStatus status = await Permission.sms.request();
     bool ok = (status == PermissionStatus.granted);
-    if (ok && showMessageList.isEmpty) {
+    if (ok && _showList.value.isEmpty) {
       _querySms();
     }
     _showToast('操作${ok ? '成功' : '失败'}');
@@ -332,9 +314,9 @@ class _SmsHomePageState extends State<SmsHomePage> {
 
   _setDefaultApp() async {
     try {
-      final set = await platform.invokeMethod<String>('setDefaultSmsApp');
-      final get = await platform.invokeMethod<String>('getDefaultSmsApp');
-      if (set == 'had' || get == packageId) {
+      final set = await _platform.invokeMethod<String>('setDefaultSmsApp');
+      final get = await _platform.invokeMethod<String>('getDefaultSmsApp');
+      if (set == 'had' || get == _packageId) {
         _showToast('操作成功');
       }
     } on PlatformException catch (e) {
@@ -344,7 +326,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
 
   _resetDefaultSmsApp() async {
     try {
-      final result = await platform.invokeMethod<String>('resetDefaultSmsApp');
+      final result = await _platform.invokeMethod<String>('resetDefaultSmsApp');
       if (result == 'no') {
         _showToast('操作失败');
       }
@@ -378,7 +360,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
     ];
     List<List<String>> headerAndDataList = [];
     headerAndDataList.add(headerRow);
-    for (SmsMessage m in showMessageList) {
+    for (SmsMessage m in _showList.value) {
       List<String> dataRow = [
         m.id.toString(),
         m.threadId.toString(),
@@ -486,7 +468,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
                             Navigator.of(context).pop('copy');
                             Clipboard.setData(ClipboardData(
                                 text:
-                                    '${showMessageList[index].address}\r\n${showMessageList[index].date}\r\n${showMessageList[index].body}'));
+                                    '${_showList.value[index].address}\r\n${_showList.value[index].date}\r\n${_showList.value[index].body}'));
                             _showToast('已复制到剪切板');
                           },
                           child: const Text('复制'),
@@ -536,12 +518,19 @@ class _SmsHomePageState extends State<SmsHomePage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text(title),
+        title: ValueListenableBuilder(
+            valueListenable: _showList,
+            builder:
+                (BuildContext context, List<SmsMessage> value, Widget? child) {
+              return value.isEmpty
+                  ? const Text('短信')
+                  : Text('${value.length}条短信');
+            }),
         actions: [
           IconButton(
             tooltip: '所有短信列表',
             onPressed: () {
-              textController.text = '';
+              _textController.text = '';
               _querySms();
             },
             icon: const Icon(Icons.format_list_bulleted_outlined),
@@ -581,66 +570,78 @@ class _SmsHomePageState extends State<SmsHomePage> {
           ),
         ],
       ),
-      body: showLoading
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const CircularProgressIndicator(),
-                  Container(
-                    margin: const EdgeInsets.only(top: 20),
-                    child: Text(
-                      '请稍等',
-                      style: Theme.of(context).textTheme.titleLarge,
+      body: ValueListenableBuilder(
+          valueListenable: _showLoading,
+          builder: (BuildContext context, bool value, Widget? child) {
+            return value
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(),
+                        Container(
+                          margin: const EdgeInsets.only(top: 20),
+                          child: Text(
+                            '请稍等',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-            )
-          : showMessageList.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.message_outlined,
-                        size: 80,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        '没有短信',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 80),
-                      FilledButton(
-                          onPressed: () {
-                            textController.text = '';
-                            _querySms();
-                          },
-                          child: const Text('移除过滤条件')),
-                      const SizedBox(height: 10),
-                      FilledButton(
-                        onPressed: _setDefaultApp,
-                        child: const Text('设置默认短信'),
-                      ),
-                      const SizedBox(height: 10),
-                      FilledButton(
-                        onPressed: _requestPermission,
-                        child: const Text('申请短信权限'),
-                      ),
-                    ],
-                  ),
-                )
-              : AnimatedList(
-                  key: _listKey,
-                  initialItemCount: showMessageList.length,
-                  itemBuilder: (BuildContext context, int index,
-                      Animation<double> animation) {
-                    SmsMessage item = showMessageList[index];
-                    return _buildItem(index, item, context, animation);
-                  },
-                ),
+                  )
+                : ValueListenableBuilder(
+                    valueListenable: _showList,
+                    builder: (BuildContext context, List<SmsMessage> value,
+                        Widget? child) {
+                      return value.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.message_outlined,
+                                    size: 80,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    '没有短信',
+                                    style:
+                                        Theme.of(context).textTheme.titleLarge,
+                                  ),
+                                  const SizedBox(height: 80),
+                                  FilledButton(
+                                      onPressed: () {
+                                        _textController.text = '';
+                                        _querySms();
+                                      },
+                                      child: const Text('移除过滤条件')),
+                                  const SizedBox(height: 10),
+                                  FilledButton(
+                                    onPressed: _setDefaultApp,
+                                    child: const Text('设置默认短信'),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  FilledButton(
+                                    onPressed: _requestPermission,
+                                    child: const Text('申请短信权限'),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : AnimatedList(
+                              key: _listKey,
+                              initialItemCount: value.length,
+                              itemBuilder: (BuildContext context, int index,
+                                  Animation<double> animation) {
+                                SmsMessage item = value[index];
+                                return _buildItem(
+                                    index, item, context, animation);
+                              },
+                            );
+                    });
+          }),
       floatingActionButton: FloatingActionButton(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         tooltip: '删除当前列表所有短信',
