@@ -1,23 +1,14 @@
 package com.dc16.sms
 
-import io.flutter.embedding.android.FlutterFragmentActivity
+import android.app.role.RoleManager
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.provider.Telephony
 import androidx.annotation.NonNull
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
-import android.content.Context
-import android.content.ContextWrapper
-import android.content.Intent
-import android.content.IntentFilter
-import android.provider.Telephony
-import android.os.Build
-import android.os.Build.VERSION
-import android.os.Build.VERSION_CODES
-import android.app.role.RoleManager
-import android.content.ContentValues
-import android.net.Uri
-import android.provider.Settings
-import android.content.pm.PackageManager
 
 class MainActivity : FlutterFragmentActivity() {
     private val CHANNEL = "com.dc16.sms/smsApp"
@@ -79,13 +70,19 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     private fun resetDefaultSmsApp(): String {
-        val packageManager: PackageManager = getPackageManager();
-        val intent: Intent? = packageManager.getLaunchIntentForPackage("com.android.mms")
+        val packageManager: PackageManager = getPackageManager()
+        var intent: Intent? = packageManager.getLaunchIntentForPackage("com.android.mms")
         if (intent != null) {
             startActivity(intent)
             return "ok"
         } else {
-            return "no"
+            intent = packageManager.getLaunchIntentForPackage("com.google.android.apps.messaging")
+            if (intent != null) {
+                startActivity(intent)
+                return "ok"
+            } else {
+                return "no"
+            }
         }
     }
 }
