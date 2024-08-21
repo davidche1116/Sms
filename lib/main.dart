@@ -346,6 +346,11 @@ class _SmsHomePageState extends State<SmsHomePage> {
   }
 
   _export() async {
+    if (_showList.value.isEmpty) {
+      _showToast('没有短信可分享');
+      return;
+    }
+
     List<String> headerRow = [
       'id',
       'threadId',
