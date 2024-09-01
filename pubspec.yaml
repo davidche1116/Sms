@@ -42,7 +42,7 @@ dependencies:
   # 导出csv
   csv: ^6.0.0
   # 对话框loading
-  flutter_smart_dialog: ^4.9.8
+  flutter_smart_dialog: ^4.9.8+1
   # 获取临时目录
   path_provider: ^2.1.4
   # 权限申请
