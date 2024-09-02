@@ -24,8 +24,8 @@
 ### [Flutter](https://docs.flutter.cn/get-started/install)
 - flutter 3.24.1
 - dart 3.5.1
-- gradle 7.6.3
-- gradle-plugin 7.4.2
+- gradle 8.3
+- gradle-plugin 8.1.4
 - kotlin 1.8.22
 
 ### 编译命令
