@@ -418,10 +418,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
             minLeadingWidth: 4,
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SelectableText(item.body ?? ''),
-                const SizedBox(height: 5)
-              ],
+              children: [Text(item.body ?? ''), const SizedBox(height: 5)],
             ),
             subtitle: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -482,6 +479,27 @@ class _SmsHomePageState extends State<SmsHomePage> {
                           child: const Text('复制'),
                         ),
                       ],
+                      cancelButton: CupertinoActionSheetAction(
+                        child: const Text('取消'),
+                        onPressed: () {
+                          Navigator.of(context).pop('cancel');
+                        },
+                      ),
+                    );
+                  });
+            },
+            onLongPress: () {
+              showCupertinoModalPopup(
+                  context: context,
+                  builder: (context) {
+                    return CupertinoActionSheet(
+                      title: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: SelectableText(
+                          item.body ?? '',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
                       cancelButton: CupertinoActionSheetAction(
                         child: const Text('取消'),
                         onPressed: () {
