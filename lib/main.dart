@@ -418,7 +418,10 @@ class _SmsHomePageState extends State<SmsHomePage> {
             minLeadingWidth: 4,
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [Text(item.body ?? ''), const SizedBox(height: 5)],
+              children: [
+                SelectableText(item.body ?? ''),
+                const SizedBox(height: 5)
+              ],
             ),
             subtitle: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
