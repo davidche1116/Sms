@@ -22,7 +22,7 @@ issue_tracker: https://github.com/davidche1116/Sms/issues
 version: 1.2.7+240902
 
 environment:
-  sdk: ^3.5.1
+  sdk: ^3.5.2
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions

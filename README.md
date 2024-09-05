@@ -22,8 +22,8 @@
 
 ## 开发环境
 ### [Flutter](https://docs.flutter.cn/get-started/install)
-- flutter 3.24.1
-- dart 3.5.1
+- flutter 3.24.2
+- dart 3.5.2
 - gradle 8.3
 - gradle-plugin 8.1.4
 - kotlin 1.8.22
