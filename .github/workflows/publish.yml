@@ -38,7 +38,7 @@ jobs:
         shell: bash
 
       - name: Archive APK
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: 'release-apk'
           # Try running the build locally with the build command to be sure of this path
