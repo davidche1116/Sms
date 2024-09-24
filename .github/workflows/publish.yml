@@ -6,7 +6,7 @@ on:
       - '[0-9]+.[0-9]+.[0-9]+*'
 
 jobs:
-  publishing:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: 'Checkout'
@@ -37,9 +37,9 @@ jobs:
         run: flutter_distributor release --name apk
         shell: bash
 
-      - name: Archive APK
-        uses: actions/upload-artifact@v4
+      - name: Build APK
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          name: 'release-apk'
-          # Try running the build locally with the build command to be sure of this path
-          path: build/app/outputs/flutter-apk/app-release.apk
+          files: build/app/outputs/flutter-apk/app-release.apk
+          draft: true
