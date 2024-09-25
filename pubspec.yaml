@@ -63,7 +63,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^4.0.0
 
-  flutter_launcher_icons: ^0.14.0
+  flutter_launcher_icons: ^0.14.1
 
   flutter_native_splash: ^2.4.1
 
