@@ -43,3 +43,4 @@ jobs:
         with:
           files: build/app/outputs/flutter-apk/app-release.apk
           draft: true
+          token: ${{ secrets.SMS_RELEASE }}
