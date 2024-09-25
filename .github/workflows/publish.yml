@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: 'Checkout'
+      - name: Checkout
         uses: actions/checkout@main # required!
 
       - name: Set Up Java
@@ -29,7 +29,7 @@ jobs:
         run: flutter pub get
         shell: bash
 
-      - name: Install Dependencies
+      - name: Install flutter_distributor
         run: dart pub global activate flutter_distributor
         shell: bash
 
@@ -37,7 +37,7 @@ jobs:
         run: flutter_distributor release --name apk
         shell: bash
 
-      - name: Build APK
+      - name: Release APK
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
