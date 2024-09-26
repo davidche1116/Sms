@@ -61,7 +61,7 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^4.0.0
+  flutter_lints: ^5.0.0
 
   flutter_launcher_icons: ^0.14.1
 
@@ -116,4 +116,4 @@ flutter_launcher_icons:
   min_sdk_android: 26 # android min sdk min:16, default 21
   adaptive_icon_background: "#2BAE67"
   adaptive_icon_foreground: "assets/icon/foreground.png"
-  adaptive_icon_foreground_inset: 8
+  adaptive_icon_foreground_inset: 5
