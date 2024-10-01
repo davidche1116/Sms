@@ -421,18 +421,36 @@ class _SmsHomePageState extends State<SmsHomePage> {
               children: [Text(item.body ?? ''), const SizedBox(height: 5)],
             ),
             subtitle: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              spacing: 10,
               children: [
-                Text(
-                  item.sender ?? '',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.primary,
+                Container(
+                  padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '卡${item.sim}',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onPrimary,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    item.sender ?? '',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: true,
                   ),
                 ),
                 Text(
                   item.date.toString().substring(0, 19),
                   style: TextStyle(
-                    color: Theme.of(context).colorScheme.primary,
+                    color: Theme.of(context).colorScheme.primaryContainer,
                   ),
                 ),
               ],
