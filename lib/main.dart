@@ -442,9 +442,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.primary,
                     ),
-                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    softWrap: true,
                   ),
                 ),
                 Text(
@@ -518,6 +516,17 @@ class _SmsHomePageState extends State<SmsHomePage> {
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                       ),
+                      actions: [
+                        CupertinoActionSheetAction(
+                          onPressed: () {
+                            Navigator.of(context).pop('copy');
+                            Clipboard.setData(ClipboardData(
+                                text: '${_showList.value[index].address}'));
+                            _showToast('已复制到剪切板');
+                          },
+                          child: Text(item.address ?? ''),
+                        ),
+                      ],
                       cancelButton: CupertinoActionSheetAction(
                         child: const Text('取消'),
                         onPressed: () {
