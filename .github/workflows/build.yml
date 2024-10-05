@@ -41,6 +41,14 @@ jobs:
         run: dart pub global activate flutter_distributor
         shell: bash
 
+      - name: Analyze project source
+        run: flutter doctor --verbose
+        shell: bash
+
+      - name: Analyze project source
+        run: dart analyze
+        shell: bash
+
       - name: Build APK
         run: flutter_distributor release --name apk
         shell: bash
