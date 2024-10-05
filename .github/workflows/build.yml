@@ -12,6 +12,9 @@ on:
           - master
           - stable
   push:
+    inputs:
+      flutter_channel:
+        default: 'beta'
 
 jobs:
   build:
