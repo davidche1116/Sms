@@ -1,6 +1,16 @@
-name: Build and archive
+name: Manual operation
 
-on: push
+on:
+  workflow_dispatch:
+    inputs:
+      flutter_channel:
+        default: 'beta'
+        required: true
+        type: choice
+        options:
+          - beta
+          - master
+          - stable
 
 jobs:
   build:
@@ -19,7 +29,7 @@ jobs:
       - name: Set Up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'beta'
+          channel: ${{ inputs.flutter_channel }}
           cache: true
 
       - name: Install Dependencies
