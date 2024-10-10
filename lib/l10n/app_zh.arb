@@ -1,0 +1,55 @@
+{
+  "@@locale": "zh",
+  "title": "短信清理",
+  "toast_default": "需要在系统设置中将本应用设置为默认短信应用才能删除短信",
+  "toast_permission": "需要申请短信权限或设置为短信默认应用",
+  "keyword": "关键字",
+  "b_confirm": "确定",
+  "t_confirm_delete": "确认删除",
+  "delete_num": "是否删除这{num}条短信？",
+  "@delete_num": {
+    "description": "A message with a single parameter",
+    "placeholders": {
+      "num": {
+        "type": "String",
+        "example": "1"
+      }
+    }
+  },
+  "b_cancel": "取消",
+  "operation_failed": "操作失败",
+  "operation_completed": "操作成功",
+  "toast_no": "没有短信可分享",
+  "sms_list": "短信列表",
+  "toast_share": "分享成功，需用utf-8格式打开",
+  "tips": "提示",
+  "delete_or_move": "是否要删除或移出当前项？",
+  "b_remove": "移出列表",
+  "b_delete": "直接删除",
+  "b_same_number": "同号短信",
+  "toast_clipboard": "已复制到剪切板",
+  "b_copy": "复制",
+  "sms": "短信",
+  "num_sms": "{num}条短信",
+  "@num_sms": {
+    "description": "A message with a single parameter",
+    "placeholders": {
+      "num": {
+        "type": "String",
+        "example": "1"
+      }
+    }
+  },
+  "t_all_sms": "所有短信列表",
+  "t_keyword_filter": "关键字过滤",
+  "set_permission": "申请短信权限",
+  "set_settings": "应用权限设置",
+  "set_default": "设置默认短信应用",
+  "set_restore": "恢复默认短信应用",
+  "set_export": "导出csv并分享",
+  "t_wait": "请稍等",
+  "t_no_sms": "没有短信",
+  "b_remove_filter": "移除过滤条件",
+  "t_delete_all": "删除当前列表所有短信",
+  "sim": "卡"
+}

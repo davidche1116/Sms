@@ -1,0 +1,55 @@
+{
+  "@@locale": "en",
+  "title": "Message Cleanup",
+  "toast_default": "To delete SMS messages, you need to set this application as the default SMS application in system Settings",
+  "toast_permission": "You need to apply for SMS permission or set it as the default SMS app",
+  "keyword": "Keyword",
+  "b_confirm": "Confirm",
+  "t_confirm_delete": "Confirm Delete",
+  "delete_num": "Do you want to delete {num} SMS?",
+  "@delete_num": {
+    "description": "A message with a single parameter",
+    "placeholders": {
+      "num": {
+        "type": "String",
+        "example": "1"
+      }
+    }
+  },
+  "b_cancel": "Cancel",
+  "operation_failed": "Operation Failed",
+  "operation_completed": "Operation Completed",
+  "toast_no": "No SMS to share",
+  "sms_list": "SMS list",
+  "toast_share": "The sharing is successful and must be opened in utf-8 format",
+  "tips": "TIPS",
+  "delete_or_move": "Do you want to delete or move the current item?",
+  "b_remove": "Remove from list",
+  "b_delete": "Delete",
+  "b_same_number": "Same number",
+  "toast_clipboard": "Copied to clipboard",
+  "b_copy": "Copy",
+  "sms": "SMS",
+  "num_sms": "{num} SMS",
+  "@num_sms": {
+    "description": "A message with a single parameter",
+    "placeholders": {
+      "num": {
+        "type": "String",
+        "example": "1"
+      }
+    }
+  },
+  "t_all_sms": "List all of SMS",
+  "t_keyword_filter": "Keyword filter",
+  "set_permission": "Request SMS permission",
+  "set_settings": "app settings",
+  "set_default": "Set as the default SMS app",
+  "set_restore": "Restore the default SMS app",
+  "set_export": "Export csv and share",
+  "t_wait": "Wait",
+  "t_no_sms": "No SMS",
+  "b_remove_filter": "Remove filter condition",
+  "t_delete_all": "Delete all SMS from the current list",
+  "sim": "sim"
+}

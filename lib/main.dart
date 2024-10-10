@@ -6,7 +6,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -26,7 +26,9 @@ class SmsApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '短信清理',
+      onGenerateTitle: (BuildContext context) {
+        return AppLocalizations.of(context)!.title;
+      },
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: themeColor,
@@ -44,15 +46,8 @@ class SmsApp extends StatelessWidget {
       home: const SmsHomePage(),
       navigatorObservers: [FlutterSmartDialog.observer],
       builder: FlutterSmartDialog.init(),
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [
-        Locale('zh', 'CN'),
-      ],
-      locale: const Locale('zh', 'CN'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
     );
   }
 }
@@ -73,6 +68,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
   final TextEditingController _textController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   final ValueNotifier<bool> _showLoading = ValueNotifier<bool>(true);
+  late AppLocalizations appLocalizations;
 
   _showToast(String msg) async {
     SmartDialog.showToast(
@@ -102,7 +98,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
       final smsApp = await _platform.invokeMethod<String>('getDefaultSmsApp');
       bool same = (smsApp == _packageId);
       if (!same) {
-        _showToast('需要在系统设置中将本应用设置为默认短信应用才能删除短信');
+        _showToast(appLocalizations.toast_default);
       }
       return same;
     } on PlatformException catch (e) {
@@ -134,7 +130,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
       _showLoading.value = false;
     } else {
       showMessageList = [];
-      _showToast('需要申请短信权限或设置为短信默认应用');
+      _showToast(appLocalizations.toast_permission);
       _showLoading.value = false;
     }
     _showList.value = showMessageList;
@@ -162,7 +158,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
         if (ok) {
           _removeIndex(index);
         } else {
-          _showToast('删除失败');
+          _showToast(appLocalizations.operation_failed);
         }
       }
     }
@@ -213,7 +209,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
                 controller: _textController,
                 focusNode: _focusNode,
                 decoration: InputDecoration(
-                  labelText: "关键字",
+                  labelText: appLocalizations.keyword,
                   prefixIcon: const Icon(Icons.search_outlined),
                   suffixIcon: GestureDetector(
                     onTap: () {
@@ -237,8 +233,8 @@ class _SmsHomePageState extends State<SmsHomePage> {
                 onPressed: _filterSubmit,
                 child: SizedBox(
                   width: width,
-                  child: const Center(
-                    child: Text('确定'),
+                  child: Center(
+                    child: Text(appLocalizations.b_confirm),
                   ),
                 ),
               ),
@@ -259,8 +255,9 @@ class _SmsHomePageState extends State<SmsHomePage> {
       context: context,
       builder: (context) {
         return CupertinoActionSheet(
-          title: const Text('确认删除'),
-          message: Text('是否删除这${_showList.value.length}条短信？'),
+          title: Text(appLocalizations.t_confirm_delete),
+          message: Text(
+              appLocalizations.delete_num(_showList.value.length.toString())),
           actions: <Widget>[
             CupertinoActionSheetAction(
               onPressed: () {
@@ -269,11 +266,11 @@ class _SmsHomePageState extends State<SmsHomePage> {
               },
               isDestructiveAction: true,
               isDefaultAction: true,
-              child: const Text('确认'),
+              child: Text(appLocalizations.b_confirm),
             ),
           ],
           cancelButton: CupertinoActionSheetAction(
-            child: const Text('取消'),
+            child: Text(appLocalizations.b_cancel),
             onPressed: () {
               Navigator.of(context).pop('cancel');
             },
@@ -302,13 +299,15 @@ class _SmsHomePageState extends State<SmsHomePage> {
     if (ok && _showList.value.isEmpty) {
       _querySms();
     }
-    _showToast('操作${ok ? '成功' : '失败'}');
+    _showToast(ok
+        ? appLocalizations.operation_completed
+        : appLocalizations.operation_failed);
   }
 
   _setAppPermission() async {
     bool ok = await openAppSettings();
     if (!ok) {
-      _showToast('操作失败');
+      _showToast(appLocalizations.operation_failed);
     }
   }
 
@@ -317,10 +316,10 @@ class _SmsHomePageState extends State<SmsHomePage> {
       final set = await _platform.invokeMethod<String>('setDefaultSmsApp');
       final get = await _platform.invokeMethod<String>('getDefaultSmsApp');
       if (set == 'had' || get == _packageId) {
-        _showToast('操作成功');
+        _showToast(appLocalizations.operation_completed);
       }
     } on PlatformException catch (e) {
-      _showToast(e.message ?? '操作失败');
+      _showToast(e.message ?? appLocalizations.operation_failed);
     }
   }
 
@@ -328,10 +327,10 @@ class _SmsHomePageState extends State<SmsHomePage> {
     try {
       final result = await _platform.invokeMethod<String>('resetDefaultSmsApp');
       if (result == 'no') {
-        _showToast('操作失败');
+        _showToast(appLocalizations.operation_failed);
       }
     } on PlatformException catch (e) {
-      _showToast(e.message ?? '操作失败');
+      _showToast(e.message ?? appLocalizations.operation_failed);
     }
   }
 
@@ -347,7 +346,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
 
   _export() async {
     if (_showList.value.isEmpty) {
-      _showToast('没有短信可分享');
+      _showToast(appLocalizations.toast_no);
       return;
     }
 
@@ -386,12 +385,13 @@ class _SmsHomePageState extends State<SmsHomePage> {
     Uint8List data = Uint8List.fromList(bytes);
     XFile xFile = XFile.fromData(data, mimeType: 'text/csv');
     Directory tempDir = await getTemporaryDirectory();
-    String path = '${tempDir.path}/短信列表.csv';
+    String path = '${tempDir.path}/${appLocalizations.sms_list}.csv';
     xFile.saveTo(path);
-    ShareResult res = await Share.shareXFiles([XFile(path)], text: '短信列表');
+    ShareResult res =
+        await Share.shareXFiles([XFile(path)], text: appLocalizations.sms_list);
     _delDir(tempDir);
     if (res.status == ShareResultStatus.success) {
-      _showToast('分享成功，需用utf-8格式打开');
+      _showToast(appLocalizations.toast_share);
     }
   }
 
@@ -430,7 +430,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
-                    '卡${item.sim}',
+                    '${appLocalizations.sim}${item.sim}',
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.onPrimary,
                     ),
@@ -458,15 +458,15 @@ class _SmsHomePageState extends State<SmsHomePage> {
                   context: context,
                   builder: (context) {
                     return CupertinoActionSheet(
-                      title: const Text('提示'),
-                      message: const Text('是否要删除或移出当前项？'),
+                      title: Text(appLocalizations.tips),
+                      message: Text(appLocalizations.delete_or_move),
                       actions: <Widget>[
                         CupertinoActionSheetAction(
                           onPressed: () {
                             Navigator.of(context).pop('remove');
                             _removeIndex(index);
                           },
-                          child: const Text('移出列表'),
+                          child: Text(appLocalizations.b_remove),
                         ),
                         CupertinoActionSheetAction(
                           onPressed: () {
@@ -475,14 +475,14 @@ class _SmsHomePageState extends State<SmsHomePage> {
                           },
                           isDestructiveAction: true,
                           isDefaultAction: true,
-                          child: const Text('直接删除'),
+                          child: Text(appLocalizations.b_delete),
                         ),
                         CupertinoActionSheetAction(
                           onPressed: () {
                             Navigator.of(context).pop('same');
                             _sameAddress(index);
                           },
-                          child: const Text('同号短信'),
+                          child: Text(appLocalizations.b_same_number),
                         ),
                         CupertinoActionSheetAction(
                           onPressed: () {
@@ -490,13 +490,13 @@ class _SmsHomePageState extends State<SmsHomePage> {
                             Clipboard.setData(ClipboardData(
                                 text:
                                     '${_showList.value[index].address}\r\n${_showList.value[index].date}\r\n${_showList.value[index].body}'));
-                            _showToast('已复制到剪切板');
+                            _showToast(appLocalizations.toast_clipboard);
                           },
-                          child: const Text('复制'),
+                          child: Text(appLocalizations.b_copy),
                         ),
                       ],
                       cancelButton: CupertinoActionSheetAction(
-                        child: const Text('取消'),
+                        child: Text(appLocalizations.b_cancel),
                         onPressed: () {
                           Navigator.of(context).pop('cancel');
                         },
@@ -522,13 +522,13 @@ class _SmsHomePageState extends State<SmsHomePage> {
                             Navigator.of(context).pop('copy');
                             Clipboard.setData(ClipboardData(
                                 text: '${_showList.value[index].address}'));
-                            _showToast('已复制到剪切板');
+                            _showToast(appLocalizations.toast_clipboard);
                           },
                           child: Text(item.address ?? ''),
                         ),
                       ],
                       cancelButton: CupertinoActionSheetAction(
-                        child: const Text('取消'),
+                        child: Text(appLocalizations.b_cancel),
                         onPressed: () {
                           Navigator.of(context).pop('cancel');
                         },
@@ -568,6 +568,8 @@ class _SmsHomePageState extends State<SmsHomePage> {
     SystemChrome.setSystemUIOverlayStyle(systemUiOverlayStyle);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
+    appLocalizations = AppLocalizations.of(context)!;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
@@ -576,12 +578,12 @@ class _SmsHomePageState extends State<SmsHomePage> {
             builder:
                 (BuildContext context, List<SmsMessage> value, Widget? child) {
               return value.isEmpty
-                  ? const Text('短信')
-                  : Text('${value.length}条短信');
+                  ? Text(appLocalizations.sms)
+                  : Text(appLocalizations.num_sms(value.length.toString()));
             }),
         actions: [
           IconButton(
-            tooltip: '所有短信列表',
+            tooltip: appLocalizations.t_all_sms,
             onPressed: () {
               _textController.text = '';
               _querySms();
@@ -589,17 +591,22 @@ class _SmsHomePageState extends State<SmsHomePage> {
             icon: const Icon(Icons.format_list_bulleted_outlined),
           ),
           IconButton(
-            tooltip: '关键字过滤',
+            tooltip: appLocalizations.t_keyword_filter,
             onPressed: _filterMsg,
             icon: const Icon(Icons.search_outlined),
           ),
           PopupMenuButton(
             itemBuilder: (BuildContext context) => <PopupMenuItem<String>>[
-              _selectView(Icons.message_outlined, '申请短信权限', 'A'),
-              _selectView(Icons.settings_outlined, '应用权限设置', 'B'),
-              _selectView(Icons.admin_panel_settings_outlined, '设置默认短信应用', 'C'),
-              _selectView(Icons.refresh_rounded, '恢复默认短信应用', 'D'),
-              _selectView(Icons.share_outlined, '导出csv并分享', 'E'),
+              _selectView(
+                  Icons.message_outlined, appLocalizations.set_permission, 'A'),
+              _selectView(
+                  Icons.settings_outlined, appLocalizations.set_settings, 'B'),
+              _selectView(Icons.admin_panel_settings_outlined,
+                  appLocalizations.set_default, 'C'),
+              _selectView(
+                  Icons.refresh_rounded, appLocalizations.set_restore, 'D'),
+              _selectView(
+                  Icons.share_outlined, appLocalizations.set_export, 'E'),
             ],
             onSelected: (String action) {
               switch (action) {
@@ -635,7 +642,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
                         Container(
                           margin: const EdgeInsets.only(top: 20),
                           child: Text(
-                            '请稍等',
+                            appLocalizations.t_wait,
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
                         ),
@@ -659,7 +666,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
                                   ),
                                   const SizedBox(height: 10),
                                   Text(
-                                    '没有短信',
+                                    appLocalizations.t_no_sms,
                                     style:
                                         Theme.of(context).textTheme.titleLarge,
                                   ),
@@ -669,16 +676,18 @@ class _SmsHomePageState extends State<SmsHomePage> {
                                         _textController.text = '';
                                         _querySms();
                                       },
-                                      child: const Text('移除过滤条件')),
+                                      child: Text(
+                                          appLocalizations.b_remove_filter)),
                                   const SizedBox(height: 10),
                                   FilledButton(
                                     onPressed: _setDefaultApp,
-                                    child: const Text('设置默认短信'),
+                                    child: Text(appLocalizations.set_default),
                                   ),
                                   const SizedBox(height: 10),
                                   FilledButton(
                                     onPressed: _requestPermission,
-                                    child: const Text('申请短信权限'),
+                                    child:
+                                        Text(appLocalizations.set_permission),
                                   ),
                                 ],
                               ),
@@ -697,7 +706,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
           }),
       floatingActionButton: FloatingActionButton(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        tooltip: '删除当前列表所有短信',
+        tooltip: appLocalizations.t_delete_all,
         shape: const CircleBorder(),
         onPressed: _deleteMsg,
         child: const Icon(Icons.delete_forever_outlined),
