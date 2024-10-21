@@ -50,7 +50,7 @@ dependencies:
   # 权限申请
   permission_handler: ^11.3.1
   # 分享
-  share_plus: ^10.0.3
+  share_plus: ^10.1.0
   # 短信读取、删除
   sms_advanced: ^1.1.0
 
@@ -67,7 +67,7 @@ dev_dependencies:
 
   flutter_launcher_icons: ^0.14.1
 
-  flutter_native_splash: ^2.4.1
+  flutter_native_splash: ^2.4.2
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
