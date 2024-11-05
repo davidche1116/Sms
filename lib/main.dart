@@ -283,6 +283,9 @@ class _SmsHomePageState extends State<SmsHomePage> {
   _deleteSubmit() async {
     bool check = await _checkDefalutSmsApp();
     if (check) {
+      if (_showList.value.length > 3000) {
+        _showToast(appLocalizations.t_list_too_long);
+      }
       _showLoading.value = true;
       SmsRemover smsRemover = SmsRemover();
       for (int i = 0; i < _showList.value.length; ++i) {

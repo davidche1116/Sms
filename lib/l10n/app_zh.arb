@@ -51,5 +51,6 @@
   "t_no_sms": "没有短信",
   "b_remove_filter": "移除过滤条件",
   "t_delete_all": "删除当前列表所有短信",
-  "sim": "卡"
+  "sim": "卡",
+  "t_list_too_long": "列表太多了，可能需要久一点"
 }

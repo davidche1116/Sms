@@ -51,5 +51,6 @@
   "t_no_sms": "No SMS",
   "b_remove_filter": "Remove filter condition",
   "t_delete_all": "Delete all SMS from the current list",
-  "sim": "sim"
+  "sim": "sim",
+  "t_list_too_long": "The list is too long and may take longer"
 }

@@ -51,5 +51,6 @@
   "t_no_sms": "沒有簡訊",
   "b_remove_filter": "移除過濾條件",
   "t_delete_all": "刪除當前列表所有簡訊",
-  "sim": "卡"
+  "sim": "卡",
+  "t_list_too_long": "列表太長，可能需要久一點"
 }
