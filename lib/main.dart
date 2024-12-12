@@ -93,7 +93,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
     );
   }
 
-  Future<bool> _checkDefalutSmsApp() async {
+  Future<bool> _checkDefaultSmsApp() async {
     try {
       final smsApp = await _platform.invokeMethod<String>('getDefaultSmsApp');
       bool same = (smsApp == _packageId);
@@ -149,7 +149,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
   }
 
   _deleteIndex(int index) async {
-    bool check = await _checkDefalutSmsApp();
+    bool check = await _checkDefaultSmsApp();
     if (check) {
       SmsRemover smsRemover = SmsRemover();
       bool? ok = await smsRemover.removeSmsById(
@@ -281,7 +281,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
   }
 
   _deleteSubmit() async {
-    bool check = await _checkDefalutSmsApp();
+    bool check = await _checkDefaultSmsApp();
     if (check) {
       if (_showList.value.length > 3000) {
         _showToast(appLocalizations.t_list_too_long);
