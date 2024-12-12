@@ -54,3 +54,4 @@ jobs:
             dist/**
           overwrite: true
           compression-level: 9
+          retention-days: 2
