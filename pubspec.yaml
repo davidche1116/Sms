@@ -22,7 +22,7 @@ issue_tracker: https://github.com/davidche1116/Sms/issues
 version: 1.5.3+241223
 
 environment:
-  sdk: ^3.6.0
+  sdk: ^3.7.0
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -42,7 +42,7 @@ dependencies:
   # 导出csv
   csv: ^6.0.0
   # 对话框loading
-  flutter_smart_dialog: ^4.9.8+5
+  flutter_smart_dialog: ^4.9.8+6
   # 国际化
   intl: any
   # 获取临时目录
@@ -65,7 +65,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
 
-  flutter_launcher_icons: ^0.14.2
+  flutter_launcher_icons: ^0.14.3
 
   flutter_native_splash: ^2.4.4
 
