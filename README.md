@@ -1,35 +1,36 @@
 ![LOGO](android/app/src/main/res/mipmap-xhdpi/ic_launcher.png)
 
-# 短信清理
+# SMS Cleaner
 
-- 短信清理是Flutter框架编写的在Android上读取、批量删除短信的短信清理工具。
-- 虽然UI框架Flutter支持跨平台，但仅实现了Android短信删除功能。
+[简体中文](README_zh.md) | [繁體中文](README_zh_TW.md) | English
 
-## 功能描述
+- SMS Cleaner is a tool for reading and batch deleting SMS messages on Android, built with Flutter framework.
+- Although the UI framework Flutter supports cross-platform development, only Android SMS deletion functionality has been implemented.
 
-- 获取短信权限
-- 复制短信到剪切板
-- 设置/恢复默认短信应用
-- 关键字过滤短信信息
-- 同号码短信搜索
-- 从搜索结果移除/直接删除短信
-- 一键批量删除查询结果短信
-- 一键导出所有短信到csv文件
+## Features
 
-## 界面截图
+- Get SMS permissions
+- Copy SMS to clipboard
+- Set/restore default SMS app
+- Filter SMS messages by keywords
+- Search SMS by phone number
+- Remove/directly delete SMS from search results
+- One-click batch deletion of queried SMS messages
+- One-click export of all SMS messages to CSV file
+
+## Screenshot
 ![UI](assets/screenshot/ui.jpg)
 
-
-## 开发环境
+## Development Environment
 ### [Flutter](https://docs.flutter.cn/get-started/install)
-- flutter stable 3.27.1
-- dart 3.6.0
+- flutter stable 3.29.1
+- dart 3.7.0
 - gradle 8.3
 - gradle-plugin 8.1.4
 - kotlin 1.8.22
 
-### 编译命令
-- 安装 flutter_distributor
+### Build Commands
+- Install flutter_distributor
 - `dart pub global activate flutter_distributor`
-- 打包release
+- Build release
 - `flutter_distributor release --name apk`
