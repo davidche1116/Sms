@@ -126,10 +126,10 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get title => '簡訊清理';
 
   @override
-  String get toast_default => '需要在系統設置中將本應用設置為默認簡訊應用才能刪除簡訊';
+  String get toast_default => '需要在系統設定中將本應用程式設定為預設簡訊應用程式才能刪除簡訊';
 
   @override
-  String get toast_permission => '需要申請簡訊許可權或設置為簡訊默認應用';
+  String get toast_permission => '需要申請簡訊權限或設定為預設簡訊應用程式';
 
   @override
   String get keyword => '關鍵字';
@@ -142,7 +142,7 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String delete_num(String num) {
-    return '是否刪除這$num條簡訊？';
+    return '是否刪除這$num則簡訊？';
   }
 
   @override
@@ -161,13 +161,13 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get sms_list => '簡訊清單';
 
   @override
-  String get toast_share => '分享成功,需用utf-8格式打開';
+  String get toast_share => '分享成功，請使用utf-8格式開啟';
 
   @override
   String get tips => '提示';
 
   @override
-  String get delete_or_move => '是否要刪除或移出當前項？';
+  String get delete_or_move => '是否要刪除或移出目前項目？';
 
   @override
   String get b_remove => '移出清單';
@@ -176,10 +176,10 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get b_delete => '直接刪除';
 
   @override
-  String get b_same_number => '同號簡訊';
+  String get b_same_number => '相同號碼簡訊';
 
   @override
-  String get toast_clipboard => '已複製到剪切板';
+  String get toast_clipboard => '已複製到剪貼簿';
 
   @override
   String get b_copy => '複製';
@@ -189,45 +189,45 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String num_sms(String num) {
-    return '$num條簡訊';
+    return '$num則簡訊';
   }
 
   @override
   String get t_all_sms => '所有簡訊清單';
 
   @override
-  String get t_keyword_filter => '關鍵字過濾';
+  String get t_keyword_filter => '關鍵字篩選';
 
   @override
-  String get set_permission => '申請簡訊許可權';
+  String get set_permission => '申請簡訊權限';
 
   @override
-  String get set_settings => '應用許可權設置';
+  String get set_settings => '應用程式權限設定';
 
   @override
-  String get set_default => '設置默認簡訊應用';
+  String get set_default => '設定為預設簡訊應用程式';
 
   @override
-  String get set_restore => '恢復默認簡訊應用';
+  String get set_restore => '還原預設簡訊應用程式';
 
   @override
-  String get set_export => '導出csv並分享';
+  String get set_export => '匯出csv並分享';
 
   @override
-  String get t_wait => '請稍等';
+  String get t_wait => '請稍候';
 
   @override
   String get t_no_sms => '沒有簡訊';
 
   @override
-  String get b_remove_filter => '移除過濾條件';
+  String get b_remove_filter => '移除篩選條件';
 
   @override
-  String get t_delete_all => '刪除當前列表所有簡訊';
+  String get t_delete_all => '刪除目前清單中的所有簡訊';
 
   @override
   String get sim => '卡';
 
   @override
-  String get t_list_too_long => '列表太長，可能需要久一點';
+  String get t_list_too_long => '清單較長，可能需要較多時間';
 }

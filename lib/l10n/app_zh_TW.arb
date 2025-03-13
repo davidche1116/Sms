@@ -1,14 +1,14 @@
 {
   "@@locale": "zh_TW",
   "title": "簡訊清理",
-  "toast_default": "需要在系統設置中將本應用設置為默認簡訊應用才能刪除簡訊",
-  "toast_permission": "需要申請簡訊許可權或設置為簡訊默認應用",
+  "toast_default": "需要在系統設定中將本應用程式設定為預設簡訊應用程式才能刪除簡訊",
+  "toast_permission": "需要申請簡訊權限或設定為預設簡訊應用程式",
   "keyword": "關鍵字",
   "b_confirm": "確定",
   "t_confirm_delete": "確認刪除",
-  "delete_num": "是否刪除這{num}條簡訊？",
+  "delete_num": "是否刪除這{num}則簡訊？",
   "@delete_num": {
-    "description": "帶有單個參數的消息",
+    "description": "帶有單個參數的訊息",
     "placeholders": {
       "num": {
         "type": "String",
@@ -21,18 +21,18 @@
   "operation_completed": "操作成功",
   "toast_no": "沒有簡訊可分享",
   "sms_list": "簡訊清單",
-  "toast_share": "分享成功,需用utf-8格式打開",
+  "toast_share": "分享成功，請使用utf-8格式開啟",
   "tips": "提示",
-  "delete_or_move": "是否要刪除或移出當前項？",
+  "delete_or_move": "是否要刪除或移出目前項目？",
   "b_remove": "移出清單",
   "b_delete": "直接刪除",
-  "b_same_number": "同號簡訊",
-  "toast_clipboard": "已複製到剪切板",
+  "b_same_number": "相同號碼簡訊",
+  "toast_clipboard": "已複製到剪貼簿",
   "b_copy": "複製",
   "sms": "簡訊",
-  "num_sms": "{num}條簡訊",
+  "num_sms": "{num}則簡訊",
   "@num_sms": {
-    "description": "帶有單個參數的消息",
+    "description": "帶有單個參數的訊息",
     "placeholders": {
       "num": {
         "type": "String",
@@ -41,16 +41,16 @@
     }
   },
   "t_all_sms": "所有簡訊清單",
-  "t_keyword_filter": "關鍵字過濾",
-  "set_permission": "申請簡訊許可權",
-  "set_settings": "應用許可權設置",
-  "set_default": "設置默認簡訊應用",
-  "set_restore": "恢復默認簡訊應用",
-  "set_export": "導出csv並分享",
-  "t_wait": "請稍等",
+  "t_keyword_filter": "關鍵字篩選",
+  "set_permission": "申請簡訊權限",
+  "set_settings": "應用程式權限設定",
+  "set_default": "設定為預設簡訊應用程式",
+  "set_restore": "還原預設簡訊應用程式",
+  "set_export": "匯出csv並分享",
+  "t_wait": "請稍候",
   "t_no_sms": "沒有簡訊",
-  "b_remove_filter": "移除過濾條件",
-  "t_delete_all": "刪除當前列表所有簡訊",
+  "b_remove_filter": "移除篩選條件",
+  "t_delete_all": "刪除目前清單中的所有簡訊",
   "sim": "卡",
-  "t_list_too_long": "列表太長，可能需要久一點"
+  "t_list_too_long": "清單較長，可能需要較多時間"
 }

@@ -102,19 +102,19 @@ abstract class AppLocalizations {
   /// No description provided for @title.
   ///
   /// In en, this message translates to:
-  /// **'Message Cleanup'**
+  /// **'SMS Cleanup'**
   String get title;
 
   /// No description provided for @toast_default.
   ///
   /// In en, this message translates to:
-  /// **'To delete SMS messages, you need to set this application as the default SMS application in system Settings'**
+  /// **'To delete SMS messages, please set this app as the default SMS app in System Settings'**
   String get toast_default;
 
   /// No description provided for @toast_permission.
   ///
   /// In en, this message translates to:
-  /// **'You need to apply for SMS permission or set it as the default SMS app'**
+  /// **'SMS permission required or set as default SMS app'**
   String get toast_permission;
 
   /// No description provided for @keyword.
@@ -132,13 +132,13 @@ abstract class AppLocalizations {
   /// No description provided for @t_confirm_delete.
   ///
   /// In en, this message translates to:
-  /// **'Confirm Delete'**
+  /// **'Confirm Deletion'**
   String get t_confirm_delete;
 
   /// A message with a single parameter
   ///
   /// In en, this message translates to:
-  /// **'Do you want to delete {num} SMS?'**
+  /// **'Delete {num} message(s)?'**
   String delete_num(String num);
 
   /// No description provided for @b_cancel.
@@ -162,37 +162,37 @@ abstract class AppLocalizations {
   /// No description provided for @toast_no.
   ///
   /// In en, this message translates to:
-  /// **'No SMS to share'**
+  /// **'No messages to share'**
   String get toast_no;
 
   /// No description provided for @sms_list.
   ///
   /// In en, this message translates to:
-  /// **'SMS list'**
+  /// **'Message List'**
   String get sms_list;
 
   /// No description provided for @toast_share.
   ///
   /// In en, this message translates to:
-  /// **'The sharing is successful and must be opened in utf-8 format'**
+  /// **'Shared successfully. Please open with UTF-8 encoding'**
   String get toast_share;
 
   /// No description provided for @tips.
   ///
   /// In en, this message translates to:
-  /// **'TIPS'**
+  /// **'Tips'**
   String get tips;
 
   /// No description provided for @delete_or_move.
   ///
   /// In en, this message translates to:
-  /// **'Do you want to delete or move the current item?'**
+  /// **'Delete or remove this item?'**
   String get delete_or_move;
 
   /// No description provided for @b_remove.
   ///
   /// In en, this message translates to:
-  /// **'Remove from list'**
+  /// **'Remove from List'**
   String get b_remove;
 
   /// No description provided for @b_delete.
@@ -204,7 +204,7 @@ abstract class AppLocalizations {
   /// No description provided for @b_same_number.
   ///
   /// In en, this message translates to:
-  /// **'Same number'**
+  /// **'Messages from Same Number'**
   String get b_same_number;
 
   /// No description provided for @toast_clipboard.
@@ -228,85 +228,85 @@ abstract class AppLocalizations {
   /// A message with a single parameter
   ///
   /// In en, this message translates to:
-  /// **'{num} SMS'**
+  /// **'{num} message(s)'**
   String num_sms(String num);
 
   /// No description provided for @t_all_sms.
   ///
   /// In en, this message translates to:
-  /// **'List all of SMS'**
+  /// **'All Messages'**
   String get t_all_sms;
 
   /// No description provided for @t_keyword_filter.
   ///
   /// In en, this message translates to:
-  /// **'Keyword filter'**
+  /// **'Filter by Keyword'**
   String get t_keyword_filter;
 
   /// No description provided for @set_permission.
   ///
   /// In en, this message translates to:
-  /// **'Request SMS permission'**
+  /// **'Request SMS Permission'**
   String get set_permission;
 
   /// No description provided for @set_settings.
   ///
   /// In en, this message translates to:
-  /// **'app settings'**
+  /// **'App Settings'**
   String get set_settings;
 
   /// No description provided for @set_default.
   ///
   /// In en, this message translates to:
-  /// **'Set as the default SMS app'**
+  /// **'Set as Default SMS App'**
   String get set_default;
 
   /// No description provided for @set_restore.
   ///
   /// In en, this message translates to:
-  /// **'Restore the default SMS app'**
+  /// **'Restore Default SMS App'**
   String get set_restore;
 
   /// No description provided for @set_export.
   ///
   /// In en, this message translates to:
-  /// **'Export csv and share'**
+  /// **'Export as CSV'**
   String get set_export;
 
   /// No description provided for @t_wait.
   ///
   /// In en, this message translates to:
-  /// **'Wait'**
+  /// **'Please wait'**
   String get t_wait;
 
   /// No description provided for @t_no_sms.
   ///
   /// In en, this message translates to:
-  /// **'No SMS'**
+  /// **'No messages'**
   String get t_no_sms;
 
   /// No description provided for @b_remove_filter.
   ///
   /// In en, this message translates to:
-  /// **'Remove filter condition'**
+  /// **'Clear Filter'**
   String get b_remove_filter;
 
   /// No description provided for @t_delete_all.
   ///
   /// In en, this message translates to:
-  /// **'Delete all SMS from the current list'**
+  /// **'Delete All Messages in Current List'**
   String get t_delete_all;
 
   /// No description provided for @sim.
   ///
   /// In en, this message translates to:
-  /// **'sim'**
+  /// **'SIM'**
   String get sim;
 
   /// No description provided for @t_list_too_long.
   ///
   /// In en, this message translates to:
-  /// **'The list is too long and may take longer'**
+  /// **'Large list, may take longer to process'**
   String get t_list_too_long;
 }
 
