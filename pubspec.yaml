@@ -42,13 +42,13 @@ dependencies:
   # 导出csv
   csv: ^6.0.0
   # 对话框loading
-  flutter_smart_dialog: ^4.9.8+6
+  flutter_smart_dialog: ^4.9.8+7
   # 国际化
   intl: any
   # 获取临时目录
   path_provider: ^2.1.5
   # 权限申请
-  permission_handler: ^11.3.1
+  permission_handler: ^11.4.0
   # 分享
   share_plus: ^10.1.4
   # 短信读取、删除
@@ -67,7 +67,7 @@ dev_dependencies:
 
   flutter_launcher_icons: ^0.14.3
 
-  flutter_native_splash: ^2.4.4
+  flutter_native_splash: ^2.4.5
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
