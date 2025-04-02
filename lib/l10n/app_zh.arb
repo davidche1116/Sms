@@ -27,6 +27,7 @@
   "b_remove": "移出列表",
   "b_delete": "直接删除",
   "b_same_number": "同号短信",
+  "b_same_sim": "同卡短信",
   "toast_clipboard": "已复制到剪切板",
   "b_copy": "复制",
   "sms": "短信",

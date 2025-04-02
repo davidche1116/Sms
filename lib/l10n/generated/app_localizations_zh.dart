@@ -65,6 +65,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get b_same_number => '同号短信';
 
   @override
+  String get b_same_sim => '同卡短信';
+
+  @override
   String get toast_clipboard => '已复制到剪切板';
 
   @override
@@ -177,6 +180,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get b_same_number => '相同號碼簡訊';
+
+  @override
+  String get b_same_sim => '相同卡簡訊';
 
   @override
   String get toast_clipboard => '已複製到剪貼簿';

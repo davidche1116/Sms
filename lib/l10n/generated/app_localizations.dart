@@ -207,6 +207,12 @@ abstract class AppLocalizations {
   /// **'Messages from Same Number'**
   String get b_same_number;
 
+  /// No description provided for @b_same_sim.
+  ///
+  /// In en, this message translates to:
+  /// **'Messages from Same SIM'**
+  String get b_same_sim;
+
   /// No description provided for @toast_clipboard.
   ///
   /// In en, this message translates to:

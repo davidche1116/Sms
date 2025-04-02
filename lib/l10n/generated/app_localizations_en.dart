@@ -68,6 +68,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get b_same_number => 'Messages from Same Number';
 
   @override
+  String get b_same_sim => 'Messages from Same SIM';
+
+  @override
   String get toast_clipboard => 'Copied to clipboard';
 
   @override

@@ -27,6 +27,7 @@
   "b_remove": "Remove from List",
   "b_delete": "Delete",
   "b_same_number": "Messages from Same Number",
+  "b_same_sim": "Messages from Same SIM",
   "toast_clipboard": "Copied to clipboard",
   "b_copy": "Copy",
   "sms": "SMS",

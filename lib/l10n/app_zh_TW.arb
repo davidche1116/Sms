@@ -27,6 +27,7 @@
   "b_remove": "移出清單",
   "b_delete": "直接刪除",
   "b_same_number": "相同號碼簡訊",
+  "b_same_sim": "相同卡簡訊",
   "toast_clipboard": "已複製到剪貼簿",
   "b_copy": "複製",
   "sms": "簡訊",
