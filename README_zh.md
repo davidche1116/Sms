@@ -24,10 +24,10 @@
 
 ## 开发环境
 ### [Flutter](https://docs.flutter.cn/get-started/install)
-- flutter stable 3.29.1
-- dart 3.7.0
-- gradle 8.3
-- gradle-plugin 8.1.4
+- flutter stable 3.29.3
+- dart 3.7.2
+- gradle 8.12
+- gradle-plugin 8.7.3
 - kotlin 1.8.22
 
 ### 编译命令
