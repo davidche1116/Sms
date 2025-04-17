@@ -22,7 +22,7 @@ issue_tracker: https://github.com/davidche1116/Sms/issues
 version: 1.5.4+250402
 
 environment:
-  sdk: ^3.7.0
+  sdk: ^3.7.2
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -48,7 +48,7 @@ dependencies:
   # 获取临时目录
   path_provider: ^2.1.5
   # 权限申请
-  permission_handler: ^11.4.0
+  permission_handler: ^12.0.0+1
   # 分享
   share_plus: ^10.1.4
   # 短信读取、删除
@@ -67,7 +67,7 @@ dev_dependencies:
 
   flutter_launcher_icons: ^0.14.3
 
-  flutter_native_splash: ^2.4.5
+  flutter_native_splash: ^2.4.6
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
