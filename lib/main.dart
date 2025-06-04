@@ -431,13 +431,16 @@ class _SmsHomePageState extends State<SmsHomePage> {
     Directory tempDir = await getTemporaryDirectory();
     String path = '${tempDir.path}/${appLocalizations.sms_list}.csv';
     xFile.saveTo(path);
-    ShareResult res = await SharePlus.instance.share(
-      ShareParams(files: [XFile(path)], text: appLocalizations.sms_list),
+    final ShareParams params = ShareParams(
+      text: appLocalizations.sms_list,
+      files: [XFile(path)],
     );
-    _delDir(tempDir);
+    ShareResult res = await SharePlus.instance.share(params);
     if (res.status == ShareResultStatus.success) {
       _showToast(appLocalizations.toast_share);
     }
+
+    await _delDir(tempDir);
   }
 
   @override
