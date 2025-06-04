@@ -71,7 +71,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
   final ValueNotifier<bool> _showLoading = ValueNotifier<bool>(true);
   late AppLocalizations appLocalizations;
 
-  _showToast(String msg) async {
+  Future<void> _showToast(String msg) async {
     SmartDialog.showToast(
       msg,
       animationType: SmartAnimationType.centerScale_otherSlide,
@@ -112,7 +112,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
     return true;
   }
 
-  _querySms() async {
+  Future<void> _querySms() async {
     bool ok = await Permission.sms.isGranted;
     List<SmsMessage> showMessageList = [];
     if (ok) {
@@ -141,7 +141,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
     _showList.value = showMessageList;
   }
 
-  _removeIndex(int index) {
+  void _removeIndex(int index) {
     final removedItem = _showList.value.removeAt(index);
     _showList.value = [..._showList.value];
     _listKey.currentState!.removeItem(index, (
@@ -153,7 +153,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
     // return removedItem;
   }
 
-  _deleteIndex(int index) async {
+  Future<void> _deleteIndex(int index) async {
     bool check = await _checkDefaultSmsApp();
     if (check) {
       SmsRemover smsRemover = SmsRemover();
@@ -171,7 +171,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
     }
   }
 
-  _sameAddress(int index) async {
+  Future<void> _sameAddress(int index) async {
     _textController.text = '';
     List<SmsMessage> showMessageList = [];
     bool ok = await Permission.sms.isGranted;
@@ -192,7 +192,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
     _showList.value = showMessageList;
   }
 
-  _sameSim(int index) async {
+  Future<void> _sameSim(int index) async {
     _textController.text = '';
     List<SmsMessage> showMessageList = [];
     bool ok = await Permission.sms.isGranted;
@@ -225,7 +225,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
     _showList.value = showMessageList;
   }
 
-  _filterMsg() {
+  void _filterMsg() {
     double top = MediaQuery.of(context).padding.top;
     double width = MediaQuery.of(context).size.width / 2;
     _focusNode.requestFocus();
@@ -281,12 +281,12 @@ class _SmsHomePageState extends State<SmsHomePage> {
     );
   }
 
-  _filterSubmit() {
+  void _filterSubmit() {
     SmartDialog.dismiss(status: SmartStatus.custom);
     _querySms();
   }
 
-  _deleteMsg() {
+  void _deleteMsg() {
     showCupertinoModalPopup(
       context: context,
       builder: (context) {
@@ -317,7 +317,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
     );
   }
 
-  _deleteSubmit() async {
+  Future<void> _deleteSubmit() async {
     bool check = await _checkDefaultSmsApp();
     if (check) {
       if (_showList.value.length > 3000) {
@@ -335,7 +335,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
     }
   }
 
-  _requestPermission() async {
+  Future<void> _requestPermission() async {
     PermissionStatus status = await Permission.sms.request();
     bool ok = (status == PermissionStatus.granted);
     if (ok && _showList.value.isEmpty) {
@@ -348,14 +348,14 @@ class _SmsHomePageState extends State<SmsHomePage> {
     );
   }
 
-  _setAppPermission() async {
+  Future<void> _setAppPermission() async {
     bool ok = await openAppSettings();
     if (!ok) {
       _showToast(appLocalizations.operation_failed);
     }
   }
 
-  _setDefaultApp() async {
+  Future<void> _setDefaultApp() async {
     try {
       final set = await _platform.invokeMethod<String>('setDefaultSmsApp');
       final get = await _platform.invokeMethod<String>('getDefaultSmsApp');
@@ -367,7 +367,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
     }
   }
 
-  _resetDefaultSmsApp() async {
+  Future<void> _resetDefaultSmsApp() async {
     try {
       final result = await _platform.invokeMethod<String>('resetDefaultSmsApp');
       if (result == 'no') {
@@ -378,7 +378,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
     }
   }
 
-  _delDir(FileSystemEntity file) async {
+  Future<void> _delDir(FileSystemEntity file) async {
     if (file is Directory) {
       final List<FileSystemEntity> children = file.listSync();
       for (final FileSystemEntity child in children) {
@@ -388,7 +388,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
     await file.delete();
   }
 
-  _export() async {
+  Future<void> _export() async {
     if (_showList.value.isEmpty) {
       _showToast(appLocalizations.toast_no);
       return;
@@ -431,9 +431,9 @@ class _SmsHomePageState extends State<SmsHomePage> {
     Directory tempDir = await getTemporaryDirectory();
     String path = '${tempDir.path}/${appLocalizations.sms_list}.csv';
     xFile.saveTo(path);
-    ShareResult res = await Share.shareXFiles([
-      XFile(path),
-    ], text: appLocalizations.sms_list);
+    ShareResult res = await SharePlus.instance.share(
+      ShareParams(files: [XFile(path)], text: appLocalizations.sms_list),
+    );
     _delDir(tempDir);
     if (res.status == ShareResultStatus.success) {
       _showToast(appLocalizations.toast_share);
@@ -614,7 +614,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
     );
   }
 
-  _selectView(IconData icon, String text, String id) {
+  PopupMenuItem<String> _selectView(IconData icon, String text, String id) {
     return PopupMenuItem<String>(
       value: id,
       child: Row(
