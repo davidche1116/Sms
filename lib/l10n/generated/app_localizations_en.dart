@@ -88,6 +88,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get t_all_sms => 'All Messages';
 
   @override
+  String get t_date_filter => 'Filter by date';
+
+  @override
   String get t_keyword_filter => 'Filter by Keyword';
 
   @override

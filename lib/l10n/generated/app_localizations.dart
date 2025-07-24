@@ -243,6 +243,12 @@ abstract class AppLocalizations {
   /// **'All Messages'**
   String get t_all_sms;
 
+  /// No description provided for @t_date_filter.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter by date'**
+  String get t_date_filter;
+
   /// No description provided for @t_keyword_filter.
   ///
   /// In en, this message translates to:

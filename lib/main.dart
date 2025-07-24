@@ -70,6 +70,8 @@ class _SmsHomePageState extends State<SmsHomePage> {
   final FocusNode _focusNode = FocusNode();
   final ValueNotifier<bool> _showLoading = ValueNotifier<bool>(true);
   late AppLocalizations appLocalizations;
+  DateTime? _startDate;
+  DateTime? _endDate;
 
   Future<void> _showToast(String msg) async {
     SmartDialog.showToast(
@@ -128,6 +130,14 @@ class _SmsHomePageState extends State<SmsHomePage> {
         }
       } else {
         showMessageList = allMessageList;
+      }
+
+      if (_startDate != null && _endDate != null) {
+        showMessageList =
+            showMessageList.where((element) {
+              return element.date!.isAfter(_startDate!) &&
+                  element.date!.isBefore(_endDate!);
+            }).toList();
       }
 
       showMessageList.sort((a, b) => b.date!.compareTo(a.date!));
@@ -223,6 +233,24 @@ class _SmsHomePageState extends State<SmsHomePage> {
     }
 
     _showList.value = showMessageList;
+  }
+
+  void _filterDate() async {
+    final DateTimeRange? picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(1900),
+      lastDate: DateTime(2999),
+      initialDateRange: DateTimeRange(
+        start: DateTime.now(),
+        end: DateTime.now().add(Duration(days: 7)),
+      ),
+    );
+
+    if (picked != null) {
+      _startDate = picked.start;
+      _endDate = picked.end.add(Duration(hours: 23, minutes: 59, seconds: 59));
+      _querySms();
+    }
   }
 
   void _filterMsg() {
@@ -657,9 +685,16 @@ class _SmsHomePageState extends State<SmsHomePage> {
             tooltip: appLocalizations.t_all_sms,
             onPressed: () {
               _textController.text = '';
+              _startDate = null;
+              _endDate = null;
               _querySms();
             },
             icon: const Icon(Icons.format_list_bulleted_outlined),
+          ),
+          IconButton(
+            tooltip: appLocalizations.t_date_filter,
+            onPressed: _filterDate,
+            icon: const Icon(Icons.date_range_outlined),
           ),
           IconButton(
             tooltip: appLocalizations.t_keyword_filter,
@@ -762,6 +797,8 @@ class _SmsHomePageState extends State<SmsHomePage> {
                             FilledButton(
                               onPressed: () {
                                 _textController.text = '';
+                                _startDate = null;
+                                _endDate = null;
                                 _querySms();
                               },
                               child: Text(appLocalizations.b_remove_filter),

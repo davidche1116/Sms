@@ -42,6 +42,7 @@
     }
   },
   "t_all_sms": "所有簡訊清單",
+  "t_date_filter": "日期範圍過濾",
   "t_keyword_filter": "關鍵字篩選",
   "set_permission": "申請簡訊權限",
   "set_settings": "應用程式權限設定",

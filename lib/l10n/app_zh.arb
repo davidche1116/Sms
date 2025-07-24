@@ -42,6 +42,7 @@
     }
   },
   "t_all_sms": "所有短信列表",
+  "t_date_filter": "日期范围过滤",
   "t_keyword_filter": "关键字过滤",
   "set_permission": "申请短信权限",
   "set_settings": "应用权限设置",

@@ -42,6 +42,7 @@
     }
   },
   "t_all_sms": "All Messages",
+  "t_date_filter": "Filter by date",
   "t_keyword_filter": "Filter by Keyword",
   "set_permission": "Request SMS Permission",
   "set_settings": "App Settings",

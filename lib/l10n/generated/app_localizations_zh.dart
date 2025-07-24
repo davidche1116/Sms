@@ -85,6 +85,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get t_all_sms => '所有短信列表';
 
   @override
+  String get t_date_filter => '日期范围过滤';
+
+  @override
   String get t_keyword_filter => '关键字过滤';
 
   @override
@@ -200,6 +203,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get t_all_sms => '所有簡訊清單';
+
+  @override
+  String get t_date_filter => '日期範圍過濾';
 
   @override
   String get t_keyword_filter => '關鍵字篩選';
