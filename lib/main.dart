@@ -241,8 +241,8 @@ class _SmsHomePageState extends State<SmsHomePage> {
       firstDate: DateTime(1900),
       lastDate: DateTime(2999),
       initialDateRange: DateTimeRange(
-        start: DateTime.now(),
-        end: DateTime.now().add(Duration(days: 7)),
+        start: _startDate ?? DateTime.now().subtract(Duration(days: 7)),
+        end: _endDate ?? DateTime.now(),
       ),
     );
 
