@@ -44,6 +44,8 @@
 - compileSdk 37 / minSdk 26
 - JDK 17
 
+Commands below assume `flutter` / `dart` are on your `PATH`. The setup used to develop this project resolves the stable channel through [fvm](https://fvm.app); see `AGENTS.md` for the exact `PATH` prefix if your SDK lives elsewhere.
+
 ## Build & Publish
 
 Build the release APK with fastforge:
@@ -80,9 +82,12 @@ Sms
 ├─android              # Android project configuration
 ├─assets               # Assets
 ├─lib                  # Flutter source code
-│  ├─main.dart         # App entry & UI
+│  ├─main.dart         # App entry & SMS list page UI
+│  ├─controllers       # SmsListController: list state & business rules
 │  ├─l10n              # Localizations (ARB sources + generated code)
-│  └─services          # Data access & pure logic (SMS repository / filtering / CSV export)
+│  ├─services          # Data access & pure logic (SMS repository / filtering / CSV export)
+│  ├─utils             # Small pure helpers (date formatting)
+│  └─widgets           # Reusable UI pieces (message item)
 ├─test                 # Unit & widget tests
 ├─.github/workflows    # CI workflows
 └─dist                 # Build output

@@ -44,6 +44,8 @@
 - compileSdk 37 / minSdk 26
 - JDK 17
 
+下面的命令假设 `flutter` / `dart` 已在 `PATH` 中。本项目开发时使用 [fvm](https://fvm.app) 管理的 stable 渠道 SDK；若你的 SDK 装在别处，可参考 `AGENTS.md` 里的 PATH 前缀。
+
 ## 构建与发布
 
 使用 fastforge 打包 release：
@@ -80,9 +82,12 @@ Sms
 ├─android              # Android工程配置
 ├─assets               # 资源文件目录
 ├─lib                  # Flutter源代码目录
-│  ├─main.dart         # APP入口与界面
+│  ├─main.dart         # APP入口与短信列表页界面
+│  ├─controllers       # SmsListController：列表状态与业务规则
 │  ├─l10n              # 国际化（ARB源文件与生成代码）
-│  └─services          # 数据访问与纯逻辑（短信仓库 / 过滤 / CSV导出）
+│  ├─services          # 数据访问与纯逻辑（短信仓库 / 过滤 / CSV导出）
+│  ├─utils             # 小型纯函数（日期格式化）
+│  └─widgets           # 可复用界面组件（短信列表项）
 ├─test                 # 单元测试与widget测试
 ├─.github/workflows    # CI 工作流
 └─dist                 # 构建产物目录
