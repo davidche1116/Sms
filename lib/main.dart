@@ -278,8 +278,10 @@ class _SmsHomePageState extends State<SmsHomePage> {
     );
 
     if (picked != null) {
-      _startDate = picked.start;
-      _endDate = picked.end.add(Duration(hours: 23, minutes: 59, seconds: 59));
+      // 区间语义 [起始日零点, 结束日次日零点)：左闭右开。旧实现给 end 加
+      // 23:59:59 后又按开区间比较，结束日 23:59:59.001 之后的短信会被漏掉。
+      _startDate = startOfDay(picked.start);
+      _endDate = startOfNextDay(picked.end);
       _querySms();
     }
   }

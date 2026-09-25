@@ -14,8 +14,18 @@ List<SmsMessage> filterByKeyword(List<SmsMessage> messages, String keyword) {
       .toList();
 }
 
-/// 按日期区间过滤（左闭右开语义：start < date < end），
+/// 取当天零点。
+DateTime startOfDay(DateTime date) => DateTime(date.year, date.month, date.day);
+
+/// 取次日零点（用于构造左闭右开的日期区间上界，可越过月末/年末）。
+DateTime startOfNextDay(DateTime date) =>
+    DateTime(date.year, date.month, date.day + 1);
+
+/// 按日期区间过滤（左闭右开语义：start <= date < end），
 /// start/end 任一为空时原样返回。
+///
+/// 左闭是为了把起始日 00:00:00 的短信算进来；上界由调用方传
+/// [startOfNextDay]，这样结束日 23:59:59.999 的短信也不会漏。
 List<SmsMessage> filterByDateRange(
   List<SmsMessage> messages,
   DateTime? start,
@@ -29,7 +39,7 @@ List<SmsMessage> filterByDateRange(
     if (date == null) {
       return false;
     }
-    return date.isAfter(start) && date.isBefore(end);
+    return !date.isBefore(start) && date.isBefore(end);
   }).toList();
 }
 

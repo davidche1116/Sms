@@ -48,6 +48,27 @@ void main() {
       expect(result.map((m) => m.id), [2]);
     });
 
+    test('区间左闭右开：起始日 00:00 与结束日 23:59:59 都在区间内', () {
+      final messages = [
+        _msg(id: 1, date: DateTime(2026, 3, 1)),
+        _msg(id: 2, date: DateTime(2026, 3, 5, 23, 59, 59, 999)),
+        _msg(id: 3, date: DateTime(2026, 3, 6)),
+        _msg(id: 4, date: DateTime(2026, 2, 28, 23, 59, 59)),
+      ];
+      final result = filterByDateRange(
+        messages,
+        startOfDay(DateTime(2026, 3, 1)),
+        startOfNextDay(DateTime(2026, 3, 5)),
+      );
+      expect(result.map((m) => m.id), [1, 2]);
+    });
+
+    test('startOfNextDay 可越过月末与年末', () {
+      expect(startOfNextDay(DateTime(2026, 1, 31)), DateTime(2026, 2, 1));
+      expect(startOfNextDay(DateTime(2026, 12, 31)), DateTime(2027, 1, 1));
+      expect(startOfDay(DateTime(2026, 5, 6, 18, 30)), DateTime(2026, 5, 6));
+    });
+
     test('date 为 null 的短信被过滤掉', () {
       final messages = [_msg(id: 1), _msg(id: 2, date: DateTime(2026, 5, 5))];
       final result = filterByDateRange(
