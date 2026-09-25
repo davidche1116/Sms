@@ -92,10 +92,9 @@ class _SmsHomePageState extends State<SmsHomePage> {
           margin: const EdgeInsets.symmetric(horizontal: 40, vertical: 100),
           padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 20),
           decoration: BoxDecoration(
-            color:
-                Theme.of(context).brightness == Brightness.light
-                    ? Colors.black
-                    : Colors.grey,
+            color: Theme.of(context).brightness == Brightness.light
+                ? Colors.black
+                : Colors.grey,
             borderRadius: BorderRadius.circular(15),
           ),
           child: Text(
@@ -143,11 +142,10 @@ class _SmsHomePageState extends State<SmsHomePage> {
       }
 
       if (_startDate != null && _endDate != null) {
-        showMessageList =
-            showMessageList.where((element) {
-              return element.date!.isAfter(_startDate!) &&
-                  element.date!.isBefore(_endDate!);
-            }).toList();
+        showMessageList = showMessageList.where((element) {
+          return element.date!.isAfter(_startDate!) &&
+              element.date!.isBefore(_endDate!);
+        }).toList();
       }
 
       showMessageList.sort((a, b) => b.date!.compareTo(a.date!));
@@ -186,10 +184,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
     bool check = await _checkDefaultSmsApp();
     if (check) {
       SmsRemover smsRemover = SmsRemover();
-      bool? ok = await smsRemover.removeSmsById(
-        id,
-        threadId,
-      );
+      bool? ok = await smsRemover.removeSmsById(id, threadId);
       if (ok != null) {
         if (ok) {
           _removeIndex(index);
@@ -211,9 +206,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
       _showLoading.value = true;
 
       SmsQuery query = SmsQuery();
-      showMessageList = await query.querySms(
-        address: address,
-      );
+      showMessageList = await query.querySms(address: address);
       showMessageList.sort((a, b) => b.date!.compareTo(a.date!));
 
       _showLoading.value = false;
@@ -524,16 +517,17 @@ class _SmsHomePageState extends State<SmsHomePage> {
     bool interactive = true,
   ]) {
     return SlideTransition(
-      position: Tween<Offset>(
-        begin: const Offset(1, 0),
-        end: const Offset(0, 0),
-      ).animate(
-        CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeInBack,
-          reverseCurve: Curves.easeInOutBack,
-        ),
-      ),
+      position:
+          Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: const Offset(0, 0),
+          ).animate(
+            CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeInBack,
+              reverseCurve: Curves.easeInOutBack,
+            ),
+          ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -579,107 +573,105 @@ class _SmsHomePageState extends State<SmsHomePage> {
             ),
             onTap: interactive
                 ? () {
-              showCupertinoModalPopup(
-                context: context,
-                builder: (context) {
-                  return CupertinoActionSheet(
-                    title: Text(appLocalizations.tips),
-                    message: Text(appLocalizations.delete_or_move),
-                    actions: <Widget>[
-                      CupertinoActionSheetAction(
-                        onPressed: () {
-                          Navigator.of(context).pop('remove');
-                          _removeIndex(index);
-                        },
-                        child: Text(appLocalizations.b_remove),
-                      ),
-                      CupertinoActionSheetAction(
-                        onPressed: () {
-                          Navigator.of(context).pop('delete');
-                          _deleteIndex(index);
-                        },
-                        isDestructiveAction: true,
-                        isDefaultAction: true,
-                        child: Text(appLocalizations.b_delete),
-                      ),
-                      CupertinoActionSheetAction(
-                        onPressed: () {
-                          Navigator.of(context).pop('same');
-                          _sameAddress(index);
-                        },
-                        child: Text(appLocalizations.b_same_number),
-                      ),
-                      CupertinoActionSheetAction(
-                        onPressed: () {
-                          Navigator.of(context).pop('sim');
-                          _sameSim(index);
-                        },
-                        child: Text(appLocalizations.b_same_sim),
-                      ),
-                      CupertinoActionSheetAction(
-                        onPressed: () {
-                          Navigator.of(context).pop('copy');
-                          Clipboard.setData(
-                            ClipboardData(
-                              // 用创建弹窗时捕获的 item，不按 index 回查实时列表
-                              //（列表刷新/移除后 index 可能指向别条甚至越界）。
-                              text:
-                                  '${item.address}\r\n${item.date}\r\n${item.body}',
+                    showCupertinoModalPopup(
+                      context: context,
+                      builder: (context) {
+                        return CupertinoActionSheet(
+                          title: Text(appLocalizations.tips),
+                          message: Text(appLocalizations.delete_or_move),
+                          actions: <Widget>[
+                            CupertinoActionSheetAction(
+                              onPressed: () {
+                                Navigator.of(context).pop('remove');
+                                _removeIndex(index);
+                              },
+                              child: Text(appLocalizations.b_remove),
                             ),
-                          );
-                          _showToast(appLocalizations.toast_clipboard);
-                        },
-                        child: Text(appLocalizations.b_copy),
-                      ),
-                    ],
-                    cancelButton: CupertinoActionSheetAction(
-                      child: Text(appLocalizations.b_cancel),
-                      onPressed: () {
-                        Navigator.of(context).pop('cancel');
+                            CupertinoActionSheetAction(
+                              onPressed: () {
+                                Navigator.of(context).pop('delete');
+                                _deleteIndex(index);
+                              },
+                              isDestructiveAction: true,
+                              isDefaultAction: true,
+                              child: Text(appLocalizations.b_delete),
+                            ),
+                            CupertinoActionSheetAction(
+                              onPressed: () {
+                                Navigator.of(context).pop('same');
+                                _sameAddress(index);
+                              },
+                              child: Text(appLocalizations.b_same_number),
+                            ),
+                            CupertinoActionSheetAction(
+                              onPressed: () {
+                                Navigator.of(context).pop('sim');
+                                _sameSim(index);
+                              },
+                              child: Text(appLocalizations.b_same_sim),
+                            ),
+                            CupertinoActionSheetAction(
+                              onPressed: () {
+                                Navigator.of(context).pop('copy');
+                                Clipboard.setData(
+                                  ClipboardData(
+                                    // 用创建弹窗时捕获的 item，不按 index 回查实时列表
+                                    //（列表刷新/移除后 index 可能指向别条甚至越界）。
+                                    text:
+                                        '${item.address}\r\n${item.date}\r\n${item.body}',
+                                  ),
+                                );
+                                _showToast(appLocalizations.toast_clipboard);
+                              },
+                              child: Text(appLocalizations.b_copy),
+                            ),
+                          ],
+                          cancelButton: CupertinoActionSheetAction(
+                            child: Text(appLocalizations.b_cancel),
+                            onPressed: () {
+                              Navigator.of(context).pop('cancel');
+                            },
+                          ),
+                        );
                       },
-                    ),
-                  );
-                },
-              );
-            }
+                    );
+                  }
                 : null,
             onLongPress: interactive
                 ? () {
-              showCupertinoModalPopup(
-                context: context,
-                builder: (context) {
-                  return CupertinoActionSheet(
-                    title: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: SelectableText(
-                        item.body ?? '',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ),
-                    actions: [
-                      CupertinoActionSheetAction(
-                        onPressed: () {
-                          Navigator.of(context).pop('copy');
-                          Clipboard.setData(
-                            ClipboardData(
-                              text: '${item.address}',
+                    showCupertinoModalPopup(
+                      context: context,
+                      builder: (context) {
+                        return CupertinoActionSheet(
+                          title: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: SelectableText(
+                              item.body ?? '',
+                              style: Theme.of(context).textTheme.titleLarge,
                             ),
-                          );
-                          _showToast(appLocalizations.toast_clipboard);
-                        },
-                        child: Text(item.address ?? ''),
-                      ),
-                    ],
-                    cancelButton: CupertinoActionSheetAction(
-                      child: Text(appLocalizations.b_cancel),
-                      onPressed: () {
-                        Navigator.of(context).pop('cancel');
+                          ),
+                          actions: [
+                            CupertinoActionSheetAction(
+                              onPressed: () {
+                                Navigator.of(context).pop('copy');
+                                Clipboard.setData(
+                                  ClipboardData(text: '${item.address}'),
+                                );
+                                _showToast(appLocalizations.toast_clipboard);
+                              },
+                              child: Text(item.address ?? ''),
+                            ),
+                          ],
+                          cancelButton: CupertinoActionSheetAction(
+                            child: Text(appLocalizations.b_cancel),
+                            onPressed: () {
+                              Navigator.of(context).pop('cancel');
+                            },
+                          ),
+                        );
                       },
-                    ),
-                  );
-                },
-              );
-            }
+                    );
+                  }
                 : null,
           ),
           const Padding(
@@ -716,15 +708,12 @@ class _SmsHomePageState extends State<SmsHomePage> {
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: ValueListenableBuilder(
           valueListenable: _showList,
-          builder: (
-            BuildContext context,
-            List<SmsMessage> value,
-            Widget? child,
-          ) {
-            return value.isEmpty
-                ? Text(appLocalizations.sms)
-                : Text(appLocalizations.num_sms(value.length.toString()));
-          },
+          builder:
+              (BuildContext context, List<SmsMessage> value, Widget? child) {
+                return value.isEmpty
+                    ? Text(appLocalizations.sms)
+                    : Text(appLocalizations.num_sms(value.length.toString()));
+              },
         ),
         actions: [
           IconButton(
@@ -748,34 +737,33 @@ class _SmsHomePageState extends State<SmsHomePage> {
             icon: const Icon(Icons.search_outlined),
           ),
           PopupMenuButton(
-            itemBuilder:
-                (BuildContext context) => <PopupMenuItem<String>>[
-                  _selectView(
-                    Icons.message_outlined,
-                    appLocalizations.set_permission,
-                    'A',
-                  ),
-                  _selectView(
-                    Icons.settings_outlined,
-                    appLocalizations.set_settings,
-                    'B',
-                  ),
-                  _selectView(
-                    Icons.admin_panel_settings_outlined,
-                    appLocalizations.set_default,
-                    'C',
-                  ),
-                  _selectView(
-                    Icons.refresh_rounded,
-                    appLocalizations.set_restore,
-                    'D',
-                  ),
-                  _selectView(
-                    Icons.share_outlined,
-                    appLocalizations.set_export,
-                    'E',
-                  ),
-                ],
+            itemBuilder: (BuildContext context) => <PopupMenuItem<String>>[
+              _selectView(
+                Icons.message_outlined,
+                appLocalizations.set_permission,
+                'A',
+              ),
+              _selectView(
+                Icons.settings_outlined,
+                appLocalizations.set_settings,
+                'B',
+              ),
+              _selectView(
+                Icons.admin_panel_settings_outlined,
+                appLocalizations.set_default,
+                'C',
+              ),
+              _selectView(
+                Icons.refresh_rounded,
+                appLocalizations.set_restore,
+                'D',
+              ),
+              _selectView(
+                Icons.share_outlined,
+                appLocalizations.set_export,
+                'E',
+              ),
+            ],
             onSelected: (String action) {
               switch (action) {
                 case 'A':
@@ -803,79 +791,94 @@ class _SmsHomePageState extends State<SmsHomePage> {
         builder: (BuildContext context, bool value, Widget? child) {
           return value
               ? Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const CircularProgressIndicator(),
-                    Container(
-                      margin: const EdgeInsets.only(top: 20),
-                      child: Text(
-                        appLocalizations.t_wait,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                    ),
-                  ],
-                ),
-              )
-              : ValueListenableBuilder(
-                valueListenable: _showList,
-                builder: (
-                  BuildContext context,
-                  List<SmsMessage> value,
-                  Widget? child,
-                ) {
-                  return value.isEmpty
-                      ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.message_outlined,
-                              size: 80,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                            const SizedBox(height: 10),
-                            Text(
-                              appLocalizations.t_no_sms,
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                            const SizedBox(height: 80),
-                            FilledButton(
-                              onPressed: () {
-                                _textController.text = '';
-                                _startDate = null;
-                                _endDate = null;
-                                _querySms();
-                              },
-                              child: Text(appLocalizations.b_remove_filter),
-                            ),
-                            const SizedBox(height: 10),
-                            FilledButton(
-                              onPressed: _setDefaultApp,
-                              child: Text(appLocalizations.set_default),
-                            ),
-                            const SizedBox(height: 10),
-                            FilledButton(
-                              onPressed: _requestPermission,
-                              child: Text(appLocalizations.set_permission),
-                            ),
-                          ],
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircularProgressIndicator(),
+                      Container(
+                        margin: const EdgeInsets.only(top: 20),
+                        child: Text(
+                          appLocalizations.t_wait,
+                          style: Theme.of(context).textTheme.titleLarge,
                         ),
-                      )
-                      : AnimatedList(
-                        key: _listKey,
-                        initialItemCount: value.length,
-                        itemBuilder: (
-                          BuildContext context,
-                          int index,
-                          Animation<double> animation,
-                        ) {
-                          SmsMessage item = value[index];
-                          return _buildItem(index, item, context, animation);
-                        },
-                      );
-                },
-              );
+                      ),
+                    ],
+                  ),
+                )
+              : ValueListenableBuilder(
+                  valueListenable: _showList,
+                  builder:
+                      (
+                        BuildContext context,
+                        List<SmsMessage> value,
+                        Widget? child,
+                      ) {
+                        return value.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.message_outlined,
+                                      size: 80,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      appLocalizations.t_no_sms,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleLarge,
+                                    ),
+                                    const SizedBox(height: 80),
+                                    FilledButton(
+                                      onPressed: () {
+                                        _textController.text = '';
+                                        _startDate = null;
+                                        _endDate = null;
+                                        _querySms();
+                                      },
+                                      child: Text(
+                                        appLocalizations.b_remove_filter,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    FilledButton(
+                                      onPressed: _setDefaultApp,
+                                      child: Text(appLocalizations.set_default),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    FilledButton(
+                                      onPressed: _requestPermission,
+                                      child: Text(
+                                        appLocalizations.set_permission,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : AnimatedList(
+                                key: _listKey,
+                                initialItemCount: value.length,
+                                itemBuilder:
+                                    (
+                                      BuildContext context,
+                                      int index,
+                                      Animation<double> animation,
+                                    ) {
+                                      SmsMessage item = value[index];
+                                      return _buildItem(
+                                        index,
+                                        item,
+                                        context,
+                                        animation,
+                                      );
+                                    },
+                              );
+                      },
+                );
         },
       ),
       floatingActionButton: FloatingActionButton(
