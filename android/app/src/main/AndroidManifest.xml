@@ -107,6 +107,9 @@
             <data android:scheme="tel" android:host="*" />
         </intent>
         <package android:name="com.android.mms" />
+        <!-- 未声明的包在 Android 11+ 包可见性限制下不可见，
+             getPackageInfo 会抛 NameNotFoundException -->
+        <package android:name="com.google.android.apps.messaging" />
         <package android:name="com.dc16.sms" />
     </queries>
 </manifest>
