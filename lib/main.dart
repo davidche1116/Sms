@@ -173,7 +173,18 @@ class _SmsHomePageState extends State<SmsHomePage> {
     ) {
       // 离场动画用的静态快照：不可交互，不再按 index 回查实时列表
       //（旧代码把 stale index 传给 _buildItem，动画期间点选会读写错位）。
-      return MessageItem(index: index, item: removedItem, animation: animation, interactive: false, appLocalizations: appLocalizations, onDelete: _deleteIndex, onRemove: _removeIndex, onSameAddress: _sameAddress, onSameSim: _sameSim, onShowToast: _showToast);
+      return MessageItem(
+        index: index,
+        item: removedItem,
+        animation: animation,
+        interactive: false,
+        appLocalizations: appLocalizations,
+        onDelete: _deleteIndex,
+        onRemove: _removeIndex,
+        onSameAddress: _sameAddress,
+        onSameSim: _sameSim,
+        onShowToast: _showToast,
+      );
     });
     // return removedItem;
   }
@@ -532,7 +543,6 @@ class _SmsHomePageState extends State<SmsHomePage> {
     });
   }
 
-
   PopupMenuItem<String> _selectView(IconData icon, String text, String id) {
     return PopupMenuItem<String>(
       value: id,
@@ -718,7 +728,17 @@ class _SmsHomePageState extends State<SmsHomePage> {
                                       Animation<double> animation,
                                     ) {
                                       SmsMessage item = value[index];
-                                      return MessageItem(index: index, item: item, animation: animation, appLocalizations: appLocalizations, onDelete: _deleteIndex, onRemove: _removeIndex, onSameAddress: _sameAddress, onSameSim: _sameSim, onShowToast: _showToast);
+                                      return MessageItem(
+                                        index: index,
+                                        item: item,
+                                        animation: animation,
+                                        appLocalizations: appLocalizations,
+                                        onDelete: _deleteIndex,
+                                        onRemove: _removeIndex,
+                                        onSameAddress: _sameAddress,
+                                        onSameSim: _sameSim,
+                                        onShowToast: _showToast,
+                                      );
                                     },
                               );
                       },

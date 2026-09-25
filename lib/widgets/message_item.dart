@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:sms_advanced/sms_advanced.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../utils/date_format.dart';
 
 /// 短信列表项卡片。从 main.dart 的 _buildItem 抽出，行为不变：
 /// 渲染一条短信并提供删除/移至回收站/同卡/同号/复制等交互，
@@ -68,7 +69,7 @@ class MessageItem extends StatelessWidget {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
-                    '${appLocalizations.sim}${item.sim}',
+                    '${appLocalizations.sim}${item.sim ?? '-'}',
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.onPrimary,
                     ),
@@ -84,7 +85,9 @@ class MessageItem extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  item.date.toString().substring(0, 19),
+                  // date 可为 null（草稿/彩信）。旧实现对 "null" 直接
+                  // substring(0, 19) 会抛 RangeError，这里统一走空安全格式化。
+                  formatSmsDate(item.date),
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.primaryContainer,
                   ),
@@ -137,8 +140,11 @@ class MessageItem extends StatelessWidget {
                                   ClipboardData(
                                     // 用创建弹窗时捕获的 item，不按 index 回查实时列表
                                     //（列表刷新/移除后 index 可能指向别条甚至越界）。
-                                    text:
-                                        '${item.address}\r\n${item.date}\r\n${item.body}',
+                                    text: buildSmsClipboardText(
+                                      address: item.address,
+                                      date: item.date,
+                                      body: item.body,
+                                    ),
                                   ),
                                 );
                                 onShowToast(appLocalizations.toast_clipboard);
