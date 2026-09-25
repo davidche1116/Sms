@@ -13,7 +13,8 @@
 - 複製簡訊到剪貼簿
 - 設置/恢復預設簡訊應用
 - 關鍵字過濾簡訊信息
-- 同號碼簡訊搜索
+- 按日期範圍篩選簡訊
+- 同號碼/同卡簡訊搜索
 - 從搜索結果移除/直接刪除簡訊
 - 一鍵批量刪除查詢結果簡訊
 - 一鍵導出所有簡訊到csv文件
@@ -52,7 +53,7 @@ dart pub global activate fastforge
 fastforge release --name apk
 ```
 
-產物輸出到 `dist/` 目錄。APK 使用 release 簽名，且僅打包 **arm64-v8a** 單 ABI。
+產物輸出到 `dist/` 目錄。APK 使用 release 簽名，且僅打包 **arm64-v8a** 單 ABI。debug 構建使用標準除錯簽名；缺少 `android/key.properties` 時 release 構建回退為除錯簽名。
 
 ### CI 工作流
 
@@ -80,7 +81,9 @@ Sms
 ├─assets               # 資源檔案目錄
 ├─lib                  # Flutter原始碼目錄
 │  ├─main.dart         # APP入口與介面
+│  ├─l10n              # 國際化（ARB原始檔與生成程式碼）
 │  └─services          # 資料存取與純邏輯（簡訊儲存庫 / 篩選 / CSV匯出）
+├─test                 # 單元測試與widget測試
 ├─.github/workflows    # CI 工作流
 └─dist                 # 構建產物目錄
 ```

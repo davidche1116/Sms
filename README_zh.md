@@ -13,7 +13,8 @@
 - 复制短信到剪切板
 - 设置/恢复默认短信应用
 - 关键字过滤短信信息
-- 同号码短信搜索
+- 按日期范围筛选短信
+- 同号码/同卡短信搜索
 - 从搜索结果移除/直接删除短信
 - 一键批量删除查询结果短信
 - 一键导出所有短信到csv文件
@@ -52,7 +53,7 @@ dart pub global activate fastforge
 fastforge release --name apk
 ```
 
-产物输出到 `dist/` 目录。APK 使用 release 签名，且仅打包 **arm64-v8a** 单 ABI。
+产物输出到 `dist/` 目录。APK 使用 release 签名，且仅打包 **arm64-v8a** 单 ABI。debug 构建使用标准调试签名；缺少 `android/key.properties` 时 release 构建回退为调试签名。
 
 ### CI 工作流
 
@@ -80,7 +81,9 @@ Sms
 ├─assets               # 资源文件目录
 ├─lib                  # Flutter源代码目录
 │  ├─main.dart         # APP入口与界面
+│  ├─l10n              # 国际化（ARB源文件与生成代码）
 │  └─services          # 数据访问与纯逻辑（短信仓库 / 过滤 / CSV导出）
+├─test                 # 单元测试与widget测试
 ├─.github/workflows    # CI 工作流
 └─dist                 # 构建产物目录
 ```

@@ -8,9 +8,9 @@
   AGP 9.1.0 / Gradle 9.3.1 / KGP 2.4.10 / JDK 17. Do not bump AGP/Gradle beyond
   what the installed Flutter template supports (`gradle_utils.dart` in the SDK
   is the source of truth).
-- Verify, in order: `flutter analyze` → `flutter test` → `flutter build apk --debug`.
-  `flutter test` needs no device (platform channels are mocked in
-  `test/widget_test.dart`).
+- Verify, in order: `dart format lib test` → `flutter analyze` → `flutter test`
+  → `flutter build apk --debug`. `flutter test` needs no device (platform
+  channels are mocked in `test/widget_test.dart`).
 
 ## Android gotchas (all verified the hard way)
 - `android/app/build.gradle.kts` hardcodes `compileSdk = 37` (permission_handler
@@ -31,8 +31,12 @@
   (owner's explicit decision). Never rotate, delete, or "clean" them without asking.
 
 ## Dart code rules
-- App is essentially one file: `lib/main.dart` (~900 lines). `test/widget_test.dart`
-  mocks `flutter.baseflow.com/permissions/methods` (granted=1) and
+- UI lives in `lib/main.dart`; data access and pure logic live in
+  `lib/services/` (`sms_repository.dart` = plugin/platform-channel wrapper,
+  `sms_filter.dart` = pure filter/sort functions, `csv_exporter.dart` = CSV
+  encoding). Unit tests cover the services (`test/sms_filter_test.dart`,
+  `test/csv_exporter_test.dart`); `test/widget_test.dart` mocks
+  `flutter.baseflow.com/permissions/methods` (granted=1) and
   `plugins.elyudde.com/querySMS` (JSON codec, `[]`). Any startup channel call
   added to the app must get a mock there or `flutter test` breaks.
 - permission_handler v13 (Android): `status` **never** returns
@@ -41,23 +45,29 @@
 - `flutter_smart_dialog` usage is limited to `observer/init/show/showToast/dismiss`
   — none of the v5-removed APIs (`backDismiss`, `replaceBuilder`, `checkExist`).
 - L10n: source of truth is `lib/l10n/*.arb`; generated code in
-  `lib/l10n/generated/` is produced via `l10n.yaml`. Don't hand-edit generated files.
+  `lib/l10n/generated/` is produced via `l10n.yaml`. Don't hand-edit generated
+  files; after `flutter pub get`/gen-l10n re-emits them, re-run
+  `dart format lib` to restore formatting.
 - The three READMEs (`README.md`, `README_zh.md`, `README_zh_TW.md`) document the
-  toolchain versions and CI table — update all three together.
+  toolchain versions and CI table — update all three together. `CHANGELOG.md`
+  records notable changes per release (Keep a Changelog format, Unreleased
+  section on top).
 
 ## Build & release
 - Release APK: `dart pub global activate fastforge` then
   `fastforge release --name apk` (config: `distribute_options.yaml`).
   `flutter_distributor` is discontinued — do not switch back.
-- Release signing needs local `android/key.properties`; debug builds don't.
+- Release signing reads local `android/key.properties`; when it is missing,
+  release falls back to the debug signature. Debug builds use the standard
+  debug signature.
 - CI (`.github/workflows/`): build.yml = analyze+test+APK on push/PR;
   manual.yml = same, channel-selectable (default stable); publish.yml = draft
   Release on version tags. All run stable + install Android Platform 37.
 
 ## Git
 - No git identity is configured on this machine and global config must not be
-  changed. Commit with one-shot flags:
-  `git -c user.name="davidche" -c user.email="davidche@kiloview.com" commit …`
+  changed. Commit with one-shot flags (qq.com per owner instruction):
+  `git -c user.name="davidche" -c user.email="davidche@qq.com" commit …`
 - Commit style is conventional: `fix(android): …`, `build(deps): …`,
   `ci(workflows): …`, `docs(readme): …`, `test(widget): …`. Split unrelated
   areas into separate commits. Only commit/push when explicitly asked.
