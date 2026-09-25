@@ -132,6 +132,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get t_delete_all => 'Delete All Messages in Current List';
 
   @override
+  String get t_deleting => 'Deleting...';
+
+  @override
+  String delete_progress(String done, String total) {
+    return 'Deleted $done / $total';
+  }
+
+  @override
   String get sim => 'SIM';
 
   @override

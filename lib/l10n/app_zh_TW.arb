@@ -56,6 +56,21 @@
   "t_no_sms": "沒有簡訊",
   "b_remove_filter": "移除篩選條件",
   "t_delete_all": "刪除目前清單中的所有簡訊",
+  "t_deleting": "正在刪除...",
+  "delete_progress": "已刪除 {done} / {total}",
+  "@delete_progress": {
+    "description": "批次刪除進度",
+    "placeholders": {
+      "done": {
+        "type": "String",
+        "example": "120"
+      },
+      "total": {
+        "type": "String",
+        "example": "3000"
+      }
+    }
+  },
   "sim": "卡",
   "t_list_too_long": "清單較長，可能需要較多時間",
   "delete_failed": "刪除完成，{num}則簡訊刪除失敗",

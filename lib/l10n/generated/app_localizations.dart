@@ -327,6 +327,18 @@ abstract class AppLocalizations {
   /// **'Delete All Messages in Current List'**
   String get t_delete_all;
 
+  /// No description provided for @t_deleting.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting...'**
+  String get t_deleting;
+
+  /// Batch delete progress
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted {done} / {total}'**
+  String delete_progress(String done, String total);
+
   /// No description provided for @sim.
   ///
   /// In en, this message translates to:

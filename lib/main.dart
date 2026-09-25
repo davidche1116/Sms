@@ -394,28 +394,141 @@ class _SmsHomePageState extends State<SmsHomePage> {
     );
   }
 
+  /// 删除进度弹窗。progress 为空表示"原生批量删除中"（无逐条进度），
+  /// 非空表示回退到逐条删除，此时提供取消入口。
+  void _showDeleteProgress(ValueNotifier<int>? progress, int total) {
+    SmartDialog.show(
+      clickMaskDismiss: false,
+      builder: (_) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainer,
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              progress == null
+                  ? Text(appLocalizations.t_deleting)
+                  : ValueListenableBuilder<int>(
+                      valueListenable: progress,
+                      builder: (BuildContext context, int value, Widget? _) {
+                        return Text(
+                          appLocalizations.delete_progress(
+                            value.toString(),
+                            total.toString(),
+                          ),
+                        );
+                      },
+                    ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _deleteSubmit() async {
     bool check = await _checkDefaultSmsApp();
     if (!check) return;
-    if (_showList.value.length > 3000) {
+    // 快照：批量删除耗时较长，期间列表可能被其他操作刷新，
+    // 按开始时的快照执行，避免 index 漂移或读写错位。
+    final List<SmsMessage> items = List.of(_showList.value);
+    if (items.isEmpty) {
+      _showToast(appLocalizations.toast_no);
+      return;
+    }
+    if (items.length > 3000) {
       _showToast(appLocalizations.t_list_too_long);
     }
-    // 快照：批量删除耗时较长，期间列表可能被其他操作刷新，
-    // 按开始时的快照逐条删除，避免 index 漂移或读写错位。
-    final List<SmsMessage> items = List.of(_showList.value);
-    _showLoading.value = true;
+
+    // id/threadId 缺失的条目无法删除，计入失败而不是 ! 强解包崩溃。
+    final List<int> ids = <int>[
+      for (final SmsMessage message in items)
+        if (message.id != null && message.threadId != null) message.id!,
+    ];
+    int failed = items.length - ids.length;
+
+    _showDeleteProgress(null, items.length);
+    // 优先走原生批量删除：把 N 次跨进程调用降到 ceil(N / 900) 次。
+    final int? deleted = await _repository.deleteSmsBatch(ids);
+    if (!mounted) return;
+    SmartDialog.dismiss();
+    if (deleted != null) {
+      failed += ids.length - deleted;
+      _reportDeleteResult(failed);
+      _querySms();
+      return;
+    }
+
+    // 平台侧不支持或失败：回退逐条删除，带进度与取消。
+    failed += await _deleteOneByOne(items);
+    if (!mounted) return;
+    _reportDeleteResult(failed);
+    _querySms();
+  }
+
+  void _reportDeleteResult(int failed) {
+    if (failed > 0) {
+      _showToast(appLocalizations.delete_failed(failed.toString()));
+    }
+  }
+
+  /// 逐条删除的回退路径：带进度与取消，避免长时间无反馈又无法中断。
+  Future<int> _deleteOneByOne(List<SmsMessage> items) async {
+    final ValueNotifier<int> progress = ValueNotifier<int>(0);
+    bool cancelled = false;
+    SmartDialog.show(
+      clickMaskDismiss: false,
+      builder: (_) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainer,
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              ValueListenableBuilder<int>(
+                valueListenable: progress,
+                builder: (BuildContext context, int value, Widget? _) {
+                  return Text(
+                    appLocalizations.delete_progress(
+                      value.toString(),
+                      items.length.toString(),
+                    ),
+                  );
+                },
+              ),
+              TextButton(
+                onPressed: () => cancelled = true,
+                child: Text(appLocalizations.b_cancel),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
     int failed = 0;
     for (final SmsMessage message in items) {
+      if (cancelled) break;
       final int? id = message.id;
       final int? threadId = message.threadId;
-      // id/threadId 缺失的条目无法删除，计入失败而不是 ! 强解包崩溃。
       if (id == null || threadId == null) {
         failed++;
+        progress.value++;
         continue;
       }
       try {
         final bool? ok = await _repository.removeSmsById(id, threadId);
-        if (!mounted) return;
+        if (!mounted) break;
         if (ok != true) {
           failed++;
         }
@@ -423,11 +536,11 @@ class _SmsHomePageState extends State<SmsHomePage> {
         debugPrint('removeSmsById failed: $e');
         failed++;
       }
+      progress.value++;
     }
-    if (failed > 0) {
-      _showToast(appLocalizations.delete_failed(failed.toString()));
-    }
-    _querySms();
+    SmartDialog.dismiss();
+    progress.dispose();
+    return failed;
   }
 
   Future<void> _requestPermission() async {

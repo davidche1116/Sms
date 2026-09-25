@@ -128,6 +128,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get t_delete_all => '删除当前列表所有短信';
 
   @override
+  String get t_deleting => '正在删除...';
+
+  @override
+  String delete_progress(String done, String total) {
+    return '已删除 $done / $total';
+  }
+
+  @override
   String get sim => '卡';
 
   @override
@@ -260,6 +268,14 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get t_delete_all => '刪除目前清單中的所有簡訊';
+
+  @override
+  String get t_deleting => '正在刪除...';
+
+  @override
+  String delete_progress(String done, String total) {
+    return '已刪除 $done / $total';
+  }
 
   @override
   String get sim => '卡';

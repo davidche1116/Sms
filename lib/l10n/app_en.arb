@@ -56,6 +56,21 @@
   "t_no_sms": "No messages",
   "b_remove_filter": "Clear Filter",
   "t_delete_all": "Delete All Messages in Current List",
+  "t_deleting": "Deleting...",
+  "delete_progress": "Deleted {done} / {total}",
+  "@delete_progress": {
+    "description": "Batch delete progress",
+    "placeholders": {
+      "done": {
+        "type": "String",
+        "example": "120"
+      },
+      "total": {
+        "type": "String",
+        "example": "3000"
+      }
+    }
+  },
   "sim": "SIM",
   "t_list_too_long": "Large list, may take longer to process",
   "delete_failed": "Deletion finished, {num} message(s) failed to delete",

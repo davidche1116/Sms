@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import android.provider.Telephony
+import android.util.Log
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterFragmentActivity
@@ -19,6 +20,12 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterFragmentActivity() {
     private val CHANNEL = "com.dc16.sms/smsApp"
 
+    /**
+     * 单次 SQL 的占位符上限：SQLite 默认 SQLITE_MAX_VARIABLE_NUMBER 为 999，
+     * 留出余量按 900 一批切分。
+     */
+    private val DELETE_CHUNK_SIZE = 900
+
     // startActivityForResult 已废弃，改用 Activity Result API。
     // 选择结果通过 onResume 后的 getDefaultSmsApp 重新读取，无需在此处理。
     private val roleRequestLauncher =
@@ -31,6 +38,7 @@ class MainActivity : FlutterFragmentActivity() {
                 "getDefaultSmsApp" -> result.success(getDefaultSmsApp())
                 "setDefaultSmsApp" -> result.success(setDefaultSmsApp())
                 "resetDefaultSmsApp" -> result.success(resetDefaultSmsApp())
+                "deleteSmsBatch" -> result.success(deleteSmsBatch(call.arguments))
                 else -> result.notImplemented()
             }
         }
@@ -82,6 +90,39 @@ class MainActivity : FlutterFragmentActivity() {
             return "no"
         }
         return "ok"
+    }
+
+    /**
+     * 批量删除短信。
+     *
+     * sms_advanced 只提供逐条删除，3000 条就是 3000 次跨进程调用，耗时可达
+     * 分钟级。这里在原生侧按 `_id IN (...)` 分批删除，次数降到
+     * ceil(n / 900) 次。
+     *
+     * @param arguments id 列表
+     * @return 实际删除的行数；`null` 表示参数非法或删除过程中抛出异常，
+     *         调用方应回退到逐条删除。
+     */
+    private fun deleteSmsBatch(arguments: Any?): Int? {
+        val ids = (arguments as? List<*>)?.mapNotNull { (it as? Number)?.toInt() }
+            ?: return null
+        if (ids.isEmpty()) return 0
+
+        return try {
+            var deleted = 0
+            ids.chunked(DELETE_CHUNK_SIZE).forEach { chunk ->
+                val placeholders = chunk.joinToString(",") { "?" }
+                deleted += contentResolver.delete(
+                    Telephony.Sms.CONTENT_URI,
+                    "_id IN ($placeholders)",
+                    chunk.map { it.toString() }.toTypedArray(),
+                )
+            }
+            deleted
+        } catch (e: Exception) {
+            Log.e("MainActivity", "deleteSmsBatch failed", e)
+            null
+        }
     }
 
     /**

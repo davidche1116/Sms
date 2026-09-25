@@ -8,6 +8,9 @@ const MethodChannel queryChannel = MethodChannel(
   JSONMethodCodec(),
 );
 
+/// 本项目自建的通道（默认 StandardMessageCodec）。
+const MethodChannel appChannel = MethodChannel('com.dc16.sms/smsApp');
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -32,6 +35,29 @@ void main() {
         calls,
         unorderedEquals(<String>['getInbox', 'getSent', 'getDraft']),
       );
+    });
+  });
+
+  group('deleteSmsBatch', () {
+    tearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(appChannel, null);
+    });
+
+    test('原生返回删除条数', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(appChannel, (MethodCall call) async {
+            expect(call.method, 'deleteSmsBatch');
+            expect(call.arguments, <int>[1, 2, 3]);
+            return 3;
+          });
+
+      expect(await SmsRepository().deleteSmsBatch(<int>[1, 2, 3]), 3);
+    });
+
+    test('平台侧缺失时返回 null，调用方回退逐条删除', () async {
+      // 通道未注册会抛 MissingPluginException，必须被吃掉而不是冒泡。
+      expect(await SmsRepository().deleteSmsBatch(<int>[1]), isNull);
     });
   });
 }

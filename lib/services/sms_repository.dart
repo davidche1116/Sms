@@ -24,6 +24,23 @@ class SmsRepository {
   Future<bool?> removeSmsById(int id, int threadId) =>
       SmsRemover().removeSmsById(id, threadId);
 
+  /// 批量删除短信，返回实际删除条数。
+  ///
+  /// 原生侧按 `_id IN (...)` 分批删除，把 N 次跨进程调用降到
+  /// ceil(N / 900) 次。返回 `null` 表示平台侧不支持或删除失败，
+  /// 调用方应回退到逐条删除。
+  Future<int?> deleteSmsBatch(List<int> ids) async {
+    try {
+      return await _platform.invokeMethod<int>('deleteSmsBatch', ids);
+    } on PlatformException catch (e) {
+      debugPrint('deleteSmsBatch failed: ${e.message}');
+      return null;
+    } on MissingPluginException catch (e) {
+      debugPrint('deleteSmsBatch missing: $e');
+      return null;
+    }
+  }
+
   /// 当前应用是否为默认短信应用。
   ///
   /// 返回 `true` = 是默认；`false` = 明确不是默认（默认应用是别的包）；
