@@ -480,69 +480,73 @@ class _SmsHomePageState extends State<SmsHomePage> {
     }
   }
 
-  Future<void> _delDir(FileSystemEntity file) async {
-    if (file is Directory) {
-      final List<FileSystemEntity> children = file.listSync();
-      for (final FileSystemEntity child in children) {
-        await _delDir(child);
-      }
-    }
-    await file.delete();
-  }
-
   Future<void> _export() async {
     if (_showList.value.isEmpty) {
       _showToast(appLocalizations.toast_no);
       return;
     }
 
-    List<String> headerRow = [
-      'id',
-      'threadId',
-      'sim',
-      'address',
-      'body',
-      'read',
-      'date',
-      'dateSent',
-      'kind',
-      'state',
-    ];
-    List<List<String>> headerAndDataList = [];
-    headerAndDataList.add(headerRow);
-    for (SmsMessage m in _showList.value) {
-      List<String> dataRow = [
-        m.id.toString(),
-        m.threadId.toString(),
-        m.sim.toString(),
-        m.address.toString(),
-        m.body.toString(),
-        m.isRead.toString(),
-        m.date.toString(),
-        m.dateSent.toString(),
-        m.kind.toString(),
-        m.state.toString(),
+    File? outFile;
+    try {
+      List<String> headerRow = [
+        'id',
+        'threadId',
+        'sim',
+        'address',
+        'body',
+        'read',
+        'date',
+        'dateSent',
+        'kind',
+        'state',
       ];
-      headerAndDataList.add(dataRow);
-    }
+      List<List<String>> headerAndDataList = [];
+      headerAndDataList.add(headerRow);
+      for (SmsMessage m in _showList.value) {
+        List<String> dataRow = [
+          m.id.toString(),
+          m.threadId.toString(),
+          m.sim.toString(),
+          m.address.toString(),
+          m.body.toString(),
+          m.isRead.toString(),
+          m.date.toString(),
+          m.dateSent.toString(),
+          m.kind.toString(),
+          m.state.toString(),
+        ];
+        headerAndDataList.add(dataRow);
+      }
 
-    String csvData = csv.encode(headerAndDataList);
-    final bytes = utf8.encode(csvData);
-    Uint8List data = Uint8List.fromList(bytes);
-    XFile xFile = XFile.fromData(data, mimeType: 'text/csv');
-    Directory tempDir = await getTemporaryDirectory();
-    String path = '${tempDir.path}/${appLocalizations.sms_list}.csv';
-    xFile.saveTo(path);
-    final ShareParams params = ShareParams(
-      text: appLocalizations.sms_list,
-      files: [XFile(path)],
-    );
-    ShareResult res = await SharePlus.instance.share(params);
-    if (res.status == ShareResultStatus.success) {
-      _showToast(appLocalizations.toast_share);
+      String csvData = csv.encode(headerAndDataList);
+      final bytes = utf8.encode(csvData);
+      Uint8List data = Uint8List.fromList(bytes);
+      XFile xFile = XFile.fromData(data, mimeType: 'text/csv');
+      Directory tempDir = await getTemporaryDirectory();
+      String path = '${tempDir.path}/${appLocalizations.sms_list}.csv';
+      xFile.saveTo(path);
+      outFile = File(path);
+      final ShareParams params = ShareParams(
+        text: appLocalizations.sms_list,
+        files: [XFile(path)],
+      );
+      ShareResult res = await SharePlus.instance.share(params);
+      if (res.status == ShareResultStatus.success) {
+        _showToast(appLocalizations.toast_share);
+      }
+    } catch (e) {
+      // 写文件或调起分享失败时提示，而不是未捕获异常直接崩溃。
+      debugPrint('export failed: $e');
+      _showToast(appLocalizations.operation_failed);
+    } finally {
+      // 只清理本次导出的 CSV 文件；递归删整个临时目录会连缓存目录里
+      // 其他数据一起清掉，风险过大。
+      try {
+        await outFile?.delete();
+      } catch (_) {
+        // 清理失败可以忽略，临时目录系统会回收。
+      }
     }
-
-    await _delDir(tempDir);
   }
 
   @override
