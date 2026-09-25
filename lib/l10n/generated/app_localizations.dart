@@ -117,6 +117,12 @@ abstract class AppLocalizations {
   /// **'Please switch the default SMS app in System Settings'**
   String get toast_default_settings;
 
+  /// No description provided for @toast_default_confirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Please confirm in the system dialog'**
+  String get toast_default_confirm;
+
   /// No description provided for @toast_permission.
   ///
   /// In en, this message translates to:

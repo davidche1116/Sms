@@ -21,6 +21,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Please switch the default SMS app in System Settings';
 
   @override
+  String get toast_default_confirm => 'Please confirm in the system dialog';
+
+  @override
   String get toast_permission =>
       'SMS permission required or set as default SMS app';
 

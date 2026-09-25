@@ -455,6 +455,10 @@ class _SmsHomePageState extends State<SmsHomePage> {
       final get = await _repository.getDefaultSmsApp();
       if (set == 'had' || get == SmsRepository.defaultPackageId) {
         _showToast(appLocalizations.operation_completed);
+      } else {
+        // 'no'：已发起系统角色申请流程，尚未生效，需用户在系统弹窗确认。
+        // 旧实现在这里什么都不提示，用户点了按钮却得不到任何反馈。
+        _showToast(appLocalizations.toast_default_confirm);
       }
     } on PlatformException catch (e) {
       _showToast(e.message ?? appLocalizations.operation_failed);
@@ -468,6 +472,9 @@ class _SmsHomePageState extends State<SmsHomePage> {
         // Android 10+ 无法由应用代用户释放默认短信角色，只能引导到系统
         // 设置页；如实告知，不谎报"已完成"。
         _showToast(appLocalizations.toast_default_settings);
+      } else if (result == 'ok') {
+        // Android 10 以下：已发起系统切换弹窗，需用户确认。
+        _showToast(appLocalizations.toast_default_confirm);
       } else if (result == 'no') {
         _showToast(appLocalizations.operation_failed);
       }

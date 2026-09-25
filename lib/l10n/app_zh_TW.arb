@@ -3,6 +3,7 @@
   "title": "簡訊清理",
   "toast_default": "需要在系統設定中將本應用程式設定為預設簡訊應用程式才能刪除簡訊",
   "toast_default_settings": "請在系統設定中切換預設簡訊應用程式",
+  "toast_default_confirm": "請在系統彈出視窗中確認",
   "toast_permission": "需要申請簡訊權限或設定為預設簡訊應用程式",
   "keyword": "關鍵字",
   "b_confirm": "確定",

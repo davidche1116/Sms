@@ -19,6 +19,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get toast_default_settings => '请在系统设置中切换默认短信应用';
 
   @override
+  String get toast_default_confirm => '请在系统弹窗中确认';
+
+  @override
   String get toast_permission => '需要申请短信权限或设置为短信默认应用';
 
   @override
@@ -148,6 +151,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get toast_default_settings => '請在系統設定中切換預設簡訊應用程式';
+
+  @override
+  String get toast_default_confirm => '請在系統彈出視窗中確認';
 
   @override
   String get toast_permission => '需要申請簡訊權限或設定為預設簡訊應用程式';
