@@ -13,8 +13,12 @@ class SmsRepository {
   Future<List<SmsMessage>> getAllSms() => SmsQuery().getAllSms;
 
   /// 按号码查询该地址的全部短信。
+  ///
+  /// 必须显式传全部类型：`querySms` 的 kinds 默认是 `[SmsQueryKind.Inbox]`，
+  /// 不传就只回收件箱，与"全部短信"（Sent+Inbox+Draft）口径不一致，
+  /// 用户会看到"同号码"结果比预期少。
   Future<List<SmsMessage>> queryByAddress(String? address) =>
-      SmsQuery().querySms(address: address);
+      SmsQuery().querySms(address: address, kinds: SmsQueryKind.values);
 
   /// 按 id + threadId 删除单条短信，返回 null/true/false 由插件语义决定。
   Future<bool?> removeSmsById(int id, int threadId) =>
