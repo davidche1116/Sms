@@ -21,6 +21,18 @@
 ## 界面截圖
 ![UI](assets/screenshot/ui.jpg)
 
+## 隱私說明
+
+- 所有簡訊資料僅保存在**本機**。應用程式不發起任何網路請求，不會上傳、同步或自動分享任何資料。
+- 匯出的 CSV 檔案僅寫入應用程式暫存目錄，只在主動觸發匯出時透過系統分享面板分享。
+- 刪除簡訊不可復原，批次刪除前請確認篩選條件。
+- AndroidManifest 中宣告的權限及用途：
+  - `READ_SMS` / `RECEIVE_SMS` / `RECEIVE_MMS` / `RECEIVE_WAP_PUSH`：讀取與管理簡訊/多媒體訊息。
+  - `SEND_SMS`：預設簡訊應用程式角色所需（應用程式本身不傳送簡訊）。
+  - `READ_PHONE_STATE`：部分 Android 版本上預設簡訊應用程式角色所需。
+  - `READ_CONTACTS` / `READ_PROFILE` / `QUERY_ALL_PACKAGES`：隨簡訊外掛一併宣告，應用程式本身未使用。
+  - 預設簡訊應用程式：Android 僅允許預設簡訊應用程式刪除簡訊，應用程式會引導暫時切換，並可還原原預設應用程式。
+
 ## 開發環境
 
 - Flutter 3.47.2 (stable)
@@ -46,7 +58,7 @@ fastforge release --name apk
 
 | 工作流 | 觸發時機 | Flutter 渠道 | 內容 |
 | --- | --- | --- | --- |
-| `build.yml` | push main（版本 tag 除外）/ 新建 PR | stable | `dart analyze` + `flutter test` + 構建 APK + 上傳 artifact |
+| `build.yml` | push main（版本 tag 除外）/ PR 新建或更新 | stable | `dart analyze` + `flutter test` + 構建 APK + 上傳 artifact |
 | `manual.yml` | 手動觸發 | beta / master / stable 可選（預設 stable） | `dart analyze` + `flutter test` + 構建 APK + 上傳 artifact |
 | `publish.yml` | 版本 tag（如 `1.6.1+250725`） | stable | 構建 APK + 建立草稿 Release |
 
@@ -67,7 +79,8 @@ Sms
 ├─android              # Android工程配置
 ├─assets               # 資源檔案目錄
 ├─lib                  # Flutter原始碼目錄
-│  └─main.dart         # APP入口
+│  ├─main.dart         # APP入口與介面
+│  └─services          # 資料存取與純邏輯（簡訊儲存庫 / 篩選 / CSV匯出）
 ├─.github/workflows    # CI 工作流
 └─dist                 # 構建產物目錄
 ```

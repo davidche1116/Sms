@@ -21,6 +21,18 @@
 ## Screenshot
 ![UI](assets/screenshot/ui.jpg)
 
+## Privacy
+
+- All SMS data stays **on your device**. The app makes no network requests: nothing is uploaded, synced, or shared automatically.
+- Exported CSV files are written to the app's temporary directory and shared only via the system share sheet when you explicitly trigger the export.
+- Deleting SMS messages is irreversible — double-check your filters before batch deletion.
+- Permissions declared in the Android manifest:
+  - `READ_SMS` / `RECEIVE_SMS` / `RECEIVE_MMS` / `RECEIVE_WAP_PUSH` — read and manage SMS/MMS messages.
+  - `SEND_SMS` — required by the default-SMS-app role (the app itself does not send messages).
+  - `READ_PHONE_STATE` — required by the default-SMS-app role on some Android versions.
+  - `READ_CONTACTS` / `READ_PROFILE` / `QUERY_ALL_PACKAGES` — declared alongside the legacy SMS plugin; not used by the app itself.
+  - Default SMS app role — Android only allows SMS deletion from the default SMS app; the app asks you to switch temporarily and can restore your previous default.
+
 ## Development Environment
 
 - Flutter 3.47.2 (stable)
@@ -46,7 +58,7 @@ Artifacts are output to `dist/`. The APK is signed with the release keystore and
 
 | Workflow | Trigger | Flutter Channel | Contents |
 | --- | --- | --- | --- |
-| `build.yml` | push main (version tags excluded) / opened PR | stable | `dart analyze` + `flutter test` + build APK + upload artifact |
+| `build.yml` | push main (version tags excluded) / PR (opened or updated) | stable | `dart analyze` + `flutter test` + build APK + upload artifact |
 | `manual.yml` | manual trigger | beta / master / stable selectable (default stable) | `dart analyze` + `flutter test` + build APK + upload artifact |
 | `publish.yml` | version tag (e.g. `1.6.1+250725`) | stable | build APK + create draft Release |
 
@@ -67,7 +79,8 @@ Sms
 ├─android              # Android project configuration
 ├─assets               # Assets
 ├─lib                  # Flutter source code
-│  └─main.dart         # App entry
+│  ├─main.dart         # App entry & UI
+│  └─services          # Data access & pure logic (SMS repository / filtering / CSV export)
 ├─.github/workflows    # CI workflows
 └─dist                 # Build output
 ```
