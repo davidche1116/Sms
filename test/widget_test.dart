@@ -112,4 +112,51 @@ void main() {
     expect(find.text(l10n.set_default), findsWidgets);
     expect(find.text(l10n.set_export), findsWidgets);
   });
+
+  testWidgets('进入/退出多选模式时 UI 跟随选择态刷新', (WidgetTester tester) async {
+    const queryChannel = MethodChannel(
+      'plugins.elyudde.com/querySMS',
+      JSONMethodCodec(),
+    );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(queryChannel, (MethodCall call) async {
+          return <dynamic>[
+            <dynamic, dynamic>{
+              '_id': 1,
+              'thread_id': 5,
+              'address': '10086',
+              'body': 'balance reminder',
+              'sub_id': 0,
+              'read': 1,
+              'date': 1789000000000,
+              'date_sent': 1789000000000,
+            },
+          ];
+        });
+
+    await tester.pumpWidget(const SmsApp());
+    await tester.pumpAndSettle();
+
+    // 进入多选前：列表项无复选框，AppBar 有"多选"入口图标。
+    expect(find.byType(Checkbox), findsNothing);
+    expect(find.byIcon(Icons.checklist_outlined), findsOneWidget);
+
+    // 点击"多选"入口进入多选模式。
+    await tester.tap(find.byIcon(Icons.checklist_outlined));
+    await tester.pumpAndSettle();
+
+    // 进入多选后：列表项出现复选框，AppBar 出现"全选"/"退出多选"，
+    // 而"多选"图标消失（按钮组已切换）。
+    expect(find.byType(Checkbox), findsWidgets);
+    expect(find.text(l10n.select_all), findsOneWidget);
+    expect(find.text(l10n.exit_select), findsOneWidget);
+    expect(find.byIcon(Icons.checklist_outlined), findsNothing);
+
+    // 点击"退出多选"回到普通模式：复选框消失，入口图标恢复。
+    await tester.tap(find.text(l10n.exit_select));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Checkbox), findsNothing);
+    expect(find.byIcon(Icons.checklist_outlined), findsOneWidget);
+  });
 }

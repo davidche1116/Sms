@@ -110,7 +110,11 @@ class _SmsHomePageState extends State<SmsHomePage> {
     Animation<double> animation, {
     bool interactive = true,
   }) {
-    return MessageItem(
+    // 列表项需随选择态变化重建（复选框勾选、选中背景）。控制器是
+    // ChangeNotifier，仅监听 messages 无法感知 selectionMode/_selected 的
+    // 变化，必须显式监听 _controller 才能在勾选/全选/退出时刷新。
+    // 离场动画用的静态快照不监听，避免动画过程中被选择态刷新打断。
+    MessageItem buildItem() => MessageItem(
       item: item,
       animation: animation,
       interactive: interactive,
@@ -123,6 +127,11 @@ class _SmsHomePageState extends State<SmsHomePage> {
       onSameSim: _controller.querySameSim,
       onShowToast: _showToast,
       onToggleSelection: _controller.toggleSelection,
+    );
+    if (!interactive) return buildItem();
+    return ListenableBuilder(
+      listenable: _controller,
+      builder: (BuildContext context, Widget? _) => buildItem(),
     );
   }
 
@@ -592,89 +601,107 @@ class _SmsHomePageState extends State<SmsHomePage> {
           },
         ),
         actions: <Widget>[
-          if (_controller.selectionMode) ...<Widget>[
-            // 多选模式：提供全选 / 退出多选，主操作（删除选中）在右下 FAB。
-            TextButton(
-              onPressed: _controller.selectAll,
-              child: Text(appLocalizations.select_all),
-            ),
-            TextButton(
-              onPressed: _controller.exitSelectionMode,
-              child: Text(appLocalizations.exit_select),
-            ),
-          ] else ...<Widget>[
-            IconButton(
-              tooltip: appLocalizations.t_all_sms,
-              onPressed: () {
-                _controller.clearFilters();
-                _controller.queryAll();
-              },
-              icon: const Icon(Icons.format_list_bulleted_outlined),
-            ),
-            IconButton(
-              tooltip: appLocalizations.t_date_filter,
-              onPressed: _filterDate,
-              icon: const Icon(Icons.date_range_outlined),
-            ),
-            IconButton(
-              tooltip: appLocalizations.t_keyword_filter,
-              onPressed: _filterMsg,
-              icon: const Icon(Icons.search_outlined),
-            ),
-            IconButton(
-              tooltip: appLocalizations.set_select,
-              onPressed: () => _controller.enterSelectionMode(),
-              icon: const Icon(Icons.checklist_outlined),
-            ),
-            PopupMenuButton<String>(
-              itemBuilder: (BuildContext context) => <PopupMenuItem<String>>[
-                _selectView(
-                  Icons.message_outlined,
-                  appLocalizations.set_permission,
-                  'A',
-                ),
-                _selectView(
-                  Icons.settings_outlined,
-                  appLocalizations.set_settings,
-                  'B',
-                ),
-                _selectView(
-                  Icons.admin_panel_settings_outlined,
-                  appLocalizations.set_default,
-                  'C',
-                ),
-                _selectView(
-                  Icons.refresh_rounded,
-                  appLocalizations.set_restore,
-                  'D',
-                ),
-                _selectView(
-                  Icons.share_outlined,
-                  appLocalizations.set_export,
-                  'E',
-                ),
-              ],
-              onSelected: (String action) {
-                switch (action) {
-                  case 'A':
-                    _requestPermission();
-                    break;
-                  case 'B':
-                    _setAppPermission();
-                    break;
-                  case 'C':
-                    _setDefaultApp();
-                    break;
-                  case 'D':
-                    _resetDefaultSmsApp();
-                    break;
-                  case 'E':
-                    _export();
-                    break;
-                }
-              },
-            ),
-          ],
+          // 选择态相关的按钮必须监听 _controller：控制器是 ChangeNotifier，
+          // 仅在外层 build 不会在 selectionMode 变化时重建，导致"多选"点了
+          // 没反应。这里用 ListenableBuilder 显式监听，进入/退出多选时切换
+          // 按钮组（全选/退出 ↔ 全部/日期/搜索/多选/菜单）。
+          ListenableBuilder(
+            listenable: _controller,
+            builder: (BuildContext context, Widget? _) {
+              if (_controller.selectionMode) {
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    TextButton(
+                      onPressed: _controller.selectAll,
+                      child: Text(appLocalizations.select_all),
+                    ),
+                    TextButton(
+                      onPressed: _controller.exitSelectionMode,
+                      child: Text(appLocalizations.exit_select),
+                    ),
+                  ],
+                );
+              }
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  IconButton(
+                    tooltip: appLocalizations.t_all_sms,
+                    onPressed: () {
+                      _controller.clearFilters();
+                      _controller.queryAll();
+                    },
+                    icon: const Icon(Icons.format_list_bulleted_outlined),
+                  ),
+                  IconButton(
+                    tooltip: appLocalizations.t_date_filter,
+                    onPressed: _filterDate,
+                    icon: const Icon(Icons.date_range_outlined),
+                  ),
+                  IconButton(
+                    tooltip: appLocalizations.t_keyword_filter,
+                    onPressed: _filterMsg,
+                    icon: const Icon(Icons.search_outlined),
+                  ),
+                  IconButton(
+                    tooltip: appLocalizations.set_select,
+                    onPressed: () => _controller.enterSelectionMode(),
+                    icon: const Icon(Icons.checklist_outlined),
+                  ),
+                  PopupMenuButton<String>(
+                    itemBuilder: (BuildContext context) =>
+                        <PopupMenuItem<String>>[
+                          _selectView(
+                            Icons.message_outlined,
+                            appLocalizations.set_permission,
+                            'A',
+                          ),
+                          _selectView(
+                            Icons.settings_outlined,
+                            appLocalizations.set_settings,
+                            'B',
+                          ),
+                          _selectView(
+                            Icons.admin_panel_settings_outlined,
+                            appLocalizations.set_default,
+                            'C',
+                          ),
+                          _selectView(
+                            Icons.refresh_rounded,
+                            appLocalizations.set_restore,
+                            'D',
+                          ),
+                          _selectView(
+                            Icons.share_outlined,
+                            appLocalizations.set_export,
+                            'E',
+                          ),
+                        ],
+                    onSelected: (String action) {
+                      switch (action) {
+                        case 'A':
+                          _requestPermission();
+                          break;
+                        case 'B':
+                          _setAppPermission();
+                          break;
+                        case 'C':
+                          _setDefaultApp();
+                          break;
+                        case 'D':
+                          _resetDefaultSmsApp();
+                          break;
+                        case 'E':
+                          _export();
+                          break;
+                      }
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
         ],
       ),
       body: ValueListenableBuilder<bool>(
