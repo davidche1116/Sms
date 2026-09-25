@@ -84,24 +84,31 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     /**
-     * 重置默认短信应用为系统应用
-     * @return 返回重置状态："ok"(重置成功)，"no"(重置失败)
+     * 将默认短信应用交还给系统短信应用。
+     *
+     * Android 不允许应用单方面修改默认短信应用，必须经由 ACTION_CHANGE_DEFAULT
+     * 由用户在系统对话框中确认。因此本方法发起真实的默认切换流程，而不是仅启动
+     * 对方应用的桌面图标（那样并未改变默认角色，却谎报成功）。
+     *
+     * @return "ok" 表示已发起系统默认切换流程（需用户在系统对话框确认）；
+     *         "no" 表示未找到可切换的系统短信应用或发起失败。
      */
     private fun resetDefaultSmsApp(): String {
-        val packageManager = packageManager
-        
-        // 尝试启动Android默认短信应用
-        packageManager.getLaunchIntentForPackage("com.android.mms")?.let { intent ->
+        val targets = listOf(
+            "com.android.mms",
+            "com.google.android.apps.messaging",
+        )
+        val installed = targets.firstOrNull { pkg ->
+            packageManager.getLaunchIntentForPackage(pkg) != null
+        } ?: return "no"
+
+        return try {
+            val intent = Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT)
+            intent.putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, installed)
             startActivity(intent)
-            return "ok"
+            "ok"
+        } catch (e: Exception) {
+            "no"
         }
-        
-        // 尝试启动Google短信应用
-        packageManager.getLaunchIntentForPackage("com.google.android.apps.messaging")?.let { intent ->
-            startActivity(intent)
-            return "ok"
-        }
-        
-        return "no"
     }
 }
