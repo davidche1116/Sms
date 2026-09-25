@@ -133,17 +133,10 @@ class _SmsHomePageState extends State<SmsHomePage> {
     if (ok) {
       _showLoading.value = true;
       try {
-        List<SmsMessage> allMessageList = [];
-        allMessageList = await _repository.getAllSms();
         // body 可能为 null（部分彩信/草稿无正文），过滤逻辑见
         // services/sms_filter.dart，null 一律视为不匹配。
-        showMessageList = filterByKeyword(allMessageList, _textController.text);
-        showMessageList = filterByDateRange(
-          showMessageList,
-          _startDate,
-          _endDate,
-        );
-        sortByDateDesc(showMessageList);
+        final List<SmsMessage> allMessageList = await _repository.getAllSms();
+        showMessageList = _applyFilters(allMessageList);
       } catch (e) {
         // 平台查询失败（如底层插件异常）时兜底：提示失败、清空列表，
         // 保证 loading 一定复位、界面不挂死。
@@ -210,19 +203,29 @@ class _SmsHomePageState extends State<SmsHomePage> {
     }
   }
 
+  /// 统一的过滤链：关键词 + 日期区间 + 日期降序。
+  ///
+  /// 所有查询路径（全部 / 同号 / 同卡）都走它，保证"当前列表 = 数据源 +
+  /// 过滤条件"的语义一致——下钻换的是数据源，过滤条件不应被悄悄丢掉。
+  List<SmsMessage> _applyFilters(List<SmsMessage> messages) {
+    List<SmsMessage> result = filterByKeyword(messages, _textController.text);
+    result = filterByDateRange(result, _startDate, _endDate);
+    return sortByDateDesc(result);
+  }
+
   Future<void> _sameAddress(int index) async {
     // 同步快照查询条件：await 间隙列表可能已被刷新，不能再用 index 回查。
     if (index < 0 || index >= _showList.value.length) return;
     final String? address = _showList.value[index].address;
-    _textController.text = '';
     List<SmsMessage> showMessageList = [];
     bool ok = await Permission.sms.isGranted;
     if (ok) {
       _showLoading.value = true;
 
       try {
-        showMessageList = await _repository.queryByAddress(address);
-        sortByDateDesc(showMessageList);
+        showMessageList = _applyFilters(
+          await _repository.queryByAddress(address),
+        );
       } catch (e) {
         debugPrint('querySms(address) failed: $e');
         showMessageList = [];
@@ -241,7 +244,6 @@ class _SmsHomePageState extends State<SmsHomePage> {
     // 同上：先同步快照 sim，避免异步间隙 index 失效。
     if (index < 0 || index >= _showList.value.length) return;
     final int? sim = _showList.value[index].sim;
-    _textController.text = '';
     List<SmsMessage> showMessageList = [];
     bool ok = await Permission.sms.isGranted;
     if (ok) {
@@ -250,8 +252,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
       try {
         List<SmsMessage> allMessageList = [];
         allMessageList = await _repository.getAllSms();
-        showMessageList = filterBySim(allMessageList, sim);
-        sortByDateDesc(showMessageList);
+        showMessageList = _applyFilters(filterBySim(allMessageList, sim));
       } catch (e) {
         debugPrint('querySms(sim) failed: $e');
         showMessageList = [];
