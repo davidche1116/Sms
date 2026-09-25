@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:csv/csv.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +12,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:sms_advanced/sms_advanced.dart';
 
 import 'l10n/generated/app_localizations.dart';
+import 'services/csv_exporter.dart';
 import 'services/sms_filter.dart';
 import 'services/sms_repository.dart';
 
@@ -467,38 +467,8 @@ class _SmsHomePageState extends State<SmsHomePage> {
 
     File? outFile;
     try {
-      List<String> headerRow = [
-        'id',
-        'threadId',
-        'sim',
-        'address',
-        'body',
-        'read',
-        'date',
-        'dateSent',
-        'kind',
-        'state',
-      ];
-      List<List<String>> headerAndDataList = [];
-      headerAndDataList.add(headerRow);
-      for (SmsMessage m in _showList.value) {
-        // 可空字段写空串而不是 "null" 字符串，保证导出数据干净。
-        List<String> dataRow = [
-          m.id?.toString() ?? '',
-          m.threadId?.toString() ?? '',
-          m.sim?.toString() ?? '',
-          m.address ?? '',
-          m.body ?? '',
-          m.isRead.toString(),
-          m.date?.toString() ?? '',
-          m.dateSent?.toString() ?? '',
-          m.kind.toString(),
-          m.state.toString(),
-        ];
-        headerAndDataList.add(dataRow);
-      }
-
-      String csvData = csv.encode(headerAndDataList);
+      // CSV 编码逻辑见 services/csv_exporter.dart（纯函数，已单测覆盖）。
+      String csvData = buildSmsCsv(_showList.value);
       final bytes = utf8.encode(csvData);
       Uint8List data = Uint8List.fromList(bytes);
       XFile xFile = XFile.fromData(data, mimeType: 'text/csv');
