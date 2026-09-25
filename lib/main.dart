@@ -474,7 +474,8 @@ class _SmsHomePageState extends State<SmsHomePage> {
       XFile xFile = XFile.fromData(data, mimeType: 'text/csv');
       Directory tempDir = await getTemporaryDirectory();
       String path = '${tempDir.path}/${appLocalizations.sms_list}.csv';
-      xFile.saveTo(path);
+      // await 确保 CSV 完整落盘后再分享，否则可能分享到空或半截文件。
+      await xFile.saveTo(path);
       outFile = File(path);
       final ShareParams params = ShareParams(
         text: appLocalizations.sms_list,
