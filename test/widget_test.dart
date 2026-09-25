@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -54,5 +55,56 @@ void main() {
     expect(find.text('SMS'), findsOneWidget);
     // 空状态页提供“请求权限”入口。
     expect(find.text('Request SMS Permission'), findsOneWidget);
+  });
+
+  testWidgets('Shows queried SMS with count in title', (
+    WidgetTester tester,
+  ) async {
+    const queryChannel = MethodChannel(
+      'plugins.elyudde.com/querySMS',
+      JSONMethodCodec(),
+    );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(queryChannel, (MethodCall call) async {
+          // 覆盖 setUp 中的空列表：返回一条可通过 SmsMessage.fromJson
+          // 解析的短信（字段名与插件通道协议一致）。
+          return <dynamic>[
+            <dynamic, dynamic>{
+              '_id': 1,
+              'thread_id': 5,
+              'address': '10086',
+              'body': 'balance reminder',
+              'sub_id': 0,
+              'read': 1,
+              'date': 1789000000000,
+              'date_sent': 1789000000000,
+            },
+          ];
+        });
+
+    await tester.pumpWidget(const SmsApp());
+    await tester.pumpAndSettle();
+
+    // 插件按 Inbox/Sent/Draft 三种类型各查一次，mock 会命中 3 次。
+    // 标题显示条数，列表渲染正文与号码。
+    expect(find.textContaining('message(s)'), findsOneWidget);
+    expect(find.text('balance reminder'), findsWidgets);
+    expect(find.text('10086'), findsWidgets);
+  });
+
+  testWidgets('App bar menu exposes settings entries', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const SmsApp());
+    await tester.pumpAndSettle();
+
+    // 打开右上角菜单，确认各设置入口存在。
+    // 空状态页也提供部分同名按钮，因此统一用 findsWidgets。
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Request SMS Permission'), findsWidgets);
+    expect(find.text('Set as Default SMS App'), findsWidgets);
+    expect(find.text('Export as CSV'), findsWidgets);
   });
 }
