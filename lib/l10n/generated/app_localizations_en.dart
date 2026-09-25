@@ -39,6 +39,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get operation_failed => 'Operation Failed';
+
   @override
   String get toast_save_failed =>
       'Save failed. Please check storage space or permissions';
@@ -53,8 +54,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sms_list => 'Message List';
 
   @override
-  String get toast_share =>
-      'Shared successfully. Please open with UTF-8 encoding';
+  String get toast_share => 'Shared successfully';
 
   @override
   String get tips => 'Tips';

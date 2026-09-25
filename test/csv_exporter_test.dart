@@ -41,6 +41,11 @@ void main() {
       expect(csv, isNot(contains('null')));
     });
 
+    test('落盘字节流带 UTF-8 BOM，Excel 可直接识别编码', () {
+      final bytes = encodeSmsCsvBytes([SmsMessage('10086', '中文正文')]);
+      expect(bytes.take(3), <int>[0xEF, 0xBB, 0xBF]);
+    });
+
     test('正文含逗号/引号时正确转义', () {
       final message = SmsMessage('10086', 'say "hi", ok', id: 1);
       final csv = buildSmsCsv([message]);

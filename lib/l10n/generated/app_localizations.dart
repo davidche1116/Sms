@@ -180,7 +180,7 @@ abstract class AppLocalizations {
   /// No description provided for @toast_share.
   ///
   /// In en, this message translates to:
-  /// **'Shared successfully. Please open with UTF-8 encoding'**
+  /// **'Shared successfully'**
   String get toast_share;
 
   /// No description provided for @tips.

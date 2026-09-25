@@ -22,7 +22,7 @@
   "operation_completed": "Operation Completed",
   "toast_no": "No messages to share",
   "sms_list": "Message List",
-  "toast_share": "Shared successfully. Please open with UTF-8 encoding",
+  "toast_share": "Shared successfully",
   "tips": "Tips",
   "delete_or_move": "Delete or remove this item?",
   "b_remove": "Remove from List",

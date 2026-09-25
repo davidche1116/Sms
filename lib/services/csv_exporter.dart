@@ -1,5 +1,14 @@
+import 'dart:convert';
+
 import 'package:csv/csv.dart';
 import 'package:sms_advanced/sms_advanced.dart';
+
+/// UTF-8 字节顺序标记。
+///
+/// Excel / 记事本等工具不会默认按 UTF-8 解析无 BOM 的 CSV，中文正文会显示
+/// 成乱码（旧版只能靠提示"请用 UTF-8 编码打开"来规避）。带 BOM 前缀即可
+/// 让这些工具直接正确识别编码。
+const String csvBom = '\uFEFF';
 
 /// 将短信列表编码为含表头的 CSV 文本。
 ///
@@ -37,3 +46,7 @@ String buildSmsCsv(List<SmsMessage> messages) {
   }
   return csv.encode(headerAndDataList);
 }
+
+/// 落盘用的字节流：带 UTF-8 BOM 前缀，接收方无需手动选择编码。
+List<int> encodeSmsCsvBytes(List<SmsMessage> messages) =>
+    utf8.encode('$csvBom${buildSmsCsv(messages)}');

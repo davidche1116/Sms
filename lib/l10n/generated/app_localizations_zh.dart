@@ -37,6 +37,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get operation_failed => '操作失败';
+
   @override
   String get toast_save_failed => '保存失败，请检查存储空间或权限';
 
@@ -50,7 +51,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sms_list => '短信列表';
 
   @override
-  String get toast_share => '分享成功，需用utf-8格式打开';
+  String get toast_share => '分享成功';
 
   @override
   String get tips => '提示';
@@ -164,6 +165,7 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get operation_failed => '操作失敗';
+
   @override
   String get toast_save_failed => '保存失敗，請檢查儲存空間或權限';
 
@@ -177,7 +179,7 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
   String get sms_list => '簡訊清單';
 
   @override
-  String get toast_share => '分享成功，請使用utf-8格式開啟';
+  String get toast_share => '分享成功';
 
   @override
   String get tips => '提示';

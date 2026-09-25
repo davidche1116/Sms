@@ -22,7 +22,7 @@
   "operation_completed": "操作成功",
   "toast_no": "沒有簡訊可分享",
   "sms_list": "簡訊清單",
-  "toast_share": "分享成功，請使用utf-8格式開啟",
+  "toast_share": "分享成功",
   "tips": "提示",
   "delete_or_move": "是否要刪除或移出目前項目？",
   "b_remove": "移出清單",

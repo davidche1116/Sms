@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
@@ -485,17 +484,18 @@ class _SmsHomePageState extends State<SmsHomePage> {
     late File outFile;
     try {
       // CSV 编码逻辑见 services/csv_exporter.dart（纯函数，已单测覆盖）。
-      String csvData = buildSmsCsv(_showList.value);
       Directory tempDir = await getTemporaryDirectory();
       String path = '${tempDir.path}/${appLocalizations.sms_list}.csv';
       outFile = File(path);
-      // 直接 writeAsBytes 落盘，省掉 buildSmsCsv 的 String→utf8 bytes→Uint8List.fromList
-      // 这层冗余全量拷贝，以及 XFile.fromData 额外驻留的一份 data。内存峰值从多份全量
-      // 降到 csvString + bytes 两份。flush 确保 CSV 完整落盘后再分享，否则可能分享到
-      // 空或半截文件。这里刻意不改 CSV 字节输出路径（仍用 buildSmsCsv 整体编码）：
-      // 流式/分批逐行编码需逐字节一致性验证，当前 flutter test 与读依赖源码均被系统拦,
-      // 无法安全验证，故不在此环境贸然改动。
-      await outFile.writeAsBytes(utf8.encode(csvData), flush: true);
+      // 直接 writeAsBytes 落盘，省掉 String→Uint8List.fromList 这层冗余全量
+      // 拷贝，以及 XFile.fromData 额外驻留的一份 data。内存峰值从多份全量降到
+      // csvString + bytes 两份。flush 确保 CSV 完整落盘后再分享，否则可能分享
+      // 到空或半截文件。这里刻意不改 CSV 的逐行编码路径（仍用 buildSmsCsv
+      // 整体编码）：流式/分批编码需逐字节一致性验证，改动风险大于收益。
+      await outFile.writeAsBytes(
+        encodeSmsCsvBytes(_showList.value),
+        flush: true,
+      );
     } catch (e) {
       // IO/平台类失败：提示保存失败，而不是笼统的"操作失败"。
       debugPrint('export save failed: $e');
