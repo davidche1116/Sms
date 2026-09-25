@@ -15,6 +15,7 @@ import 'l10n/generated/app_localizations.dart';
 import 'services/csv_exporter.dart';
 import 'services/sms_filter.dart';
 import 'services/sms_repository.dart';
+import 'widgets/message_item.dart';
 
 void main() {
   runApp(const SmsApp());
@@ -172,7 +173,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
     ) {
       // 离场动画用的静态快照：不可交互，不再按 index 回查实时列表
       //（旧代码把 stale index 传给 _buildItem，动画期间点选会读写错位）。
-      return _buildItem(index, removedItem, context, animation, false);
+      return MessageItem(index: index, item: removedItem, animation: animation, interactive: false, appLocalizations: appLocalizations, onDelete: _deleteIndex, onRemove: _removeIndex, onSameAddress: _sameAddress, onSameSim: _sameSim, onShowToast: _showToast);
     });
     // return removedItem;
   }
@@ -531,179 +532,6 @@ class _SmsHomePageState extends State<SmsHomePage> {
     });
   }
 
-  Widget _buildItem(
-    int index,
-    SmsMessage item,
-    BuildContext context,
-    Animation<double> animation, [
-    bool interactive = true,
-  ]) {
-    return SlideTransition(
-      position:
-          Tween<Offset>(
-            begin: const Offset(1, 0),
-            end: const Offset(0, 0),
-          ).animate(
-            CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeInBack,
-              reverseCurve: Curves.easeInOutBack,
-            ),
-          ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            minVerticalPadding: 8,
-            minLeadingWidth: 4,
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [Text(item.body ?? ''), const SizedBox(height: 5)],
-            ),
-            subtitle: Row(
-              spacing: 10,
-              children: [
-                Container(
-                  padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    '${appLocalizations.sim}${item.sim}',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onPrimary,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    item.sender ?? '',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Text(
-                  item.date.toString().substring(0, 19),
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                  ),
-                ),
-              ],
-            ),
-            onTap: interactive
-                ? () {
-                    showCupertinoModalPopup(
-                      context: context,
-                      builder: (context) {
-                        return CupertinoActionSheet(
-                          title: Text(appLocalizations.tips),
-                          message: Text(appLocalizations.delete_or_move),
-                          actions: <Widget>[
-                            CupertinoActionSheetAction(
-                              onPressed: () {
-                                Navigator.of(context).pop('remove');
-                                _removeIndex(index);
-                              },
-                              child: Text(appLocalizations.b_remove),
-                            ),
-                            CupertinoActionSheetAction(
-                              onPressed: () {
-                                Navigator.of(context).pop('delete');
-                                _deleteIndex(index);
-                              },
-                              isDestructiveAction: true,
-                              isDefaultAction: true,
-                              child: Text(appLocalizations.b_delete),
-                            ),
-                            CupertinoActionSheetAction(
-                              onPressed: () {
-                                Navigator.of(context).pop('same');
-                                _sameAddress(index);
-                              },
-                              child: Text(appLocalizations.b_same_number),
-                            ),
-                            CupertinoActionSheetAction(
-                              onPressed: () {
-                                Navigator.of(context).pop('sim');
-                                _sameSim(index);
-                              },
-                              child: Text(appLocalizations.b_same_sim),
-                            ),
-                            CupertinoActionSheetAction(
-                              onPressed: () {
-                                Navigator.of(context).pop('copy');
-                                Clipboard.setData(
-                                  ClipboardData(
-                                    // 用创建弹窗时捕获的 item，不按 index 回查实时列表
-                                    //（列表刷新/移除后 index 可能指向别条甚至越界）。
-                                    text:
-                                        '${item.address}\r\n${item.date}\r\n${item.body}',
-                                  ),
-                                );
-                                _showToast(appLocalizations.toast_clipboard);
-                              },
-                              child: Text(appLocalizations.b_copy),
-                            ),
-                          ],
-                          cancelButton: CupertinoActionSheetAction(
-                            child: Text(appLocalizations.b_cancel),
-                            onPressed: () {
-                              Navigator.of(context).pop('cancel');
-                            },
-                          ),
-                        );
-                      },
-                    );
-                  }
-                : null,
-            onLongPress: interactive
-                ? () {
-                    showCupertinoModalPopup(
-                      context: context,
-                      builder: (context) {
-                        return CupertinoActionSheet(
-                          title: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: SelectableText(
-                              item.body ?? '',
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                          ),
-                          actions: [
-                            CupertinoActionSheetAction(
-                              onPressed: () {
-                                Navigator.of(context).pop('copy');
-                                Clipboard.setData(
-                                  ClipboardData(text: '${item.address}'),
-                                );
-                                _showToast(appLocalizations.toast_clipboard);
-                              },
-                              child: Text(item.address ?? ''),
-                            ),
-                          ],
-                          cancelButton: CupertinoActionSheetAction(
-                            child: Text(appLocalizations.b_cancel),
-                            onPressed: () {
-                              Navigator.of(context).pop('cancel');
-                            },
-                          ),
-                        );
-                      },
-                    );
-                  }
-                : null,
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 10),
-            child: Divider(),
-          ),
-        ],
-      ),
-    );
-  }
 
   PopupMenuItem<String> _selectView(IconData icon, String text, String id) {
     return PopupMenuItem<String>(
@@ -890,12 +718,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
                                       Animation<double> animation,
                                     ) {
                                       SmsMessage item = value[index];
-                                      return _buildItem(
-                                        index,
-                                        item,
-                                        context,
-                                        animation,
-                                      );
+                                      return MessageItem(index: index, item: item, animation: animation, appLocalizations: appLocalizations, onDelete: _deleteIndex, onRemove: _removeIndex, onSameAddress: _sameAddress, onSameSim: _sameSim, onShowToast: _showToast);
                                     },
                               );
                       },

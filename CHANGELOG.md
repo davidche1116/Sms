@@ -31,6 +31,7 @@
 - docs(readme): 三语 README 新增隐私说明章节（数据不出设备、逐权限用途、删除不可恢复提示），并同步 CI 触发说明与项目结构
 - refactor(export): 导出拆为保存/分享两阶段分别捕获，保存失败提示「保存失败」、分享失败提示「操作失败」（新增 l10n `toast_save_failed` 三语）
 - perf(export): 导出改用 File.writeAsBytes 直接落盘，去掉 utf8→Uint8List.fromList→XFile.fromData 冗余全量拷贝，降低内存峰值
+- refactor(ui): 短信列表项卡片从 main.dart 抽出为 `lib/widgets/message_item.dart` 的 `MessageItem` 组件，删除/移回收站/同卡/同号/复制等动作经回调注入，行为不变
 
 ## [1.7.0] - 2026-09-05
 
