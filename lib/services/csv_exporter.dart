@@ -30,7 +30,8 @@ String buildSmsCsv(List<SmsMessage> messages) {
       m.isRead.toString(),
       m.date?.toString() ?? '',
       m.dateSent?.toString() ?? '',
-      m.kind.toString(),
+      // kind 可为 null（草稿等场景），state 非空有默认值。
+      m.kind?.toString() ?? '',
       m.state.toString(),
     ]);
   }
