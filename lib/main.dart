@@ -464,7 +464,10 @@ class _SmsHomePageState extends State<SmsHomePage> {
       return;
     }
 
-    File? outFile;
+    // 阶段 1：生成 CSV 并落盘。这里失败多为 IO/权限/平台（存储满、临时目录不可用、
+    // 缺少存储权限），单独提示"保存失败"，与后面调起系统分享的失败区分开。
+    // 阶段 1 成功后 outFile 必已赋值；阶段 1 失败即 return，不会触碰它。
+    late File outFile;
     try {
       // CSV 编码逻辑见 services/csv_exporter.dart（纯函数，已单测覆盖）。
       String csvData = buildSmsCsv(_showList.value);
@@ -476,23 +479,32 @@ class _SmsHomePageState extends State<SmsHomePage> {
       // await 确保 CSV 完整落盘后再分享，否则可能分享到空或半截文件。
       await xFile.saveTo(path);
       outFile = File(path);
+    } catch (e) {
+      // IO/平台类失败：提示保存失败，而不是笼统的"操作失败"。
+      debugPrint('export save failed: $e');
+      _showToast(appLocalizations.toast_save_failed);
+      return;
+    }
+
+    // 阶段 2：调起系统分享。文件已落盘，这里失败只关乎分享面板/目标应用。
+    try {
       final ShareParams params = ShareParams(
         text: appLocalizations.sms_list,
-        files: [XFile(path)],
+        files: [XFile(outFile.path)],
       );
       ShareResult res = await SharePlus.instance.share(params);
       if (res.status == ShareResultStatus.success) {
         _showToast(appLocalizations.toast_share);
       }
     } catch (e) {
-      // 写文件或调起分享失败时提示，而不是未捕获异常直接崩溃。
-      debugPrint('export failed: $e');
+      // 调起分享失败时提示，而不是未捕获异常直接崩溃。
+      debugPrint('export share failed: $e');
       _showToast(appLocalizations.operation_failed);
     } finally {
       // 只清理本次导出的 CSV 文件；递归删整个临时目录会连缓存目录里
       // 其他数据一起清掉，风险过大。
       try {
-        await outFile?.delete();
+        await outFile.delete();
       } catch (_) {
         // 清理失败可以忽略，临时目录系统会回收。
       }

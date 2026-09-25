@@ -18,6 +18,7 @@
   },
   "b_cancel": "Cancel",
   "operation_failed": "Operation Failed",
+  "toast_save_failed": "Save failed. Please check storage space or permissions",
   "operation_completed": "Operation Completed",
   "toast_no": "No messages to share",
   "sms_list": "Message List",

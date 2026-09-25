@@ -37,6 +37,8 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get operation_failed => '操作失败';
+  @override
+  String get toast_save_failed => '保存失败，请检查存储空间或权限';
 
   @override
   String get operation_completed => '操作成功';
@@ -162,6 +164,8 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get operation_failed => '操作失敗';
+  @override
+  String get toast_save_failed => '保存失敗，請檢查儲存空間或權限';
 
   @override
   String get operation_completed => '操作成功';

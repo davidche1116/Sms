@@ -39,6 +39,8 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get operation_failed => 'Operation Failed';
+  @override
+  String get toast_save_failed => 'Save failed. Please check storage space or permissions';
 
   @override
   String get operation_completed => 'Operation Completed';

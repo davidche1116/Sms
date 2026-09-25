@@ -18,6 +18,7 @@
   },
   "b_cancel": "取消",
   "operation_failed": "操作失败",
+  "toast_save_failed": "保存失败，请检查存储空间或权限",
   "operation_completed": "操作成功",
   "toast_no": "没有短信可分享",
   "sms_list": "短信列表",

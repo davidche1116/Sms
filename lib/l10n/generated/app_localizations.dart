@@ -153,6 +153,12 @@ abstract class AppLocalizations {
   /// **'Operation Failed'**
   String get operation_failed;
 
+  /// No description provided for @toast_save_failed.
+  ///
+  /// In en, this message translates to:
+  /// **'Save failed. Please check storage space or permissions'**
+  String get toast_save_failed;
+
   /// No description provided for @operation_completed.
   ///
   /// In en, this message translates to:

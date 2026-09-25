@@ -18,6 +18,7 @@
   },
   "b_cancel": "取消",
   "operation_failed": "操作失敗",
+  "toast_save_failed": "保存失敗，請檢查儲存空間或權限",
   "operation_completed": "操作成功",
   "toast_no": "沒有簡訊可分享",
   "sms_list": "簡訊清單",
