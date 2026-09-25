@@ -176,8 +176,12 @@ class _SmsHomePageState extends State<SmsHomePage> {
     if (index < 0 || index >= _showList.value.length) return;
     final AnimatedListState? listState = _listKey.currentState;
     if (listState == null) return;
-    final removedItem = _showList.value.removeAt(index);
-    _showList.value = [..._showList.value];
+    // 不可变更新：先复制再删除，最后整体替换。旧实现先对已发布的列表做
+    // 原地 removeAt，任何持有旧引用的地方（导出、批量删除快照）都会看到
+    // 一个"已经少了一条"的列表，语义不可预期。
+    final List<SmsMessage> next = List<SmsMessage>.of(_showList.value);
+    final SmsMessage removedItem = next.removeAt(index);
+    _showList.value = next;
     listState.removeItem(index, (
       BuildContext context,
       Animation<double> animation,
