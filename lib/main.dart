@@ -553,6 +553,13 @@ class _SmsHomePageState extends State<SmsHomePage> {
   @override
   void initState() {
     super.initState();
+    // 系统 UI 一次性配置：原先放在 build 里，每次重建都会触发
+    // platform channel 调用。透明导航栏 + edge-to-edge 由系统自动
+    // 处理图标对比度，无需按主题逐帧更新。
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(systemNavigationBarColor: Colors.transparent),
+    );
     // 首次查询推迟到首帧之后：appLocalizations 在 build 中才赋值，
     // _querySms 的 await 间隙若早于首帧触发提示，会触发
     // LateInitializationError。
@@ -746,13 +753,6 @@ class _SmsHomePageState extends State<SmsHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    SystemUiOverlayStyle systemUiOverlayStyle = SystemUiOverlayStyle(
-      systemNavigationBarColor: Colors.transparent,
-      systemNavigationBarIconBrightness: Theme.of(context).brightness,
-    );
-    SystemChrome.setSystemUIOverlayStyle(systemUiOverlayStyle);
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-
     appLocalizations = AppLocalizations.of(context)!;
 
     return Scaffold(
