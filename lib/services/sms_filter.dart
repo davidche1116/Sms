@@ -51,11 +51,16 @@ List<SmsMessage> filterBySim(List<SmsMessage> messages, int? sim) {
   return messages.where((message) => message.sim == sim).toList();
 }
 
+/// date 为 null 时使用的哨兵时间（视为最早）。
+///
+/// 比较器会被调用 O(n log n) 次，不能在里面反复新建 DateTime。
+final DateTime _nullDateSentinel = DateTime.fromMillisecondsSinceEpoch(0);
+
 /// 按日期降序原地排序；date 为 null 的条目视为最早，排在末尾。
 List<SmsMessage> sortByDateDesc(List<SmsMessage> messages) {
   messages.sort((a, b) {
-    final DateTime aDate = a.date ?? DateTime.fromMillisecondsSinceEpoch(0);
-    final DateTime bDate = b.date ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final DateTime aDate = a.date ?? _nullDateSentinel;
+    final DateTime bDate = b.date ?? _nullDateSentinel;
     return bDate.compareTo(aDate);
   });
   return messages;
