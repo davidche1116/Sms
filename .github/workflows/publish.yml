@@ -79,6 +79,9 @@ jobs:
         with:
           files: |
             dist/**
+            build/symbols/apk/**
+          # release 开启了混淆（distribute_options.yaml 的 obfuscate +
+          # split-debug-info），符号表不随发布归档的话，线上崩溃栈无法还原。
           draft: true
           token: ${{ secrets.SMS_RELEASE }}
 
