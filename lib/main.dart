@@ -81,11 +81,16 @@ class _SmsHomePageState extends State<SmsHomePage> {
 
   /// 整表替换：丢弃旧 AnimatedList 状态，用正确长度重建。
   void _setFullList(List<SmsMessage> newList) {
+    // 查询可能在页面销毁后才返回，此时再改状态没有意义。
+    if (!mounted) return;
     _listKey = GlobalKey<AnimatedListState>();
     _showList.value = newList;
   }
 
-  Future<void> _showToast(String msg) async {
+  void _showToast(String msg) {
+    // 所有提示都可能在 await 之后触发：页面已销毁时 context 失效，
+    // 统一在这里拦截，调用方不必逐个加 mounted 判断。
+    if (!mounted) return;
     SmartDialog.showToast(
       msg,
       animationType: SmartAnimationType.centerScale_otherSlide,
@@ -277,6 +282,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
       ),
     );
 
+    if (!mounted) return;
     if (picked != null) {
       // 区间语义 [起始日零点, 结束日次日零点)：左闭右开。旧实现给 end 加
       // 23:59:59 后又按开区间比较，结束日 23:59:59.001 之后的短信会被漏掉。
@@ -399,6 +405,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
       }
       try {
         final bool? ok = await _repository.removeSmsById(id, threadId);
+        if (!mounted) return;
         if (ok != true) {
           failed++;
         }
