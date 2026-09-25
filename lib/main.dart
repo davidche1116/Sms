@@ -828,16 +828,16 @@ class _SmsHomePageState extends State<SmsHomePage> {
                                     Icon(
                                       Icons.message_outlined,
                                       size: 80,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.primary,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .primary,
                                     ),
                                     const SizedBox(height: 10),
                                     Text(
                                       appLocalizations.t_no_sms,
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.titleLarge,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleLarge,
                                     ),
                                     const SizedBox(height: 80),
                                     FilledButton(
