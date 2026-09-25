@@ -131,29 +131,37 @@ class _SmsHomePageState extends State<SmsHomePage> {
     List<SmsMessage> showMessageList = [];
     if (ok) {
       _showLoading.value = true;
-      List<SmsMessage> allMessageList = [];
-      SmsQuery query = SmsQuery();
-      allMessageList = await query.getAllSms;
-      if (_textController.text.isNotEmpty) {
-        // body 可能为 null（部分彩信/草稿无正文），用 null-safe 匹配
-        // 替代 body! 强解包，避免崩溃。
-        showMessageList = allMessageList.where((message) {
-          return message.body?.contains(_textController.text) ?? false;
-        }).toList();
-      } else {
-        showMessageList = allMessageList;
+      try {
+        List<SmsMessage> allMessageList = [];
+        SmsQuery query = SmsQuery();
+        allMessageList = await query.getAllSms;
+        if (_textController.text.isNotEmpty) {
+          // body 可能为 null（部分彩信/草稿无正文），用 null-safe 匹配
+          // 替代 body! 强解包，避免崩溃。
+          showMessageList = allMessageList.where((message) {
+            return message.body?.contains(_textController.text) ?? false;
+          }).toList();
+        } else {
+          showMessageList = allMessageList;
+        }
+
+        if (_startDate != null && _endDate != null) {
+          showMessageList = showMessageList.where((element) {
+            return element.date!.isAfter(_startDate!) &&
+                element.date!.isBefore(_endDate!);
+          }).toList();
+        }
+
+        showMessageList.sort((a, b) => b.date!.compareTo(a.date!));
+      } catch (e) {
+        // 平台查询失败（如底层插件异常）时兜底：提示失败、清空列表，
+        // 保证 loading 一定复位、界面不挂死。
+        debugPrint('querySms failed: $e');
+        showMessageList = [];
+        _showToast(appLocalizations.operation_failed);
+      } finally {
+        _showLoading.value = false;
       }
-
-      if (_startDate != null && _endDate != null) {
-        showMessageList = showMessageList.where((element) {
-          return element.date!.isAfter(_startDate!) &&
-              element.date!.isBefore(_endDate!);
-        }).toList();
-      }
-
-      showMessageList.sort((a, b) => b.date!.compareTo(a.date!));
-
-      _showLoading.value = false;
     } else {
       showMessageList = [];
       _showToast(appLocalizations.toast_permission);
@@ -208,11 +216,17 @@ class _SmsHomePageState extends State<SmsHomePage> {
     if (ok) {
       _showLoading.value = true;
 
-      SmsQuery query = SmsQuery();
-      showMessageList = await query.querySms(address: address);
-      showMessageList.sort((a, b) => b.date!.compareTo(a.date!));
-
-      _showLoading.value = false;
+      try {
+        SmsQuery query = SmsQuery();
+        showMessageList = await query.querySms(address: address);
+        showMessageList.sort((a, b) => b.date!.compareTo(a.date!));
+      } catch (e) {
+        debugPrint('querySms(address) failed: $e');
+        showMessageList = [];
+        _showToast(appLocalizations.operation_failed);
+      } finally {
+        _showLoading.value = false;
+      }
     } else {
       showMessageList = [];
     }
@@ -230,23 +244,27 @@ class _SmsHomePageState extends State<SmsHomePage> {
     if (ok) {
       _showLoading.value = true;
 
-      List<SmsMessage> allMessageList = [];
-      SmsQuery query = SmsQuery();
-      allMessageList = await query.getAllSms;
+      try {
+        List<SmsMessage> allMessageList = [];
+        SmsQuery query = SmsQuery();
+        allMessageList = await query.getAllSms;
 
-      if (sim != null) {
-        for (int i = 0; i < allMessageList.length; ++i) {
-          if (sim == allMessageList[i].sim) {
-            showMessageList.add(allMessageList[i]);
-          }
+        if (sim != null) {
+          showMessageList = allMessageList
+              .where((message) => message.sim == sim)
+              .toList();
+        } else {
+          showMessageList = allMessageList;
         }
-      } else {
-        showMessageList = allMessageList;
+
+        showMessageList.sort((a, b) => b.date!.compareTo(a.date!));
+      } catch (e) {
+        debugPrint('querySms(sim) failed: $e');
+        showMessageList = [];
+        _showToast(appLocalizations.operation_failed);
+      } finally {
+        _showLoading.value = false;
       }
-
-      showMessageList.sort((a, b) => b.date!.compareTo(a.date!));
-
-      _showLoading.value = false;
     } else {
       showMessageList = [];
     }
