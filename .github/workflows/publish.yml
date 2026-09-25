@@ -53,6 +53,14 @@ jobs:
         run: flutter pub get
         shell: bash
 
+      - name: Analyze project source
+        run: dart analyze
+        shell: bash
+
+      - name: Run widget tests
+        run: flutter test
+        shell: bash
+
       - name: Install fastforge
         run: dart pub global activate fastforge
         shell: bash
