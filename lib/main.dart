@@ -694,8 +694,14 @@ class _SmsHomePageState extends State<SmsHomePage> {
   PopupMenuItem<String> _selectView(IconData icon, String text, String id) {
     return PopupMenuItem<String>(
       value: id,
+      // 文案用 Expanded 约束：菜单宽度有限，长文案（如英文标签）
+      // 不加约束会横向溢出报 RenderFlex 异常。
       child: Row(
-        children: <Widget>[Icon(icon), const SizedBox(width: 10), Text(text)],
+        children: <Widget>[
+          Icon(icon),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text)),
+        ],
       ),
     );
   }
