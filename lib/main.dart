@@ -13,6 +13,8 @@ import 'package:share_plus/share_plus.dart';
 import 'package:sms_advanced/sms_advanced.dart';
 
 import 'l10n/generated/app_localizations.dart';
+import 'services/sms_filter.dart';
+import 'services/sms_repository.dart';
 
 void main() {
   runApp(const SmsApp());
@@ -61,8 +63,8 @@ class SmsHomePage extends StatefulWidget {
 }
 
 class _SmsHomePageState extends State<SmsHomePage> {
-  static const _platform = MethodChannel('com.dc16.sms/smsApp');
-  static const String _packageId = 'com.dc16.sms';
+  // 数据访问与过滤逻辑已下沉到 services 层，UI 只负责调用与展示。
+  final SmsRepository _repository = SmsRepository();
   // AnimatedList 的条目计数由内部状态维护（只认 insertItem/removeItem，
   // 会忽略重建时传的新 initialItemCount）。整表刷新（查询/过滤/切回全部）
   // 必须换一个新 Key 让旧状态丢弃，否则内部计数与新列表长度错位，
@@ -111,8 +113,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
 
   Future<bool> _checkDefaultSmsApp() async {
     try {
-      final smsApp = await _platform.invokeMethod<String>('getDefaultSmsApp');
-      bool same = (smsApp == _packageId);
+      bool same = await _repository.isDefaultSmsApp();
       if (!same) {
         _showToast(appLocalizations.toast_default);
       }
@@ -133,26 +134,16 @@ class _SmsHomePageState extends State<SmsHomePage> {
       _showLoading.value = true;
       try {
         List<SmsMessage> allMessageList = [];
-        SmsQuery query = SmsQuery();
-        allMessageList = await query.getAllSms;
-        if (_textController.text.isNotEmpty) {
-          // body 可能为 null（部分彩信/草稿无正文），用 null-safe 匹配
-          // 替代 body! 强解包，避免崩溃。
-          showMessageList = allMessageList.where((message) {
-            return message.body?.contains(_textController.text) ?? false;
-          }).toList();
-        } else {
-          showMessageList = allMessageList;
-        }
-
-        if (_startDate != null && _endDate != null) {
-          showMessageList = showMessageList.where((element) {
-            return element.date!.isAfter(_startDate!) &&
-                element.date!.isBefore(_endDate!);
-          }).toList();
-        }
-
-        showMessageList.sort((a, b) => b.date!.compareTo(a.date!));
+        allMessageList = await _repository.getAllSms();
+        // body 可能为 null（部分彩信/草稿无正文），过滤逻辑见
+        // services/sms_filter.dart，null 一律视为不匹配。
+        showMessageList = filterByKeyword(allMessageList, _textController.text);
+        showMessageList = filterByDateRange(
+          showMessageList,
+          _startDate,
+          _endDate,
+        );
+        sortByDateDesc(showMessageList);
       } catch (e) {
         // 平台查询失败（如底层插件异常）时兜底：提示失败、清空列表，
         // 保证 loading 一定复位、界面不挂死。
@@ -195,8 +186,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
     bool check = await _checkDefaultSmsApp();
     if (!check) return;
     try {
-      SmsRemover smsRemover = SmsRemover();
-      bool? ok = await smsRemover.removeSmsById(id, threadId);
+      bool? ok = await _repository.removeSmsById(id, threadId);
       if (ok == true) {
         _removeIndex(index);
       } else {
@@ -220,9 +210,8 @@ class _SmsHomePageState extends State<SmsHomePage> {
       _showLoading.value = true;
 
       try {
-        SmsQuery query = SmsQuery();
-        showMessageList = await query.querySms(address: address);
-        showMessageList.sort((a, b) => b.date!.compareTo(a.date!));
+        showMessageList = await _repository.queryByAddress(address);
+        sortByDateDesc(showMessageList);
       } catch (e) {
         debugPrint('querySms(address) failed: $e');
         showMessageList = [];
@@ -249,18 +238,9 @@ class _SmsHomePageState extends State<SmsHomePage> {
 
       try {
         List<SmsMessage> allMessageList = [];
-        SmsQuery query = SmsQuery();
-        allMessageList = await query.getAllSms;
-
-        if (sim != null) {
-          showMessageList = allMessageList
-              .where((message) => message.sim == sim)
-              .toList();
-        } else {
-          showMessageList = allMessageList;
-        }
-
-        showMessageList.sort((a, b) => b.date!.compareTo(a.date!));
+        allMessageList = await _repository.getAllSms();
+        showMessageList = filterBySim(allMessageList, sim);
+        sortByDateDesc(showMessageList);
       } catch (e) {
         debugPrint('querySms(sim) failed: $e');
         showMessageList = [];
@@ -396,7 +376,6 @@ class _SmsHomePageState extends State<SmsHomePage> {
     final List<SmsMessage> items = List.of(_showList.value);
     _showLoading.value = true;
     int failed = 0;
-    SmsRemover smsRemover = SmsRemover();
     for (final SmsMessage message in items) {
       final int? id = message.id;
       final int? threadId = message.threadId;
@@ -406,7 +385,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
         continue;
       }
       try {
-        final bool? ok = await smsRemover.removeSmsById(id, threadId);
+        final bool? ok = await _repository.removeSmsById(id, threadId);
         if (ok != true) {
           failed++;
         }
@@ -459,9 +438,9 @@ class _SmsHomePageState extends State<SmsHomePage> {
 
   Future<void> _setDefaultApp() async {
     try {
-      final set = await _platform.invokeMethod<String>('setDefaultSmsApp');
-      final get = await _platform.invokeMethod<String>('getDefaultSmsApp');
-      if (set == 'had' || get == _packageId) {
+      final set = await _repository.setDefaultSmsApp();
+      final get = await _repository.getDefaultSmsApp();
+      if (set == 'had' || get == SmsRepository.defaultPackageId) {
         _showToast(appLocalizations.operation_completed);
       }
     } on PlatformException catch (e) {
@@ -471,7 +450,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
 
   Future<void> _resetDefaultSmsApp() async {
     try {
-      final result = await _platform.invokeMethod<String>('resetDefaultSmsApp');
+      final result = await _repository.resetDefaultSmsApp();
       if (result == 'no') {
         _showToast(appLocalizations.operation_failed);
       }

@@ -1,0 +1,39 @@
+import 'package:flutter/services.dart';
+import 'package:sms_advanced/sms_advanced.dart';
+
+/// 短信数据访问层：统一封装 sms_advanced 插件与默认短信应用平台通道，
+/// UI 层不直接接触 MethodChannel 与插件查询/删除 API，便于替换底层实现
+/// （如未来用自写 platform channel 替换 sms_advanced 时只改这里）。
+class SmsRepository {
+  static const MethodChannel _platform = MethodChannel('com.dc16.sms/smsApp');
+  static const String defaultPackageId = 'com.dc16.sms';
+
+  /// 读取设备上的全部短信。
+  Future<List<SmsMessage>> getAllSms() => SmsQuery().getAllSms;
+
+  /// 按号码查询该地址的全部短信。
+  Future<List<SmsMessage>> queryByAddress(String? address) =>
+      SmsQuery().querySms(address: address);
+
+  /// 按 id + threadId 删除单条短信，返回 null/true/false 由插件语义决定。
+  Future<bool?> removeSmsById(int id, int threadId) =>
+      SmsRemover().removeSmsById(id, threadId);
+
+  /// 当前应用是否为默认短信应用；平台调用异常由调用方决定如何兜底。
+  Future<bool> isDefaultSmsApp() async {
+    final smsApp = await _platform.invokeMethod<String>('getDefaultSmsApp');
+    return smsApp == defaultPackageId;
+  }
+
+  /// 发起"设为默认短信应用"的系统流程。
+  Future<String?> setDefaultSmsApp() =>
+      _platform.invokeMethod<String>('setDefaultSmsApp');
+
+  /// 读取当前默认短信应用的包名。
+  Future<String?> getDefaultSmsApp() =>
+      _platform.invokeMethod<String>('getDefaultSmsApp');
+
+  /// 恢复系统默认短信应用。
+  Future<String?> resetDefaultSmsApp() =>
+      _platform.invokeMethod<String>('resetDefaultSmsApp');
+}
