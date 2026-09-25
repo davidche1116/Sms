@@ -16,6 +16,9 @@
 - fix(export): CSV 中可空字段（id/threadId/sim/address/body/date/dateSent/kind/isRead）写空串而非 "null"
 - fix(ui): 系统栏配置从 build 移到 initState，避免每帧触发平台通道调用
 - fix(ui): 弹出菜单项文案改用 Expanded 约束，修复长文案横向溢出
+- fix(export): await CSV 落盘后再分享，避免 saveTo 竞态导致分享到空/半截文件
+- fix(default-sms): 还原默认短信应用真正调用 RoleManager 移交角色，而非仅启动设置页
+- fix(default-sms): isDefaultSmsApp 区分「无法判定」与「非默认」，平台异常/MissingPlugin 不再误判为非默认
 - build(android): debug 构建改回默认调试签名；release 签名在缺少 key.properties 时回退调试签名，贡献者无密钥也可本地出包
 
 ### Changed
@@ -26,6 +29,8 @@
 - ci: PR 触发补齐 `synchronize`/`reopened`，三个 workflow 增加 concurrency 并发控制
 - test: 新增过滤逻辑与 CSV 导出单元测试，扩展 widget 测试（列表渲染、菜单项）
 - docs(readme): 三语 README 新增隐私说明章节（数据不出设备、逐权限用途、删除不可恢复提示），并同步 CI 触发说明与项目结构
+- refactor(export): 导出拆为保存/分享两阶段分别捕获，保存失败提示「保存失败」、分享失败提示「操作失败」（新增 l10n `toast_save_failed` 三语）
+- perf(export): 导出改用 File.writeAsBytes 直接落盘，去掉 utf8→Uint8List.fromList→XFile.fromData 冗余全量拷贝，降低内存峰值
 
 ## [1.7.0] - 2026-09-05
 
