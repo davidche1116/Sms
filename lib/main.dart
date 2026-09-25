@@ -135,11 +135,11 @@ class _SmsHomePageState extends State<SmsHomePage> {
       SmsQuery query = SmsQuery();
       allMessageList = await query.getAllSms;
       if (_textController.text.isNotEmpty) {
-        for (int i = 0; i < allMessageList.length; ++i) {
-          if (allMessageList[i].body!.contains(_textController.text)) {
-            showMessageList.add(allMessageList[i]);
-          }
-        }
+        // body 可能为 null（部分彩信/草稿无正文），用 null-safe 匹配
+        // 替代 body! 强解包，避免崩溃。
+        showMessageList = allMessageList.where((message) {
+          return message.body?.contains(_textController.text) ?? false;
+        }).toList();
       } else {
         showMessageList = allMessageList;
       }
