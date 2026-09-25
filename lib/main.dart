@@ -471,14 +471,16 @@ class _SmsHomePageState extends State<SmsHomePage> {
     try {
       // CSV 编码逻辑见 services/csv_exporter.dart（纯函数，已单测覆盖）。
       String csvData = buildSmsCsv(_showList.value);
-      final bytes = utf8.encode(csvData);
-      Uint8List data = Uint8List.fromList(bytes);
-      XFile xFile = XFile.fromData(data, mimeType: 'text/csv');
       Directory tempDir = await getTemporaryDirectory();
       String path = '${tempDir.path}/${appLocalizations.sms_list}.csv';
-      // await 确保 CSV 完整落盘后再分享，否则可能分享到空或半截文件。
-      await xFile.saveTo(path);
       outFile = File(path);
+      // 直接 writeAsBytes 落盘，省掉 buildSmsCsv 的 String→utf8 bytes→Uint8List.fromList
+      // 这层冗余全量拷贝，以及 XFile.fromData 额外驻留的一份 data。内存峰值从多份全量
+      // 降到 csvString + bytes 两份。flush 确保 CSV 完整落盘后再分享，否则可能分享到
+      // 空或半截文件。这里刻意不改 CSV 字节输出路径（仍用 buildSmsCsv 整体编码）：
+      // 流式/分批逐行编码需逐字节一致性验证，当前 flutter test 与读依赖源码均被系统拦,
+      // 无法安全验证，故不在此环境贸然改动。
+      await outFile.writeAsBytes(utf8.encode(csvData), flush: true);
     } catch (e) {
       // IO/平台类失败：提示保存失败，而不是笼统的"操作失败"。
       debugPrint('export save failed: $e');
