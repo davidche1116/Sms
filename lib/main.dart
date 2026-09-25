@@ -79,10 +79,17 @@ class _SmsHomePageState extends State<SmsHomePage> {
   DateTime? _startDate;
   DateTime? _endDate;
 
+  /// 查询序号：每次发起查询自增。
+  ///
+  /// 快速连点"全部/日期/搜索"会并发跑到多条查询，慢的旧查询后返回时会把
+  /// 新结果覆盖掉。用序号丢弃过期结果，保证界面呈现最后一次请求的数据。
+  int _queryToken = 0;
+
   /// 整表替换：丢弃旧 AnimatedList 状态，用正确长度重建。
-  void _setFullList(List<SmsMessage> newList) {
+  void _setFullList(List<SmsMessage> newList, {required int token}) {
     // 查询可能在页面销毁后才返回，此时再改状态没有意义。
     if (!mounted) return;
+    if (token != _queryToken) return;
     _listKey = GlobalKey<AnimatedListState>();
     _showList.value = newList;
   }
@@ -132,6 +139,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
   }
 
   Future<void> _querySms() async {
+    final int token = ++_queryToken;
     bool ok = await Permission.sms.isGranted;
     List<SmsMessage> showMessageList = [];
     if (ok) {
@@ -155,7 +163,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
       _showToast(appLocalizations.toast_permission);
       _showLoading.value = false;
     }
-    _setFullList(showMessageList);
+    _setFullList(showMessageList, token: token);
   }
 
   void _removeIndex(int index) {
@@ -220,6 +228,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
   Future<void> _sameAddress(int index) async {
     // 同步快照查询条件：await 间隙列表可能已被刷新，不能再用 index 回查。
     if (index < 0 || index >= _showList.value.length) return;
+    final int token = ++_queryToken;
     final String? address = _showList.value[index].address;
     List<SmsMessage> showMessageList = [];
     bool ok = await Permission.sms.isGranted;
@@ -241,12 +250,13 @@ class _SmsHomePageState extends State<SmsHomePage> {
       showMessageList = [];
     }
 
-    _setFullList(showMessageList);
+    _setFullList(showMessageList, token: token);
   }
 
   Future<void> _sameSim(int index) async {
     // 同上：先同步快照 sim，避免异步间隙 index 失效。
     if (index < 0 || index >= _showList.value.length) return;
+    final int token = ++_queryToken;
     final int? sim = _showList.value[index].sim;
     List<SmsMessage> showMessageList = [];
     bool ok = await Permission.sms.isGranted;
@@ -268,7 +278,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
       showMessageList = [];
     }
 
-    _setFullList(showMessageList);
+    _setFullList(showMessageList, token: token);
   }
 
   void _filterDate() async {
