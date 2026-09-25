@@ -505,8 +505,13 @@ class _SmsHomePageState extends State<SmsHomePage> {
 
   @override
   void initState() {
-    _querySms();
     super.initState();
+    // 首次查询推迟到首帧之后：appLocalizations 在 build 中才赋值，
+    // _querySms 的 await 间隙若早于首帧触发提示，会触发
+    // LateInitializationError。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _querySms();
+    });
   }
 
   Widget _buildItem(
