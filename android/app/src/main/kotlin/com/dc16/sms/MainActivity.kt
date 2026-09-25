@@ -4,6 +4,7 @@ import android.app.role.RoleManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.provider.Settings
 import android.provider.Telephony
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.NonNull
@@ -84,23 +85,48 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     /**
+     * 判断某个包是否已安装。
+     *
+     * 未在本应用 `<queries>` 中声明的包，在 Android 11+ 的包可见性限制下会抛
+     * NameNotFoundException，因此这里按"不可见即未安装"处理。
+     */
+    private fun isPackageInstalled(pkg: String): Boolean {
+        return try {
+            packageManager.getPackageInfo(pkg, 0) != null
+        } catch (e: PackageManager.NameNotFoundException) {
+            false
+        }
+    }
+
+    /**
      * 将默认短信应用交还给系统短信应用。
      *
-     * Android 不允许应用单方面修改默认短信应用，必须经由 ACTION_CHANGE_DEFAULT
-     * 由用户在系统对话框中确认。因此本方法发起真实的默认切换流程，而不是仅启动
-     * 对方应用的桌面图标（那样并未改变默认角色，却谎报成功）。
+     * Android Q(10) 起默认短信应用由 RoleManager 角色机制管控，
+     * Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT 对第三方应用失效，且
+     * RoleManager 只允许应用为自己申请角色、无法代他人释放。因此在 Q 及以上
+     * 只能引导用户到系统的"默认应用"设置页手动切换。
      *
-     * @return "ok" 表示已发起系统默认切换流程（需用户在系统对话框确认）；
+     * Q 以下仍可用 ACTION_CHANGE_DEFAULT 直接指定目标包名，由系统弹窗确认。
+     *
+     * @return "settings" 表示已打开系统默认应用设置页（需用户手动切换）；
+     *         "ok" 表示已发起系统切换流程（需用户在系统对话框确认）；
      *         "no" 表示未找到可切换的系统短信应用或发起失败。
      */
     private fun resetDefaultSmsApp(): String {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            return try {
+                startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
+                "settings"
+            } catch (e: Exception) {
+                "no"
+            }
+        }
+
         val targets = listOf(
             "com.android.mms",
             "com.google.android.apps.messaging",
         )
-        val installed = targets.firstOrNull { pkg ->
-            packageManager.getLaunchIntentForPackage(pkg) != null
-        } ?: return "no"
+        val installed = targets.firstOrNull(::isPackageInstalled) ?: return "no"
 
         return try {
             val intent = Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT)

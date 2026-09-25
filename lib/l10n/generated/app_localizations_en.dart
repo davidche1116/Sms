@@ -17,6 +17,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'To delete SMS messages, please set this app as the default SMS app in System Settings';
 
   @override
+  String get toast_default_settings =>
+      'Please switch the default SMS app in System Settings';
+
+  @override
   String get toast_permission =>
       'SMS permission required or set as default SMS app';
 

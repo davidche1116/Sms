@@ -464,7 +464,11 @@ class _SmsHomePageState extends State<SmsHomePage> {
   Future<void> _resetDefaultSmsApp() async {
     try {
       final result = await _repository.resetDefaultSmsApp();
-      if (result == 'no') {
+      if (result == 'settings') {
+        // Android 10+ 无法由应用代用户释放默认短信角色，只能引导到系统
+        // 设置页；如实告知，不谎报"已完成"。
+        _showToast(appLocalizations.toast_default_settings);
+      } else if (result == 'no') {
         _showToast(appLocalizations.operation_failed);
       }
     } on PlatformException catch (e) {

@@ -2,6 +2,7 @@
   "@@locale": "zh",
   "title": "短信清理",
   "toast_default": "需要在系统设置中将本应用设置为默认短信应用才能删除短信",
+  "toast_default_settings": "请在系统设置中切换默认短信应用",
   "toast_permission": "需要申请短信权限或设置为短信默认应用",
   "keyword": "关键字",
   "b_confirm": "确定",

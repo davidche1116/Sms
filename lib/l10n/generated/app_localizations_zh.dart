@@ -16,6 +16,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get toast_default => '需要在系统设置中将本应用设置为默认短信应用才能删除短信';
 
   @override
+  String get toast_default_settings => '请在系统设置中切换默认短信应用';
+
+  @override
   String get toast_permission => '需要申请短信权限或设置为短信默认应用';
 
   @override
@@ -142,6 +145,9 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get toast_default => '需要在系統設定中將本應用程式設定為預設簡訊應用程式才能刪除簡訊';
+
+  @override
+  String get toast_default_settings => '請在系統設定中切換預設簡訊應用程式';
 
   @override
   String get toast_permission => '需要申請簡訊權限或設定為預設簡訊應用程式';

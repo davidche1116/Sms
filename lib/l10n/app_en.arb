@@ -2,6 +2,7 @@
   "@@locale": "en",
   "title": "SMS Cleanup",
   "toast_default": "To delete SMS messages, please set this app as the default SMS app in System Settings",
+  "toast_default_settings": "Please switch the default SMS app in System Settings",
   "toast_permission": "SMS permission required or set as default SMS app",
   "keyword": "Keyword",
   "b_confirm": "Confirm",

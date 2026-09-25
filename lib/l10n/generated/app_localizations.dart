@@ -111,6 +111,12 @@ abstract class AppLocalizations {
   /// **'To delete SMS messages, please set this app as the default SMS app in System Settings'**
   String get toast_default;
 
+  /// No description provided for @toast_default_settings.
+  ///
+  /// In en, this message translates to:
+  /// **'Please switch the default SMS app in System Settings'**
+  String get toast_default_settings;
+
   /// No description provided for @toast_permission.
   ///
   /// In en, this message translates to:
