@@ -664,6 +664,17 @@ class _SmsHomePageState extends State<SmsHomePage> {
   bool _didInitQuery = false;
 
   @override
+  void dispose() {
+    // 原实现没有释放 TextEditingController / FocusNode / ValueNotifier，
+    // 页面销毁后它们仍被全局键盘与动画系统持有。
+    _textController.dispose();
+    _focusNode.dispose();
+    _showList.dispose();
+    _showLoading.dispose();
+    super.dispose();
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     // 在 didChangeDependencies 里取国际化对象：它早于首帧执行，且 locale
