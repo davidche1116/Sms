@@ -38,6 +38,48 @@ void main() {
     });
   });
 
+  group('isDefaultSmsApp', () {
+    tearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(appChannel, null);
+    });
+
+    void mockGetDefaultSmsApp(Object? result) {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(appChannel, (MethodCall call) async {
+            expect(call.method, 'getDefaultSmsApp');
+            if (result is Exception) throw result;
+            return result;
+          });
+    }
+
+    test('包名匹配时为 true', () async {
+      mockGetDefaultSmsApp(SmsRepository.defaultPackageId);
+      expect(await SmsRepository().isDefaultSmsApp(), true);
+    });
+
+    test('默认是别的应用时为 false', () async {
+      mockGetDefaultSmsApp('com.android.mms');
+      expect(await SmsRepository().isDefaultSmsApp(), false);
+    });
+
+    test('拿不到默认应用时返回 null（无法判定，而不是"非默认"）', () async {
+      mockGetDefaultSmsApp('');
+      expect(await SmsRepository().isDefaultSmsApp(), isNull);
+    });
+
+    test('平台异常时返回 null，由调用方 fail-safe 拦截', () async {
+      // 回归：这一分支决定了"无法判定"是否会被误报成"不是默认短信应用"，
+      // 误报会让用户白白去设置页切默认应用。
+      mockGetDefaultSmsApp(PlatformException(code: 'error', message: 'boom'));
+      expect(await SmsRepository().isDefaultSmsApp(), isNull);
+    });
+
+    test('通道缺失时返回 null', () async {
+      expect(await SmsRepository().isDefaultSmsApp(), isNull);
+    });
+  });
+
   group('deleteSmsBatch', () {
     tearDown(() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
