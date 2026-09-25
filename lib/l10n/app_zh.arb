@@ -54,5 +54,15 @@
   "b_remove_filter": "移除过滤条件",
   "t_delete_all": "删除当前列表所有短信",
   "sim": "卡",
-  "t_list_too_long": "列表太多了，可能需要久一点"
+  "t_list_too_long": "列表太多了，可能需要久一点",
+  "delete_failed": "删除完成，{num}条短信删除失败",
+  "@delete_failed": {
+    "description": "A message with a single parameter",
+    "placeholders": {
+      "num": {
+        "type": "String",
+        "example": "1"
+      }
+    }
+  }
 }

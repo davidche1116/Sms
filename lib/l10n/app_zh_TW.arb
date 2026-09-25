@@ -54,5 +54,15 @@
   "b_remove_filter": "移除篩選條件",
   "t_delete_all": "刪除目前清單中的所有簡訊",
   "sim": "卡",
-  "t_list_too_long": "清單較長，可能需要較多時間"
+  "t_list_too_long": "清單較長，可能需要較多時間",
+  "delete_failed": "刪除完成，{num}則簡訊刪除失敗",
+  "@delete_failed": {
+    "description": "帶有單個參數的訊息",
+    "placeholders": {
+      "num": {
+        "type": "String",
+        "example": "1"
+      }
+    }
+  }
 }

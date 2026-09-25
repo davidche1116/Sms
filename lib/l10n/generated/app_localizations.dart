@@ -320,6 +320,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Large list, may take longer to process'**
   String get t_list_too_long;
+
+  /// A message with a single parameter
+  ///
+  /// In en, this message translates to:
+  /// **'Deletion finished, {num} message(s) failed to delete'**
+  String delete_failed(String num);
 }
 
 class _AppLocalizationsDelegate

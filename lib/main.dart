@@ -193,16 +193,19 @@ class _SmsHomePageState extends State<SmsHomePage> {
     final int? threadId = _showList.value[index].threadId;
     if (id == null || threadId == null) return;
     bool check = await _checkDefaultSmsApp();
-    if (check) {
+    if (!check) return;
+    try {
       SmsRemover smsRemover = SmsRemover();
       bool? ok = await smsRemover.removeSmsById(id, threadId);
-      if (ok != null) {
-        if (ok) {
-          _removeIndex(index);
-        } else {
-          _showToast(appLocalizations.operation_failed);
-        }
+      if (ok == true) {
+        _removeIndex(index);
+      } else {
+        _showToast(appLocalizations.operation_failed);
       }
+    } catch (e) {
+      // 平台删除调用异常（如系统拒绝）时提示失败，而不是静默崩溃。
+      debugPrint('removeSmsById failed: $e');
+      _showToast(appLocalizations.operation_failed);
     }
   }
 
@@ -384,20 +387,38 @@ class _SmsHomePageState extends State<SmsHomePage> {
 
   Future<void> _deleteSubmit() async {
     bool check = await _checkDefaultSmsApp();
-    if (check) {
-      if (_showList.value.length > 3000) {
-        _showToast(appLocalizations.t_list_too_long);
-      }
-      _showLoading.value = true;
-      SmsRemover smsRemover = SmsRemover();
-      for (int i = 0; i < _showList.value.length; ++i) {
-        await smsRemover.removeSmsById(
-          _showList.value[i].id!,
-          _showList.value[i].threadId!,
-        );
-      }
-      _querySms();
+    if (!check) return;
+    if (_showList.value.length > 3000) {
+      _showToast(appLocalizations.t_list_too_long);
     }
+    // 快照：批量删除耗时较长，期间列表可能被其他操作刷新，
+    // 按开始时的快照逐条删除，避免 index 漂移或读写错位。
+    final List<SmsMessage> items = List.of(_showList.value);
+    _showLoading.value = true;
+    int failed = 0;
+    SmsRemover smsRemover = SmsRemover();
+    for (final SmsMessage message in items) {
+      final int? id = message.id;
+      final int? threadId = message.threadId;
+      // id/threadId 缺失的条目无法删除，计入失败而不是 ! 强解包崩溃。
+      if (id == null || threadId == null) {
+        failed++;
+        continue;
+      }
+      try {
+        final bool? ok = await smsRemover.removeSmsById(id, threadId);
+        if (ok != true) {
+          failed++;
+        }
+      } catch (e) {
+        debugPrint('removeSmsById failed: $e');
+        failed++;
+      }
+    }
+    if (failed > 0) {
+      _showToast(appLocalizations.delete_failed(failed.toString()));
+    }
+    _querySms();
   }
 
   Future<void> _requestPermission() async {

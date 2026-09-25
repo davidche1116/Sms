@@ -125,4 +125,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get t_list_too_long => 'Large list, may take longer to process';
+
+  @override
+  String delete_failed(String num) {
+    return 'Deletion finished, $num message(s) failed to delete';
+  }
 }

@@ -54,5 +54,15 @@
   "b_remove_filter": "Clear Filter",
   "t_delete_all": "Delete All Messages in Current List",
   "sim": "SIM",
-  "t_list_too_long": "Large list, may take longer to process"
+  "t_list_too_long": "Large list, may take longer to process",
+  "delete_failed": "Deletion finished, {num} message(s) failed to delete",
+  "@delete_failed": {
+    "description": "A message with a single parameter",
+    "placeholders": {
+      "num": {
+        "type": "String",
+        "example": "1"
+      }
+    }
+  }
 }
