@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:sms/l10n/generated/app_localizations.dart';
+import 'package:sms/l10n/generated/app_localizations_en.dart';
 import 'package:sms/main.dart';
+
+/// 断言用的文案统一从国际化对象取：硬编码英文后，一改文案测试就全红。
+final AppLocalizations l10n = AppLocalizationsEn();
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -52,9 +57,9 @@ void main() {
     await tester.pumpAndSettle();
 
     // 空列表时 AppBar 显示应用名（测试默认英文 locale）。
-    expect(find.text('SMS'), findsOneWidget);
-    // 空状态页提供“请求权限”入口。
-    expect(find.text('Request SMS Permission'), findsOneWidget);
+    expect(find.text(l10n.sms), findsOneWidget);
+    // 空状态页提供"请求权限"入口。
+    expect(find.text(l10n.set_permission), findsOneWidget);
   });
 
   testWidgets('Shows queried SMS with count in title', (
@@ -87,7 +92,7 @@ void main() {
 
     // 插件按 Inbox/Sent/Draft 三种类型各查一次，mock 会命中 3 次。
     // 标题显示条数，列表渲染正文与号码。
-    expect(find.textContaining('message(s)'), findsOneWidget);
+    expect(find.text(l10n.num_sms('3')), findsOneWidget);
     expect(find.text('balance reminder'), findsWidgets);
     expect(find.text('10086'), findsWidgets);
   });
@@ -103,8 +108,8 @@ void main() {
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();
 
-    expect(find.text('Request SMS Permission'), findsWidgets);
-    expect(find.text('Set as Default SMS App'), findsWidgets);
-    expect(find.text('Export as CSV'), findsWidgets);
+    expect(find.text(l10n.set_permission), findsWidgets);
+    expect(find.text(l10n.set_default), findsWidgets);
+    expect(find.text(l10n.set_export), findsWidgets);
   });
 }
