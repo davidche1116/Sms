@@ -657,12 +657,24 @@ class _SmsHomePageState extends State<SmsHomePage> {
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(systemNavigationBarColor: Colors.transparent),
     );
-    // 首次查询推迟到首帧之后：appLocalizations 在 build 中才赋值，
-    // _querySms 的 await 间隙若早于首帧触发提示，会触发
-    // LateInitializationError。
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+  }
+
+  /// 是否已完成首次查询。didChangeDependencies 会被多次触发（locale 变化、
+  /// MediaQuery 变化等），首次查询只能发起一次。
+  bool _didInitQuery = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 在 didChangeDependencies 里取国际化对象：它早于首帧执行，且 locale
+    // 变化时会重新触发。旧实现在 build() 里给 late 字段赋值，导致任何早于
+    // 首帧触发的异步回调都是 LateInitializationError，只能靠把首次查询推迟
+    // 到 postFrameCallback 来绕开——治标不治本。
+    appLocalizations = AppLocalizations.of(context)!;
+    if (!_didInitQuery) {
+      _didInitQuery = true;
       _querySms();
-    });
+    }
   }
 
   PopupMenuItem<String> _selectView(IconData icon, String text, String id) {
@@ -682,8 +694,6 @@ class _SmsHomePageState extends State<SmsHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    appLocalizations = AppLocalizations.of(context)!;
-
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
