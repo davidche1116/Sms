@@ -1,9 +1,10 @@
 # AGENTS.md — Sms (Flutter Android SMS cleaner)
 
 ## Toolchain (do not exceed Flutter template bounds)
-- Flutter SDK lives at `~/flutter/bin`, **not** on PATH. Prefix every Flutter/Dart
-  command: `export PATH="$HOME/flutter/bin:$PATH"`.
-- Pinned working set (Flutter 3.47 template): Flutter 3.47.2 / Dart 3.13.2 /
+- Flutter SDK lives at `~/fvm/versions/stable/bin` (fvm-managed; `~/flutter/bin`
+  no longer exists on this machine), **not** on PATH. Prefix every Flutter/Dart
+  command: `export PATH="$HOME/fvm/versions/stable/bin:$PATH"`.
+- Pinned working set (Flutter 3.47 template): Flutter 3.47.5 / Dart 3.13.4 /
   AGP 9.1.0 / Gradle 9.3.1 / KGP 2.4.10 / JDK 17. Do not bump AGP/Gradle beyond
   what the installed Flutter template supports (`gradle_utils.dart` in the SDK
   is the source of truth).

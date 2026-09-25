@@ -35,8 +35,8 @@
 
 ## 開發環境
 
-- Flutter 3.47.2 (stable)
-- Dart 3.13.2
+- Flutter 3.47.5 (stable)
+- Dart 3.13.4
 - Gradle 9.3.1
 - Android Gradle Plugin 9.1.0
 - Kotlin 2.4.10
