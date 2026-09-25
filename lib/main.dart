@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
@@ -10,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:sms_advanced/sms_advanced.dart';
 
+import 'controllers/sms_list_controller.dart';
 import 'l10n/generated/app_localizations.dart';
 import 'services/csv_exporter.dart';
 import 'services/sms_filter.dart';
@@ -62,37 +62,19 @@ class SmsHomePage extends StatefulWidget {
   State<SmsHomePage> createState() => _SmsHomePageState();
 }
 
+/// 列表页只负责渲染与交互呈现：业务状态与规则都在 SmsListController 里，
+/// 这里不保存短信数据、不重复实现过滤与删除逻辑。
 class _SmsHomePageState extends State<SmsHomePage> {
-  // 数据访问与过滤逻辑已下沉到 services 层，UI 只负责调用与展示。
-  final SmsRepository _repository = SmsRepository();
-  // AnimatedList 的条目计数由内部状态维护（只认 insertItem/removeItem，
-  // 会忽略重建时传的新 initialItemCount）。整表刷新（查询/过滤/切回全部）
-  // 必须换一个新 Key 让旧状态丢弃，否则内部计数与新列表长度错位，
-  // 标题显示 n 条但列表灰屏无内容，且多轮操作后越差越多。
-  GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
-  final ValueNotifier<List<SmsMessage>> _showList =
-      ValueNotifier<List<SmsMessage>>([]);
-  final TextEditingController _textController = TextEditingController();
+  late SmsListController _controller;
   final FocusNode _focusNode = FocusNode();
-  final ValueNotifier<bool> _showLoading = ValueNotifier<bool>(true);
   late AppLocalizations appLocalizations;
-  DateTime? _startDate;
-  DateTime? _endDate;
 
-  /// 查询序号：每次发起查询自增。
-  ///
-  /// 快速连点"全部/日期/搜索"会并发跑到多条查询，慢的旧查询后返回时会把
-  /// 新结果覆盖掉。用序号丢弃过期结果，保证界面呈现最后一次请求的数据。
-  int _queryToken = 0;
+  /// 是否已完成首次查询。didChangeDependencies 会被多次触发（locale 变化、
+  /// MediaQuery 变化等），首次查询只能发起一次。
+  bool _didInitQuery = false;
 
-  /// 整表替换：丢弃旧 AnimatedList 状态，用正确长度重建。
-  void _setFullList(List<SmsMessage> newList, {required int token}) {
-    // 查询可能在页面销毁后才返回，此时再改状态没有意义。
-    if (!mounted) return;
-    if (token != _queryToken) return;
-    _listKey = GlobalKey<AnimatedListState>();
-    _showList.value = newList;
-  }
+  /// 批量删除是否被用户取消。
+  bool _deleteCancelled = false;
 
   void _showToast(String msg) {
     // 所有提示都可能在 await 之后触发：页面已销毁时 context 失效，
@@ -123,140 +105,43 @@ class _SmsHomePageState extends State<SmsHomePage> {
     );
   }
 
-  Future<bool> _checkDefaultSmsApp() async {
-    // isDefaultSmsApp 返回三态：true=是默认 / false=明确不是 / null=无法判定。
-    final bool? same = await _repository.isDefaultSmsApp();
-    if (same == true) return true;
-    if (same == false) {
-      // 明确不是默认短信应用：提示用户去系统设置。
-      _showToast(appLocalizations.toast_default);
-      return false;
-    }
-    // 无法判定（默认应用不可知或平台调用缺失/异常）：如实提示"操作失败"，
-    // 而不是误报"不是默认"。删除依赖默认应用身份，无法确认时宁可拦截。
-    _showToast(appLocalizations.operation_failed);
-    return false;
-  }
-
-  /// 所有查询的统一执行入口。
-  ///
-  /// 原先"全部 / 同号 / 同卡"三条路径各自复制了一遍"权限检查 → loading →
-  /// try/catch → 过滤 → 整表替换"，约 60 行样板；任何一处漏改都会造成
-  /// 行为不一致（历史上同号/同卡就因此丢掉了部分过滤条件）。
-  /// 这里统一处理：权限、加载态、异常兜底、过滤链、并发序号、整表替换。
-  Future<void> _runQuery(Future<List<SmsMessage>> Function() query) async {
-    final int token = ++_queryToken;
-    List<SmsMessage> showMessageList = <SmsMessage>[];
-    if (await Permission.sms.isGranted) {
-      _showLoading.value = true;
-      try {
-        showMessageList = _applyFilters(await query());
-      } catch (e) {
-        // 平台查询失败（如底层插件异常）时兜底：提示失败、清空列表，
-        // 保证 loading 一定复位、界面不挂死。
-        debugPrint('querySms failed: $e');
-        showMessageList = <SmsMessage>[];
-        _showToast(appLocalizations.operation_failed);
-      } finally {
-        _showLoading.value = false;
-      }
-    } else {
-      showMessageList = <SmsMessage>[];
-      _showToast(appLocalizations.toast_permission);
-      _showLoading.value = false;
-    }
-    _setFullList(showMessageList, token: token);
-  }
-
-  /// 全部短信。body 可能为 null（部分彩信/草稿无正文），过滤逻辑见
-  /// services/sms_filter.dart，null 一律视为不匹配。
-  Future<void> _querySms() => _runQuery(_repository.getAllSms);
-
-  Widget _buildItem(SmsMessage item, Animation<double> animation) {
+  Widget _buildItem(
+    SmsMessage item,
+    Animation<double> animation, {
+    bool interactive = true,
+  }) {
     return MessageItem(
       item: item,
       animation: animation,
+      interactive: interactive,
       appLocalizations: appLocalizations,
       onDelete: _deleteMessage,
       onRemove: _removeMessage,
-      onSameAddress: _querySameAddress,
-      onSameSim: _querySameSim,
+      onSameAddress: _controller.querySameAddress,
+      onSameSim: _controller.querySameSim,
       onShowToast: _showToast,
     );
   }
 
+  /// 只从列表移除（不删系统短信），用于"从列表移除"。
   void _removeMessage(SmsMessage message) {
-    // 只在调用发生的这一刻按对象身份定位下标：AnimatedList 的 removeItem
-    // 需要下标，但下标不再作为跨组件契约传递，因此不存在漂移问题。
-    final int index = _showList.value.indexOf(message);
+    final int index = _controller.removeFromList(message);
     if (index < 0) return;
-    final AnimatedListState? listState = _listKey.currentState;
-    if (listState == null) return;
-    // 不可变更新：先复制再删除，最后整体替换。旧实现先对已发布的列表做
-    // 原地 removeAt，任何持有旧引用的地方（导出、批量删除快照）都会看到
-    // 一个"已经少了一条"的列表，语义不可预期。
-    final List<SmsMessage> next = List<SmsMessage>.of(_showList.value);
-    next.removeAt(index);
-    _showList.value = next;
-    listState.removeItem(index, (
+    _controller.listKey.currentState?.removeItem(index, (
       BuildContext context,
       Animation<double> animation,
     ) {
       // 离场动画用的静态快照：不可交互。
-      return MessageItem(
-        item: message,
-        animation: animation,
-        interactive: false,
-        appLocalizations: appLocalizations,
-        onDelete: _deleteMessage,
-        onRemove: _removeMessage,
-        onSameAddress: _querySameAddress,
-        onSameSim: _querySameSim,
-        onShowToast: _showToast,
-      );
+      return _buildItem(message, animation, interactive: false);
     });
   }
 
   Future<void> _deleteMessage(SmsMessage message) async {
-    final int? id = message.id;
-    final int? threadId = message.threadId;
-    if (id == null || threadId == null) return;
-    bool check = await _checkDefaultSmsApp();
-    if (!check) return;
-    try {
-      bool? ok = await _repository.removeSmsById(id, threadId);
-      if (!mounted) return;
-      if (ok == true) {
-        _removeMessage(message);
-      } else {
-        _showToast(appLocalizations.operation_failed);
-      }
-    } catch (e) {
-      // 平台删除调用异常（如系统拒绝）时提示失败，而不是静默崩溃。
-      debugPrint('removeSmsById failed: $e');
-      _showToast(appLocalizations.operation_failed);
+    if (!await _controller.ensureDefaultSmsApp()) return;
+    if (!mounted) return;
+    if (await _controller.deleteMessage(message)) {
+      _removeMessage(message);
     }
-  }
-
-  /// 统一的过滤链：关键词 + 日期区间 + 日期降序。
-  ///
-  /// 所有查询路径（全部 / 同号 / 同卡）都走它，保证"当前列表 = 数据源 +
-  /// 过滤条件"的语义一致——下钻换的是数据源，过滤条件不应被悄悄丢掉。
-  List<SmsMessage> _applyFilters(List<SmsMessage> messages) {
-    List<SmsMessage> result = filterByKeyword(messages, _textController.text);
-    result = filterByDateRange(result, _startDate, _endDate);
-    return sortByDateDesc(result);
-  }
-
-  Future<void> _querySameAddress(SmsMessage message) async {
-    await _runQuery(() => _repository.queryByAddress(message.address));
-  }
-
-  Future<void> _querySameSim(SmsMessage message) async {
-    final int? sim = message.sim;
-    await _runQuery(() async {
-      return filterBySim(await _repository.getAllSms(), sim);
-    });
   }
 
   void _filterDate() async {
@@ -265,8 +150,10 @@ class _SmsHomePageState extends State<SmsHomePage> {
       firstDate: DateTime(1900),
       lastDate: DateTime(2999),
       initialDateRange: DateTimeRange(
-        start: _startDate ?? DateTime.now().subtract(Duration(days: 7)),
-        end: _endDate ?? DateTime.now(),
+        start:
+            _controller.startDate ??
+            DateTime.now().subtract(const Duration(days: 7)),
+        end: _controller.endDate ?? DateTime.now(),
       ),
     );
 
@@ -274,15 +161,16 @@ class _SmsHomePageState extends State<SmsHomePage> {
     if (picked != null) {
       // 区间语义 [起始日零点, 结束日次日零点)：左闭右开。旧实现给 end 加
       // 23:59:59 后又按开区间比较，结束日 23:59:59.001 之后的短信会被漏掉。
-      _startDate = startOfDay(picked.start);
-      _endDate = startOfNextDay(picked.end);
-      _querySms();
+      await _controller.applyDateRange(
+        startOfDay(picked.start),
+        startOfNextDay(picked.end),
+      );
     }
   }
 
   void _filterMsg() {
-    double top = MediaQuery.of(context).padding.top;
-    double width = MediaQuery.of(context).size.width / 2;
+    final double top = MediaQuery.of(context).padding.top;
+    final double width = MediaQuery.of(context).size.width / 2;
     _focusNode.requestFocus();
     SmartDialog.show(
       alignment: Alignment.topCenter,
@@ -301,15 +189,15 @@ class _SmsHomePageState extends State<SmsHomePage> {
               SizedBox(height: top),
               TextField(
                 autofocus: true,
-                controller: _textController,
+                controller: _controller.keywordController,
                 focusNode: _focusNode,
                 decoration: InputDecoration(
                   labelText: appLocalizations.keyword,
                   prefixIcon: const Icon(Icons.search_outlined),
                   suffixIcon: GestureDetector(
                     onTap: () {
-                      if (_textController.text.isNotEmpty) {
-                        _textController.text = '';
+                      if (_controller.keywordController.text.isNotEmpty) {
+                        _controller.keywordController.clear();
                       } else {
                         SmartDialog.dismiss(status: SmartStatus.custom);
                       }
@@ -338,17 +226,17 @@ class _SmsHomePageState extends State<SmsHomePage> {
 
   void _filterSubmit() {
     SmartDialog.dismiss(status: SmartStatus.custom);
-    _querySms();
+    _controller.queryAll();
   }
 
   void _deleteMsg() {
     showCupertinoModalPopup(
       context: context,
-      builder: (context) {
+      builder: (BuildContext context) {
         return CupertinoActionSheet(
           title: Text(appLocalizations.t_confirm_delete),
           message: Text(
-            appLocalizations.delete_num(_showList.value.length.toString()),
+            appLocalizations.delete_num(_controller.count.toString()),
           ),
           actions: <Widget>[
             CupertinoActionSheetAction(
@@ -372,93 +260,20 @@ class _SmsHomePageState extends State<SmsHomePage> {
     );
   }
 
-  /// 删除进度弹窗。progress 为空表示"原生批量删除中"（无逐条进度），
-  /// 非空表示回退到逐条删除，此时提供取消入口。
-  void _showDeleteProgress(ValueNotifier<int>? progress, int total) {
-    SmartDialog.show(
-      clickMaskDismiss: false,
-      builder: (_) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainer,
-            borderRadius: BorderRadius.circular(15),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 16),
-              progress == null
-                  ? Text(appLocalizations.t_deleting)
-                  : ValueListenableBuilder<int>(
-                      valueListenable: progress,
-                      builder: (BuildContext context, int value, Widget? _) {
-                        return Text(
-                          appLocalizations.delete_progress(
-                            value.toString(),
-                            total.toString(),
-                          ),
-                        );
-                      },
-                    ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   Future<void> _deleteSubmit() async {
-    bool check = await _checkDefaultSmsApp();
-    if (!check) return;
-    // 快照：批量删除耗时较长，期间列表可能被其他操作刷新，
-    // 按开始时的快照执行，避免 index 漂移或读写错位。
-    final List<SmsMessage> items = List.of(_showList.value);
-    if (items.isEmpty) {
+    if (_controller.isEmpty) {
       _showToast(appLocalizations.toast_no);
       return;
     }
-    if (items.length > 3000) {
+    if (!await _controller.ensureDefaultSmsApp()) return;
+    if (!mounted) return;
+    if (_controller.count > 3000) {
       _showToast(appLocalizations.t_list_too_long);
     }
 
-    // id/threadId 缺失的条目无法删除，计入失败而不是 ! 强解包崩溃。
-    final List<int> ids = <int>[
-      for (final SmsMessage message in items)
-        if (message.id != null && message.threadId != null) message.id!,
-    ];
-    int failed = items.length - ids.length;
-
-    _showDeleteProgress(null, items.length);
-    // 优先走原生批量删除：把 N 次跨进程调用降到 ceil(N / 900) 次。
-    final int? deleted = await _repository.deleteSmsBatch(ids);
-    if (!mounted) return;
-    SmartDialog.dismiss();
-    if (deleted != null) {
-      failed += ids.length - deleted;
-      _reportDeleteResult(failed);
-      _querySms();
-      return;
-    }
-
-    // 平台侧不支持或失败：回退逐条删除，带进度与取消。
-    failed += await _deleteOneByOne(items);
-    if (!mounted) return;
-    _reportDeleteResult(failed);
-    _querySms();
-  }
-
-  void _reportDeleteResult(int failed) {
-    if (failed > 0) {
-      _showToast(appLocalizations.delete_failed(failed.toString()));
-    }
-  }
-
-  /// 逐条删除的回退路径：带进度与取消，避免长时间无反馈又无法中断。
-  Future<int> _deleteOneByOne(List<SmsMessage> items) async {
-    final ValueNotifier<int> progress = ValueNotifier<int>(0);
-    bool cancelled = false;
+    final int total = _controller.count;
+    final ValueNotifier<int?> progress = ValueNotifier<int?>(null);
+    _deleteCancelled = false;
     SmartDialog.show(
       clickMaskDismiss: false,
       builder: (_) {
@@ -473,19 +288,22 @@ class _SmsHomePageState extends State<SmsHomePage> {
             children: [
               const CircularProgressIndicator(),
               const SizedBox(height: 16),
-              ValueListenableBuilder<int>(
+              ValueListenableBuilder<int?>(
                 valueListenable: progress,
-                builder: (BuildContext context, int value, Widget? _) {
+                builder: (BuildContext context, int? value, Widget? _) {
+                  // value 为 null 表示原生批量删除中，没有逐条进度。
                   return Text(
-                    appLocalizations.delete_progress(
-                      value.toString(),
-                      items.length.toString(),
-                    ),
+                    value == null
+                        ? appLocalizations.t_deleting
+                        : appLocalizations.delete_progress(
+                            value.toString(),
+                            total.toString(),
+                          ),
                   );
                 },
               ),
               TextButton(
-                onPressed: () => cancelled = true,
+                onPressed: () => _deleteCancelled = true,
                 child: Text(appLocalizations.b_cancel),
               ),
             ],
@@ -494,47 +312,35 @@ class _SmsHomePageState extends State<SmsHomePage> {
       },
     );
 
-    int failed = 0;
-    for (final SmsMessage message in items) {
-      if (cancelled) break;
-      final int? id = message.id;
-      final int? threadId = message.threadId;
-      if (id == null || threadId == null) {
-        failed++;
-        progress.value++;
-        continue;
-      }
-      try {
-        final bool? ok = await _repository.removeSmsById(id, threadId);
-        if (!mounted) break;
-        if (ok != true) {
-          failed++;
-        }
-      } catch (e) {
-        debugPrint('removeSmsById failed: $e');
-        failed++;
-      }
-      progress.value++;
-    }
+    final int failed = await _controller.deleteAll(
+      onProgress: (int? done, int total) {
+        progress.value = done;
+      },
+      shouldCancel: () => _deleteCancelled || !mounted,
+    );
     SmartDialog.dismiss();
     progress.dispose();
-    return failed;
+    if (!mounted) return;
+    if (failed > 0) {
+      _showToast(appLocalizations.delete_failed(failed.toString()));
+    }
+    _controller.queryAll();
   }
 
   Future<void> _requestPermission() async {
     // v13 迁移指南：Android 上 status 永不返回 permanentlyDenied，
     // 只能以 request() 结果为准。已授权时直接跳过请求。
     if (await Permission.sms.isGranted) {
-      if (_showList.value.isEmpty) {
-        _querySms();
+      if (_controller.isEmpty) {
+        _controller.queryAll();
       }
       _showToast(appLocalizations.operation_completed);
       return;
     }
     final PermissionStatus status = await Permission.sms.request();
     if (status.isGranted || status.isLimited) {
-      if (_showList.value.isEmpty) {
-        _querySms();
+      if (_controller.isEmpty) {
+        _controller.queryAll();
       }
       _showToast(appLocalizations.operation_completed);
       return;
@@ -551,7 +357,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
   }
 
   Future<void> _setAppPermission() async {
-    bool ok = await openAppSettings();
+    final bool ok = await openAppSettings();
     if (!ok) {
       _showToast(appLocalizations.operation_failed);
     }
@@ -559,13 +365,12 @@ class _SmsHomePageState extends State<SmsHomePage> {
 
   Future<void> _setDefaultApp() async {
     try {
-      final set = await _repository.setDefaultSmsApp();
-      final get = await _repository.getDefaultSmsApp();
+      final String? set = await _controller.repository.setDefaultSmsApp();
+      final String? get = await _controller.repository.getDefaultSmsApp();
       if (set == 'had' || get == SmsRepository.defaultPackageId) {
         _showToast(appLocalizations.operation_completed);
       } else {
         // 'no'：已发起系统角色申请流程，尚未生效，需用户在系统弹窗确认。
-        // 旧实现在这里什么都不提示，用户点了按钮却得不到任何反馈。
         _showToast(appLocalizations.toast_default_confirm);
       }
     } on PlatformException catch (e) {
@@ -575,7 +380,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
 
   Future<void> _resetDefaultSmsApp() async {
     try {
-      final result = await _repository.resetDefaultSmsApp();
+      final String? result = await _controller.repository.resetDefaultSmsApp();
       if (result == 'settings') {
         // Android 10+ 无法由应用代用户释放默认短信角色，只能引导到系统
         // 设置页；如实告知，不谎报"已完成"。
@@ -592,7 +397,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
   }
 
   Future<void> _export() async {
-    if (_showList.value.isEmpty) {
+    if (_controller.isEmpty) {
       _showToast(appLocalizations.toast_no);
       return;
     }
@@ -603,8 +408,8 @@ class _SmsHomePageState extends State<SmsHomePage> {
     late File outFile;
     try {
       // CSV 编码逻辑见 services/csv_exporter.dart（纯函数，已单测覆盖）。
-      Directory tempDir = await getTemporaryDirectory();
-      String path = '${tempDir.path}/${appLocalizations.sms_list}.csv';
+      final Directory tempDir = await getTemporaryDirectory();
+      final String path = '${tempDir.path}/${appLocalizations.sms_list}.csv';
       outFile = File(path);
       // 直接 writeAsBytes 落盘，省掉 String→Uint8List.fromList 这层冗余全量
       // 拷贝，以及 XFile.fromData 额外驻留的一份 data。内存峰值从多份全量降到
@@ -612,7 +417,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
       // 到空或半截文件。这里刻意不改 CSV 的逐行编码路径（仍用 buildSmsCsv
       // 整体编码）：流式/分批编码需逐字节一致性验证，改动风险大于收益。
       await outFile.writeAsBytes(
-        encodeSmsCsvBytes(_showList.value),
+        encodeSmsCsvBytes(_controller.messages.value),
         flush: true,
       );
     } catch (e) {
@@ -626,9 +431,9 @@ class _SmsHomePageState extends State<SmsHomePage> {
     try {
       final ShareParams params = ShareParams(
         text: appLocalizations.sms_list,
-        files: [XFile(outFile.path)],
+        files: <XFile>[XFile(outFile.path)],
       );
-      ShareResult res = await SharePlus.instance.share(params);
+      final ShareResult res = await SharePlus.instance.share(params);
       if (res.status == ShareResultStatus.success) {
         _showToast(appLocalizations.toast_share);
       }
@@ -659,21 +464,6 @@ class _SmsHomePageState extends State<SmsHomePage> {
     );
   }
 
-  /// 是否已完成首次查询。didChangeDependencies 会被多次触发（locale 变化、
-  /// MediaQuery 变化等），首次查询只能发起一次。
-  bool _didInitQuery = false;
-
-  @override
-  void dispose() {
-    // 原实现没有释放 TextEditingController / FocusNode / ValueNotifier，
-    // 页面销毁后它们仍被全局键盘与动画系统持有。
-    _textController.dispose();
-    _focusNode.dispose();
-    _showList.dispose();
-    _showLoading.dispose();
-    super.dispose();
-  }
-
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -684,8 +474,21 @@ class _SmsHomePageState extends State<SmsHomePage> {
     appLocalizations = AppLocalizations.of(context)!;
     if (!_didInitQuery) {
       _didInitQuery = true;
-      _querySms();
+      _controller = SmsListController(
+        l10n: appLocalizations,
+        onMessage: _showToast,
+      );
+      _controller.queryAll();
+    } else {
+      _controller.l10n = appLocalizations;
     }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    _controller.dispose();
+    super.dispose();
   }
 
   PopupMenuItem<String> _selectView(IconData icon, String text, String id) {
@@ -703,13 +506,51 @@ class _SmsHomePageState extends State<SmsHomePage> {
     );
   }
 
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(
+            Icons.message_outlined,
+            size: 80,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            appLocalizations.t_no_sms,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 80),
+          FilledButton(
+            onPressed: () {
+              _controller.clearFilters();
+              _controller.queryAll();
+            },
+            child: Text(appLocalizations.b_remove_filter),
+          ),
+          const SizedBox(height: 10),
+          FilledButton(
+            onPressed: _setDefaultApp,
+            child: Text(appLocalizations.set_default),
+          ),
+          const SizedBox(height: 10),
+          FilledButton(
+            onPressed: _requestPermission,
+            child: Text(appLocalizations.set_permission),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: ValueListenableBuilder(
-          valueListenable: _showList,
+        title: ValueListenableBuilder<List<SmsMessage>>(
+          valueListenable: _controller.messages,
           builder:
               (BuildContext context, List<SmsMessage> value, Widget? child) {
                 return value.isEmpty
@@ -717,14 +558,12 @@ class _SmsHomePageState extends State<SmsHomePage> {
                     : Text(appLocalizations.num_sms(value.length.toString()));
               },
         ),
-        actions: [
+        actions: <Widget>[
           IconButton(
             tooltip: appLocalizations.t_all_sms,
             onPressed: () {
-              _textController.text = '';
-              _startDate = null;
-              _endDate = null;
-              _querySms();
+              _controller.clearFilters();
+              _controller.queryAll();
             },
             icon: const Icon(Icons.format_list_bulleted_outlined),
           ),
@@ -738,7 +577,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
             onPressed: _filterMsg,
             icon: const Icon(Icons.search_outlined),
           ),
-          PopupMenuButton(
+          PopupMenuButton<String>(
             itemBuilder: (BuildContext context) => <PopupMenuItem<String>>[
               _selectView(
                 Icons.message_outlined,
@@ -788,96 +627,47 @@ class _SmsHomePageState extends State<SmsHomePage> {
           ),
         ],
       ),
-      body: ValueListenableBuilder(
-        valueListenable: _showLoading,
-        builder: (BuildContext context, bool value, Widget? child) {
-          return value
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const CircularProgressIndicator(),
-                      Container(
-                        margin: const EdgeInsets.only(top: 20),
-                        child: Text(
-                          appLocalizations.t_wait,
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                      ),
-                    ],
+      body: ValueListenableBuilder<bool>(
+        valueListenable: _controller.loading,
+        builder: (BuildContext context, bool loading, Widget? child) {
+          if (loading) {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  const CircularProgressIndicator(),
+                  Container(
+                    margin: const EdgeInsets.only(top: 20),
+                    child: Text(
+                      appLocalizations.t_wait,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                   ),
-                )
-              : ValueListenableBuilder(
-                  valueListenable: _showList,
-                  builder:
-                      (
-                        BuildContext context,
-                        List<SmsMessage> value,
-                        Widget? child,
-                      ) {
-                        return value.isEmpty
-                            ? Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.message_outlined,
-                                      size: 80,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .primary,
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      appLocalizations.t_no_sms,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleLarge,
-                                    ),
-                                    const SizedBox(height: 80),
-                                    FilledButton(
-                                      onPressed: () {
-                                        _textController.text = '';
-                                        _startDate = null;
-                                        _endDate = null;
-                                        _querySms();
-                                      },
-                                      child: Text(
-                                        appLocalizations.b_remove_filter,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    FilledButton(
-                                      onPressed: _setDefaultApp,
-                                      child: Text(appLocalizations.set_default),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    FilledButton(
-                                      onPressed: _requestPermission,
-                                      child: Text(
-                                        appLocalizations.set_permission,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : AnimatedList(
-                                key: _listKey,
-                                initialItemCount: value.length,
-                                itemBuilder:
-                                    (
-                                      BuildContext context,
-                                      int index,
-                                      Animation<double> animation,
-                                    ) {
-                                      return _buildItem(
-                                        value[index],
-                                        animation,
-                                      );
-                                    },
-                              );
-                      },
-                );
+                ],
+              ),
+            );
+          }
+          return ValueListenableBuilder<List<SmsMessage>>(
+            valueListenable: _controller.messages,
+            builder:
+                (BuildContext context, List<SmsMessage> value, Widget? child) {
+                  if (value.isEmpty) {
+                    return _buildEmptyState();
+                  }
+                  return AnimatedList(
+                    key: _controller.listKey,
+                    initialItemCount: value.length,
+                    itemBuilder:
+                        (
+                          BuildContext context,
+                          int index,
+                          Animation<double> animation,
+                        ) {
+                          return _buildItem(value[index], animation);
+                        },
+                  );
+                },
+          );
         },
       ),
       floatingActionButton: FloatingActionButton(
