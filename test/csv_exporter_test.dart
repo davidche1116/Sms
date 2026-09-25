@@ -13,7 +13,7 @@ void main() {
       );
     });
 
-    test('字段按列输出，kind/state 使用枚举文本', () {
+    test('字段按列输出，日期为 ISO-8601、枚举输出规范小写值', () {
       final message = SmsMessage(
         '10086',
         'hello world',
@@ -29,15 +29,19 @@ void main() {
       final lines = csv.split('\r\n');
       expect(lines.length, greaterThanOrEqualTo(2));
       expect(lines[1], startsWith('1,2,0,10086,hello world,true,'));
-      expect(lines[1], contains('SmsMessageKind.Received'));
-      expect(lines[1], contains('SmsMessageState.None'));
+      // 回归：旧实现输出 "SmsMessageKind.Received" / "SmsMessageState.None"
+      // 这类 Dart 枚举文本，Excel 与脚本无法按值筛选。
+      expect(lines[1], endsWith('received,none'));
+      expect(csv, isNot(contains('SmsMessageKind')));
+      expect(csv, isNot(contains('SmsMessageState')));
+      expect(lines[1], contains('2026-09-01T12:30:00'));
     });
 
     test('null 字段写空串而不是 "null"', () {
       final message = SmsMessage('10086', 'body', sim: 0);
       final csv = buildSmsCsv([message]);
       final lines = csv.split('\r\n');
-      expect(lines[1], ',,0,10086,body,,,,,SmsMessageState.None');
+      expect(lines[1], ',,0,10086,body,,,,,none');
       expect(csv, isNot(contains('null')));
     });
 

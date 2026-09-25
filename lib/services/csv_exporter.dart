@@ -37,11 +37,13 @@ String buildSmsCsv(List<SmsMessage> messages) {
       m.address ?? '',
       m.body ?? '',
       m.isRead?.toString() ?? '',
-      m.date?.toString() ?? '',
-      m.dateSent?.toString() ?? '',
+      m.date?.toIso8601String() ?? '',
+      m.dateSent?.toIso8601String() ?? '',
       // kind 可为 null（草稿等场景），state 非空有默认值。
-      m.kind?.toString() ?? '',
-      m.state.toString(),
+      // 输出小写的枚举名而不是 "SmsMessageKind.Received" 这类 Dart 内部
+      // 文本，否则 Excel / 数据库 / 脚本都无法直接按值筛选。
+      m.kind?.name.toLowerCase() ?? '',
+      m.state.name.toLowerCase(),
     ]);
   }
   return csv.encode(headerAndDataList);
