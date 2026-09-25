@@ -9,6 +9,13 @@ on:
   pull_request:
     types:
       - opened
+      - synchronize
+      - reopened
+
+# 同一分支/PR 的新提交会取消仍在跑的旧构建，节省 CI 资源。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
