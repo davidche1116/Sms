@@ -39,23 +39,33 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
-            storeFile = keystoreProperties["storeFile"]?.let { file(it) }
-            storePassword = keystoreProperties["storePassword"] as String
+        // 仅在提供 key.properties 时才创建 release 签名配置；
+        // 无密钥的贡献者环境不再在配置阶段因 `as String` 强转失败。
+        if (keystorePropertiesFile.exists()) {
+            create("release") {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = keystoreProperties["storeFile"]?.let { file(it) }
+                storePassword = keystoreProperties["storePassword"] as String
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            // 有签名密钥时使用 release 签名；没有时回退 debug 签名，
+            // 保证无密钥环境也能本地出包验证（不能上架，但可安装运行）。
+            signingConfig =
+                if (keystorePropertiesFile.exists()) {
+                    signingConfigs.getByName("release")
+                } else {
+                    signingConfigs.getByName("debug")
+                }
             isMinifyEnabled = true
             isShrinkResources = true
         }
-        debug {
-            signingConfig = signingConfigs.getByName("release")
-        }
+        // debug 构建使用默认调试签名，不再复用 release 密钥，
+        // 缩小发布密钥的暴露面。
     }
 }
 
