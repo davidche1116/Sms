@@ -503,15 +503,16 @@ class _SmsHomePageState extends State<SmsHomePage> {
       List<List<String>> headerAndDataList = [];
       headerAndDataList.add(headerRow);
       for (SmsMessage m in _showList.value) {
+        // 可空字段写空串而不是 "null" 字符串，保证导出数据干净。
         List<String> dataRow = [
-          m.id.toString(),
-          m.threadId.toString(),
-          m.sim.toString(),
-          m.address.toString(),
-          m.body.toString(),
+          m.id?.toString() ?? '',
+          m.threadId?.toString() ?? '',
+          m.sim?.toString() ?? '',
+          m.address ?? '',
+          m.body ?? '',
           m.isRead.toString(),
-          m.date.toString(),
-          m.dateSent.toString(),
+          m.date?.toString() ?? '',
+          m.dateSent?.toString() ?? '',
           m.kind.toString(),
           m.state.toString(),
         ];
