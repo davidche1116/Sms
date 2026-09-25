@@ -27,7 +27,7 @@ String buildSmsCsv(List<SmsMessage> messages) {
       m.sim?.toString() ?? '',
       m.address ?? '',
       m.body ?? '',
-      m.isRead.toString(),
+      m.isRead?.toString() ?? '',
       m.date?.toString() ?? '',
       m.dateSent?.toString() ?? '',
       // kind 可为 null（草稿等场景），state 非空有默认值。
