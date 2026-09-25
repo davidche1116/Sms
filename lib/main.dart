@@ -120,7 +120,10 @@ class _SmsHomePageState extends State<SmsHomePage> {
     } on PlatformException catch (e) {
       debugPrint(e.message);
     }
-    return true;
+    // 查询失败时按"非默认短信应用"处理：删除操作依赖默认应用身份，
+    // 失败时继续删除只会静默失败甚至误删状态，宁可拦截。
+    _showToast(appLocalizations.operation_failed);
+    return false;
   }
 
   Future<void> _querySms() async {
