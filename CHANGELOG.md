@@ -20,6 +20,7 @@
 
 ### Changed
 
+- build: 最低 Dart SDK 要求提升至 `^3.13.4`（与最新 stable Flutter 3.47.5 自带的 Dart 版本一致）
 - build(deps): `flutter pub upgrade` 升级锁文件内 7 个传递依赖（archive 4.3 / code_assets 2.1 / cupertino_ui 1.1.1 / image 4.10.1 / material_ui 1.4 / platform 3.2 / vector_math 2.4.3）；cross_file 0.4、material_color_utilities、test_api、cli_util 受 Flutter SDK 与 share_plus 约束暂无法升级
 - refactor: 短信数据访问与过滤逻辑从 UI 层拆分至 `lib/services/`（`SmsRepository` / 纯函数过滤 / CSV 导出）
 - ci: PR 触发补齐 `synchronize`/`reopened`，三个 workflow 增加 concurrency 并发控制
