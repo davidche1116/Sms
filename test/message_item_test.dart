@@ -16,7 +16,6 @@ Widget _host(Widget child) {
 
 MessageItem _item(SmsMessage message) {
   return MessageItem(
-    index: 0,
     item: message,
     animation: const AlwaysStoppedAnimation<double>(1),
     appLocalizations: AppLocalizationsEn(),

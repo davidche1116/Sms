@@ -9,10 +9,14 @@ import '../utils/date_format.dart';
 /// 短信列表项卡片。从 main.dart 的 _buildItem 抽出，行为不变：
 /// 渲染一条短信并提供删除/移至回收站/同卡/同号/复制等交互，
 /// 具体动作通过回调交回页面 State 执行。
+/// 动作回调一律以具体的短信对象为参数，而不是列表下标。
+///
+/// 下标在异步间隙会漂移（列表刷新、其他条目被删除都会让下标指向别条甚至
+/// 越界），历史上为此打过多次补丁；改为传对象后，整类问题从根上消失，
+/// 调用方也不必再"先快照再回查"。
 class MessageItem extends StatelessWidget {
   const MessageItem({
     super.key,
-    required this.index,
     required this.item,
     required this.animation,
     this.interactive = true,
@@ -24,15 +28,14 @@ class MessageItem extends StatelessWidget {
     required this.onShowToast,
   });
 
-  final int index;
   final SmsMessage item;
   final Animation<double> animation;
   final bool interactive;
   final AppLocalizations appLocalizations;
-  final void Function(int) onDelete;
-  final void Function(int) onRemove;
-  final void Function(int) onSameAddress;
-  final void Function(int) onSameSim;
+  final void Function(SmsMessage) onDelete;
+  final void Function(SmsMessage) onRemove;
+  final void Function(SmsMessage) onSameAddress;
+  final void Function(SmsMessage) onSameSim;
   final void Function(String) onShowToast;
 
   @override
@@ -106,14 +109,14 @@ class MessageItem extends StatelessWidget {
                             CupertinoActionSheetAction(
                               onPressed: () {
                                 Navigator.of(context).pop('remove');
-                                onRemove(index);
+                                onRemove(item);
                               },
                               child: Text(appLocalizations.b_remove),
                             ),
                             CupertinoActionSheetAction(
                               onPressed: () {
                                 Navigator.of(context).pop('delete');
-                                onDelete(index);
+                                onDelete(item);
                               },
                               isDestructiveAction: true,
                               isDefaultAction: true,
@@ -122,14 +125,14 @@ class MessageItem extends StatelessWidget {
                             CupertinoActionSheetAction(
                               onPressed: () {
                                 Navigator.of(context).pop('same');
-                                onSameAddress(index);
+                                onSameAddress(item);
                               },
                               child: Text(appLocalizations.b_same_number),
                             ),
                             CupertinoActionSheetAction(
                               onPressed: () {
                                 Navigator.of(context).pop('sim');
-                                onSameSim(index);
+                                onSameSim(item);
                               },
                               child: Text(appLocalizations.b_same_sim),
                             ),

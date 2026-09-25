@@ -172,49 +172,62 @@ class _SmsHomePageState extends State<SmsHomePage> {
   /// services/sms_filter.dart，null 一律视为不匹配。
   Future<void> _querySms() => _runQuery(_repository.getAllSms);
 
-  void _removeIndex(int index) {
-    if (index < 0 || index >= _showList.value.length) return;
+  Widget _buildItem(SmsMessage item, Animation<double> animation) {
+    return MessageItem(
+      item: item,
+      animation: animation,
+      appLocalizations: appLocalizations,
+      onDelete: _deleteMessage,
+      onRemove: _removeMessage,
+      onSameAddress: _querySameAddress,
+      onSameSim: _querySameSim,
+      onShowToast: _showToast,
+    );
+  }
+
+  void _removeMessage(SmsMessage message) {
+    // 只在调用发生的这一刻按对象身份定位下标：AnimatedList 的 removeItem
+    // 需要下标，但下标不再作为跨组件契约传递，因此不存在漂移问题。
+    final int index = _showList.value.indexOf(message);
+    if (index < 0) return;
     final AnimatedListState? listState = _listKey.currentState;
     if (listState == null) return;
     // 不可变更新：先复制再删除，最后整体替换。旧实现先对已发布的列表做
     // 原地 removeAt，任何持有旧引用的地方（导出、批量删除快照）都会看到
     // 一个"已经少了一条"的列表，语义不可预期。
     final List<SmsMessage> next = List<SmsMessage>.of(_showList.value);
-    final SmsMessage removedItem = next.removeAt(index);
+    next.removeAt(index);
     _showList.value = next;
     listState.removeItem(index, (
       BuildContext context,
       Animation<double> animation,
     ) {
-      // 离场动画用的静态快照：不可交互，不再按 index 回查实时列表
-      //（旧代码把 stale index 传给 _buildItem，动画期间点选会读写错位）。
+      // 离场动画用的静态快照：不可交互。
       return MessageItem(
-        index: index,
-        item: removedItem,
+        item: message,
         animation: animation,
         interactive: false,
         appLocalizations: appLocalizations,
-        onDelete: _deleteIndex,
-        onRemove: _removeIndex,
-        onSameAddress: _sameAddress,
-        onSameSim: _sameSim,
+        onDelete: _deleteMessage,
+        onRemove: _removeMessage,
+        onSameAddress: _querySameAddress,
+        onSameSim: _querySameSim,
         onShowToast: _showToast,
       );
     });
-    // return removedItem;
   }
 
-  Future<void> _deleteIndex(int index) async {
-    if (index < 0 || index >= _showList.value.length) return;
-    final int? id = _showList.value[index].id;
-    final int? threadId = _showList.value[index].threadId;
+  Future<void> _deleteMessage(SmsMessage message) async {
+    final int? id = message.id;
+    final int? threadId = message.threadId;
     if (id == null || threadId == null) return;
     bool check = await _checkDefaultSmsApp();
     if (!check) return;
     try {
       bool? ok = await _repository.removeSmsById(id, threadId);
+      if (!mounted) return;
       if (ok == true) {
-        _removeIndex(index);
+        _removeMessage(message);
       } else {
         _showToast(appLocalizations.operation_failed);
       }
@@ -235,17 +248,12 @@ class _SmsHomePageState extends State<SmsHomePage> {
     return sortByDateDesc(result);
   }
 
-  Future<void> _sameAddress(int index) async {
-    // 同步快照查询条件：await 间隙列表可能已被刷新，不能再用 index 回查。
-    if (index < 0 || index >= _showList.value.length) return;
-    final String? address = _showList.value[index].address;
-    await _runQuery(() => _repository.queryByAddress(address));
+  Future<void> _querySameAddress(SmsMessage message) async {
+    await _runQuery(() => _repository.queryByAddress(message.address));
   }
 
-  Future<void> _sameSim(int index) async {
-    // 同上：先同步快照 sim，避免异步间隙 index 失效。
-    if (index < 0 || index >= _showList.value.length) return;
-    final int? sim = _showList.value[index].sim;
+  Future<void> _querySameSim(SmsMessage message) async {
+    final int? sim = message.sim;
     await _runQuery(() async {
       return filterBySim(await _repository.getAllSms(), sim);
     });
@@ -841,17 +849,9 @@ class _SmsHomePageState extends State<SmsHomePage> {
                                       int index,
                                       Animation<double> animation,
                                     ) {
-                                      SmsMessage item = value[index];
-                                      return MessageItem(
-                                        index: index,
-                                        item: item,
-                                        animation: animation,
-                                        appLocalizations: appLocalizations,
-                                        onDelete: _deleteIndex,
-                                        onRemove: _removeIndex,
-                                        onSameAddress: _sameAddress,
-                                        onSameSim: _sameSim,
-                                        onShowToast: _showToast,
+                                      return _buildItem(
+                                        value[index],
+                                        animation,
                                       );
                                     },
                               );
