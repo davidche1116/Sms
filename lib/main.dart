@@ -138,33 +138,39 @@ class _SmsHomePageState extends State<SmsHomePage> {
     return false;
   }
 
-  Future<void> _querySms() async {
+  /// 所有查询的统一执行入口。
+  ///
+  /// 原先"全部 / 同号 / 同卡"三条路径各自复制了一遍"权限检查 → loading →
+  /// try/catch → 过滤 → 整表替换"，约 60 行样板；任何一处漏改都会造成
+  /// 行为不一致（历史上同号/同卡就因此丢掉了部分过滤条件）。
+  /// 这里统一处理：权限、加载态、异常兜底、过滤链、并发序号、整表替换。
+  Future<void> _runQuery(Future<List<SmsMessage>> Function() query) async {
     final int token = ++_queryToken;
-    bool ok = await Permission.sms.isGranted;
-    List<SmsMessage> showMessageList = [];
-    if (ok) {
+    List<SmsMessage> showMessageList = <SmsMessage>[];
+    if (await Permission.sms.isGranted) {
       _showLoading.value = true;
       try {
-        // body 可能为 null（部分彩信/草稿无正文），过滤逻辑见
-        // services/sms_filter.dart，null 一律视为不匹配。
-        final List<SmsMessage> allMessageList = await _repository.getAllSms();
-        showMessageList = _applyFilters(allMessageList);
+        showMessageList = _applyFilters(await query());
       } catch (e) {
         // 平台查询失败（如底层插件异常）时兜底：提示失败、清空列表，
         // 保证 loading 一定复位、界面不挂死。
         debugPrint('querySms failed: $e');
-        showMessageList = [];
+        showMessageList = <SmsMessage>[];
         _showToast(appLocalizations.operation_failed);
       } finally {
         _showLoading.value = false;
       }
     } else {
-      showMessageList = [];
+      showMessageList = <SmsMessage>[];
       _showToast(appLocalizations.toast_permission);
       _showLoading.value = false;
     }
     _setFullList(showMessageList, token: token);
   }
+
+  /// 全部短信。body 可能为 null（部分彩信/草稿无正文），过滤逻辑见
+  /// services/sms_filter.dart，null 一律视为不匹配。
+  Future<void> _querySms() => _runQuery(_repository.getAllSms);
 
   void _removeIndex(int index) {
     if (index < 0 || index >= _showList.value.length) return;
@@ -228,57 +234,17 @@ class _SmsHomePageState extends State<SmsHomePage> {
   Future<void> _sameAddress(int index) async {
     // 同步快照查询条件：await 间隙列表可能已被刷新，不能再用 index 回查。
     if (index < 0 || index >= _showList.value.length) return;
-    final int token = ++_queryToken;
     final String? address = _showList.value[index].address;
-    List<SmsMessage> showMessageList = [];
-    bool ok = await Permission.sms.isGranted;
-    if (ok) {
-      _showLoading.value = true;
-
-      try {
-        showMessageList = _applyFilters(
-          await _repository.queryByAddress(address),
-        );
-      } catch (e) {
-        debugPrint('querySms(address) failed: $e');
-        showMessageList = [];
-        _showToast(appLocalizations.operation_failed);
-      } finally {
-        _showLoading.value = false;
-      }
-    } else {
-      showMessageList = [];
-    }
-
-    _setFullList(showMessageList, token: token);
+    await _runQuery(() => _repository.queryByAddress(address));
   }
 
   Future<void> _sameSim(int index) async {
     // 同上：先同步快照 sim，避免异步间隙 index 失效。
     if (index < 0 || index >= _showList.value.length) return;
-    final int token = ++_queryToken;
     final int? sim = _showList.value[index].sim;
-    List<SmsMessage> showMessageList = [];
-    bool ok = await Permission.sms.isGranted;
-    if (ok) {
-      _showLoading.value = true;
-
-      try {
-        List<SmsMessage> allMessageList = [];
-        allMessageList = await _repository.getAllSms();
-        showMessageList = _applyFilters(filterBySim(allMessageList, sim));
-      } catch (e) {
-        debugPrint('querySms(sim) failed: $e');
-        showMessageList = [];
-        _showToast(appLocalizations.operation_failed);
-      } finally {
-        _showLoading.value = false;
-      }
-    } else {
-      showMessageList = [];
-    }
-
-    _setFullList(showMessageList, token: token);
+    await _runQuery(() async {
+      return filterBySim(await _repository.getAllSms(), sim);
+    });
   }
 
   void _filterDate() async {
