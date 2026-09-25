@@ -24,6 +24,7 @@ MessageItem _item(SmsMessage message) {
     onSameAddress: (_) {},
     onSameSim: (_) {},
     onShowToast: (_) {},
+    onToggleSelection: (_) {},
   );
 }
 
@@ -75,6 +76,48 @@ void main() {
       expect(find.text('balance reminder'), findsOneWidget);
       expect(find.text('SIM0'), findsOneWidget);
       expect(find.text('2026-09-01 12:30'), findsOneWidget);
+    });
+
+    testWidgets('多选模式显示复选框并随 selected 切换', (WidgetTester tester) async {
+      final SmsMessage message = SmsMessage(
+        '10086',
+        'balance reminder',
+        id: 1,
+        sim: 0,
+        date: DateTime(2026, 9, 1, 12, 30),
+      );
+      bool toggled = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: MessageItem(
+              item: message,
+              animation: const AlwaysStoppedAnimation<double>(1),
+              selectionMode: true,
+              selected: false,
+              appLocalizations: AppLocalizationsEn(),
+              onDelete: (_) {},
+              onRemove: (_) {},
+              onSameAddress: (_) {},
+              onSameSim: (_) {},
+              onShowToast: (_) {},
+              onToggleSelection: (_) => toggled = true,
+            ),
+          ),
+        ),
+      );
+
+      // 多选模式应有复选框，且初始未选中。
+      final Finder checkbox = find.byType(Checkbox);
+      expect(checkbox, findsOneWidget);
+      expect(tester.widget<Checkbox>(checkbox).value, false);
+
+      // 点击条目应触发选择切换，而不是弹出操作菜单。
+      await tester.tap(find.text('balance reminder'));
+      await tester.pump();
+      expect(toggled, true);
     });
   });
 }

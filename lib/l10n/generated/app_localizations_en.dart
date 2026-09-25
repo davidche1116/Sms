@@ -132,6 +132,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get t_delete_all => 'Delete All Messages in Current List';
 
   @override
+  String get set_select => 'Select';
+
+  @override
+  String get select_all => 'Select All';
+
+  @override
+  String get exit_select => 'Exit Selection';
+
+  @override
+  String selected_num(String num) {
+    return '$num selected';
+  }
+
+  @override
+  String get toast_no_selection => 'No messages selected';
+
+  @override
   String get t_deleting => 'Deleting...';
 
   @override

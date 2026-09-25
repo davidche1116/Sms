@@ -128,6 +128,23 @@ class AppLocalizationsZh extends AppLocalizations {
   String get t_delete_all => '删除当前列表所有短信';
 
   @override
+  String get set_select => '多选';
+
+  @override
+  String get select_all => '全选';
+
+  @override
+  String get exit_select => '退出多选';
+
+  @override
+  String selected_num(String num) {
+    return '已选 $num 条';
+  }
+
+  @override
+  String get toast_no_selection => '未选择短信';
+
+  @override
   String get t_deleting => '正在删除...';
 
   @override
@@ -268,6 +285,23 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get t_delete_all => '刪除目前清單中的所有簡訊';
+
+  @override
+  String get set_select => '多選';
+
+  @override
+  String get select_all => '全選';
+
+  @override
+  String get exit_select => '退出多選';
+
+  @override
+  String selected_num(String num) {
+    return '已選 $num 則';
+  }
+
+  @override
+  String get toast_no_selection => '未選取簡訊';
 
   @override
   String get t_deleting => '正在刪除...';

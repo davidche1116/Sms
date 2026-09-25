@@ -5,6 +5,12 @@
 
 ## [Unreleased]
 
+### Added
+
+- feat(ui): 新增多选删除（AppBar 进入多选模式，列表项显示复选框，支持全选 / 逐条选择 / 退出多选，确认后批量删除选中项而非整列）
+- feat(controller): SmsListController 新增选择态管理（`selectionMode` / `enterSelectionMode` / `exitSelectionMode` / `toggleSelection` / `selectAll` / `deleteSelected`）
+- feat(l10n): 新增多选相关文案（`set_select` / `select_all` / `exit_select` / `selected_num` / `toast_no_selection`）三语同步
+
 ### Fixed
 
 - fix(app): 首次短信查询推迟到首帧之后，避免国际化对象未初始化导致的潜在崩溃

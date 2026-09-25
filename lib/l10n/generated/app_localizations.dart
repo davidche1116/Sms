@@ -327,6 +327,36 @@ abstract class AppLocalizations {
   /// **'Delete All Messages in Current List'**
   String get t_delete_all;
 
+  /// No description provided for @set_select.
+  ///
+  /// In en, this message translates to:
+  /// **'Select'**
+  String get set_select;
+
+  /// No description provided for @select_all.
+  ///
+  /// In en, this message translates to:
+  /// **'Select All'**
+  String get select_all;
+
+  /// No description provided for @exit_select.
+  ///
+  /// In en, this message translates to:
+  /// **'Exit Selection'**
+  String get exit_select;
+
+  /// Number of selected messages
+  ///
+  /// In en, this message translates to:
+  /// **'{num} selected'**
+  String selected_num(String num);
+
+  /// No description provided for @toast_no_selection.
+  ///
+  /// In en, this message translates to:
+  /// **'No messages selected'**
+  String get toast_no_selection;
+
   /// No description provided for @t_deleting.
   ///
   /// In en, this message translates to:

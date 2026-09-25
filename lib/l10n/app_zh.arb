@@ -56,6 +56,20 @@
   "t_no_sms": "没有短信",
   "b_remove_filter": "移除过滤条件",
   "t_delete_all": "删除当前列表所有短信",
+  "set_select": "多选",
+  "select_all": "全选",
+  "exit_select": "退出多选",
+  "selected_num": "已选 {num} 条",
+  "@selected_num": {
+    "description": "已选择的短信条数",
+    "placeholders": {
+      "num": {
+        "type": "String",
+        "example": "5"
+      }
+    }
+  },
+  "toast_no_selection": "未选择短信",
   "t_deleting": "正在删除...",
   "delete_progress": "已删除 {done} / {total}",
   "@delete_progress": {

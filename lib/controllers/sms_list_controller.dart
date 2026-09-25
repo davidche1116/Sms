@@ -60,14 +60,53 @@ class SmsListController extends ChangeNotifier {
   /// 底层数据访问入口。设置/恢复默认短信应用等平台能力仍由页面直接使用。
   SmsRepository get repository => _repository;
 
+  /// 是否处于多选模式。
+  bool selectionMode = false;
+
+  final Set<SmsMessage> _selected = <SmsMessage>{};
+
   int get count => messages.value.length;
 
   bool get isEmpty => messages.value.isEmpty;
+
+  int get selectedCount => _selected.length;
+
+  bool isSelected(SmsMessage message) => _selected.contains(message);
 
   bool get hasFilter =>
       keywordController.text.isNotEmpty || startDate != null || endDate != null;
 
   void _notify(String message) => onMessage(message);
+
+  /// 进入多选模式，可同时选中某一条。
+  void enterSelectionMode([SmsMessage? message]) {
+    selectionMode = true;
+    _selected.clear();
+    if (message != null) {
+      _selected.add(message);
+    }
+    notifyListeners();
+  }
+
+  /// 退出多选模式并清空选择。
+  void exitSelectionMode() {
+    selectionMode = false;
+    _selected.clear();
+    notifyListeners();
+  }
+
+  void toggleSelection(SmsMessage message) {
+    if (!_selected.remove(message)) {
+      _selected.add(message);
+    }
+    notifyListeners();
+  }
+
+  /// 全选当前列表。
+  void selectAll() {
+    _selected.addAll(messages.value);
+    notifyListeners();
+  }
 
   /// 清空全部过滤条件（关键词 + 日期区间）。
   void clearFilters() {
@@ -136,6 +175,12 @@ class SmsListController extends ChangeNotifier {
     if (token != _queryToken) return;
     listKey = GlobalKey<AnimatedListState>();
     messages.value = newList;
+    // 列表已整体换掉，旧的选择集没有意义；退出多选模式避免选中"看不见"的条目。
+    if (selectionMode) {
+      selectionMode = false;
+      _selected.clear();
+      notifyListeners();
+    }
   }
 
   /// 从列表移除（不触达平台），返回被移除项的原下标供 AnimatedList 播放
@@ -186,12 +231,38 @@ class SmsListController extends ChangeNotifier {
   /// 优先走原生批量删除（N 次跨进程调用降到 ceil(N/900) 次）；平台侧返回
   /// null（老版本原生 / MissingPluginException）时回退逐条删除，期间通过
   /// [onProgress] 上报进度、通过 [shouldCancel] 响应取消。
+  /// 删除当前列表的全部短信，返回失败条数。
   Future<int> deleteAll({
+    DeleteProgressCallback? onProgress,
+    bool Function()? shouldCancel,
+  }) {
+    return deleteMessages(
+      messages.value,
+      onProgress: onProgress,
+      shouldCancel: shouldCancel,
+    );
+  }
+
+  /// 删除已选中的短信，返回失败条数。
+  Future<int> deleteSelected({
+    DeleteProgressCallback? onProgress,
+    bool Function()? shouldCancel,
+  }) {
+    return deleteMessages(
+      _selected.toList(growable: false),
+      onProgress: onProgress,
+      shouldCancel: shouldCancel,
+    );
+  }
+
+  /// 删除给定的一组短信，返回失败条数。
+  Future<int> deleteMessages(
+    List<SmsMessage> source, {
     DeleteProgressCallback? onProgress,
     bool Function()? shouldCancel,
   }) async {
     // 快照：批量删除耗时较长，期间列表可能被其他操作刷新。
-    final List<SmsMessage> items = List<SmsMessage>.of(messages.value);
+    final List<SmsMessage> items = List<SmsMessage>.of(source);
     final List<int> ids = <int>[
       for (final SmsMessage message in items)
         // id/threadId 缺失的条目无法删除，计入失败而不是 ! 强解包崩溃。

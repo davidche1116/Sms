@@ -114,12 +114,15 @@ class _SmsHomePageState extends State<SmsHomePage> {
       item: item,
       animation: animation,
       interactive: interactive,
+      selectionMode: _controller.selectionMode,
+      selected: _controller.isSelected(item),
       appLocalizations: appLocalizations,
       onDelete: _deleteMessage,
       onRemove: _removeMessage,
       onSameAddress: _controller.querySameAddress,
       onSameSim: _controller.querySameSim,
       onShowToast: _showToast,
+      onToggleSelection: _controller.toggleSelection,
     );
   }
 
@@ -230,14 +233,19 @@ class _SmsHomePageState extends State<SmsHomePage> {
   }
 
   void _deleteMsg() {
+    // 多选模式下删除"已选"而非"当前列表全部"，确认弹窗文案与数量随之切换。
+    final bool selecting = _controller.selectionMode;
+    final int total = selecting ? _controller.selectedCount : _controller.count;
+    if (selecting && total == 0) {
+      _showToast(appLocalizations.toast_no_selection);
+      return;
+    }
     showCupertinoModalPopup(
       context: context,
       builder: (BuildContext context) {
         return CupertinoActionSheet(
           title: Text(appLocalizations.t_confirm_delete),
-          message: Text(
-            appLocalizations.delete_num(_controller.count.toString()),
-          ),
+          message: Text(appLocalizations.delete_num(total.toString())),
           actions: <Widget>[
             CupertinoActionSheetAction(
               onPressed: () {
@@ -261,17 +269,23 @@ class _SmsHomePageState extends State<SmsHomePage> {
   }
 
   Future<void> _deleteSubmit() async {
-    if (_controller.isEmpty) {
+    // 多选模式：删除已选；否则删除当前列表全部。数量口径与弹窗一致。
+    final bool selecting = _controller.selectionMode;
+    final int total = selecting ? _controller.selectedCount : _controller.count;
+    if (selecting && total == 0) {
+      _showToast(appLocalizations.toast_no_selection);
+      return;
+    }
+    if (!selecting && _controller.isEmpty) {
       _showToast(appLocalizations.toast_no);
       return;
     }
     if (!await _controller.ensureDefaultSmsApp()) return;
     if (!mounted) return;
-    if (_controller.count > 3000) {
+    if (total > 3000) {
       _showToast(appLocalizations.t_list_too_long);
     }
 
-    final int total = _controller.count;
     final ValueNotifier<int?> progress = ValueNotifier<int?>(null);
     _deleteCancelled = false;
     SmartDialog.show(
@@ -312,17 +326,28 @@ class _SmsHomePageState extends State<SmsHomePage> {
       },
     );
 
-    final int failed = await _controller.deleteAll(
-      onProgress: (int? done, int total) {
-        progress.value = done;
-      },
-      shouldCancel: () => _deleteCancelled || !mounted,
-    );
+    final int failed = selecting
+        ? await _controller.deleteSelected(
+            onProgress: (int? done, int total) {
+              progress.value = done;
+            },
+            shouldCancel: () => _deleteCancelled || !mounted,
+          )
+        : await _controller.deleteAll(
+            onProgress: (int? done, int total) {
+              progress.value = done;
+            },
+            shouldCancel: () => _deleteCancelled || !mounted,
+          );
     SmartDialog.dismiss();
     progress.dispose();
     if (!mounted) return;
     if (failed > 0) {
       _showToast(appLocalizations.delete_failed(failed.toString()));
+    }
+    if (selecting) {
+      // 删除完成后退出多选模式，避免残留的选中态指向已删除条目。
+      _controller.exitSelectionMode();
     }
     _controller.queryAll();
   }
@@ -549,82 +574,107 @@ class _SmsHomePageState extends State<SmsHomePage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: ValueListenableBuilder<List<SmsMessage>>(
-          valueListenable: _controller.messages,
-          builder:
-              (BuildContext context, List<SmsMessage> value, Widget? child) {
-                return value.isEmpty
-                    ? Text(appLocalizations.sms)
-                    : Text(appLocalizations.num_sms(value.length.toString()));
-              },
+        title: ListenableBuilder(
+          // 标题既要随列表条数变化，也要随多选状态/选中数变化：合并两个
+          // 监听源，任一变化都重建标题。
+          listenable: Listenable.merge([_controller, _controller.messages]),
+          builder: (BuildContext context, Widget? child) {
+            if (_controller.selectionMode) {
+              return Text(
+                appLocalizations.selected_num(
+                  _controller.selectedCount.toString(),
+                ),
+              );
+            }
+            return _controller.isEmpty
+                ? Text(appLocalizations.sms)
+                : Text(appLocalizations.num_sms(_controller.count.toString()));
+          },
         ),
         actions: <Widget>[
-          IconButton(
-            tooltip: appLocalizations.t_all_sms,
-            onPressed: () {
-              _controller.clearFilters();
-              _controller.queryAll();
-            },
-            icon: const Icon(Icons.format_list_bulleted_outlined),
-          ),
-          IconButton(
-            tooltip: appLocalizations.t_date_filter,
-            onPressed: _filterDate,
-            icon: const Icon(Icons.date_range_outlined),
-          ),
-          IconButton(
-            tooltip: appLocalizations.t_keyword_filter,
-            onPressed: _filterMsg,
-            icon: const Icon(Icons.search_outlined),
-          ),
-          PopupMenuButton<String>(
-            itemBuilder: (BuildContext context) => <PopupMenuItem<String>>[
-              _selectView(
-                Icons.message_outlined,
-                appLocalizations.set_permission,
-                'A',
-              ),
-              _selectView(
-                Icons.settings_outlined,
-                appLocalizations.set_settings,
-                'B',
-              ),
-              _selectView(
-                Icons.admin_panel_settings_outlined,
-                appLocalizations.set_default,
-                'C',
-              ),
-              _selectView(
-                Icons.refresh_rounded,
-                appLocalizations.set_restore,
-                'D',
-              ),
-              _selectView(
-                Icons.share_outlined,
-                appLocalizations.set_export,
-                'E',
-              ),
-            ],
-            onSelected: (String action) {
-              switch (action) {
-                case 'A':
-                  _requestPermission();
-                  break;
-                case 'B':
-                  _setAppPermission();
-                  break;
-                case 'C':
-                  _setDefaultApp();
-                  break;
-                case 'D':
-                  _resetDefaultSmsApp();
-                  break;
-                case 'E':
-                  _export();
-                  break;
-              }
-            },
-          ),
+          if (_controller.selectionMode) ...<Widget>[
+            // 多选模式：提供全选 / 退出多选，主操作（删除选中）在右下 FAB。
+            TextButton(
+              onPressed: _controller.selectAll,
+              child: Text(appLocalizations.select_all),
+            ),
+            TextButton(
+              onPressed: _controller.exitSelectionMode,
+              child: Text(appLocalizations.exit_select),
+            ),
+          ] else ...<Widget>[
+            IconButton(
+              tooltip: appLocalizations.t_all_sms,
+              onPressed: () {
+                _controller.clearFilters();
+                _controller.queryAll();
+              },
+              icon: const Icon(Icons.format_list_bulleted_outlined),
+            ),
+            IconButton(
+              tooltip: appLocalizations.t_date_filter,
+              onPressed: _filterDate,
+              icon: const Icon(Icons.date_range_outlined),
+            ),
+            IconButton(
+              tooltip: appLocalizations.t_keyword_filter,
+              onPressed: _filterMsg,
+              icon: const Icon(Icons.search_outlined),
+            ),
+            IconButton(
+              tooltip: appLocalizations.set_select,
+              onPressed: () => _controller.enterSelectionMode(),
+              icon: const Icon(Icons.checklist_outlined),
+            ),
+            PopupMenuButton<String>(
+              itemBuilder: (BuildContext context) => <PopupMenuItem<String>>[
+                _selectView(
+                  Icons.message_outlined,
+                  appLocalizations.set_permission,
+                  'A',
+                ),
+                _selectView(
+                  Icons.settings_outlined,
+                  appLocalizations.set_settings,
+                  'B',
+                ),
+                _selectView(
+                  Icons.admin_panel_settings_outlined,
+                  appLocalizations.set_default,
+                  'C',
+                ),
+                _selectView(
+                  Icons.refresh_rounded,
+                  appLocalizations.set_restore,
+                  'D',
+                ),
+                _selectView(
+                  Icons.share_outlined,
+                  appLocalizations.set_export,
+                  'E',
+                ),
+              ],
+              onSelected: (String action) {
+                switch (action) {
+                  case 'A':
+                    _requestPermission();
+                    break;
+                  case 'B':
+                    _setAppPermission();
+                    break;
+                  case 'C':
+                    _setDefaultApp();
+                    break;
+                  case 'D':
+                    _resetDefaultSmsApp();
+                    break;
+                  case 'E':
+                    _export();
+                    break;
+                }
+              },
+            ),
+          ],
         ],
       ),
       body: ValueListenableBuilder<bool>(

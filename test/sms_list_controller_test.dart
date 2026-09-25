@@ -216,4 +216,88 @@ void main() {
       expect(messages.first, contains('default SMS app'));
     });
   });
+
+  group('selection', () {
+    test('enterSelectionMode 进入多选并清空旧选择', () async {
+      await controller.queryAll();
+      final SmsMessage first = controller.messages.value.first;
+      final SmsMessage second = controller.messages.value.last;
+
+      controller.enterSelectionMode(first);
+      expect(controller.selectionMode, true);
+      expect(controller.selectedCount, 1);
+      expect(controller.isSelected(first), true);
+
+      controller.enterSelectionMode(second);
+      // 重新进入应清空此前选择，只保留新传入的条目。
+      expect(controller.selectedCount, 1);
+      expect(controller.isSelected(first), false);
+      expect(controller.isSelected(second), true);
+    });
+
+    test('toggleSelection 切换选中态', () async {
+      await controller.queryAll();
+      final SmsMessage first = controller.messages.value.first;
+
+      controller.enterSelectionMode();
+      expect(controller.selectedCount, 0);
+
+      controller.toggleSelection(first);
+      expect(controller.isSelected(first), true);
+      controller.toggleSelection(first);
+      expect(controller.isSelected(first), false);
+    });
+
+    test('selectAll 选中当前列表全部', () async {
+      await controller.queryAll();
+      controller.enterSelectionMode();
+
+      controller.selectAll();
+
+      expect(controller.selectedCount, controller.count);
+      expect(controller.messages.value.every(controller.isSelected), true);
+    });
+
+    test('exitSelectionMode 退出多选并清空选择', () async {
+      await controller.queryAll();
+      final SmsMessage first = controller.messages.value.first;
+      controller.enterSelectionMode(first);
+
+      controller.exitSelectionMode();
+
+      expect(controller.selectionMode, false);
+      expect(controller.selectedCount, 0);
+      expect(controller.isSelected(first), false);
+    });
+
+    test('整表刷新（查询）后退出多选模式，避免选中"看不见"的条目', () async {
+      await controller.queryAll();
+      final SmsMessage first = controller.messages.value.first;
+      controller.enterSelectionMode(first);
+
+      // 任意一次查询都会触发 _replaceAll，应退出多选模式。
+      await controller.querySameAddress(first);
+
+      expect(controller.selectionMode, false);
+      expect(controller.selectedCount, 0);
+    });
+
+    test('deleteSelected 只删除已选、走原生批量删除', () async {
+      await controller.queryAll();
+      final SmsMessage first = controller.messages.value.first;
+      controller.enterSelectionMode(first);
+
+      List<List<dynamic>?> batchArgs = <List<dynamic>?>[];
+      setChannelHandler(appChannel, (MethodCall call) async {
+        batchArgs.add(call.arguments as List<dynamic>?);
+        return 1; // 只删 1 条（即已选的那条）
+      });
+
+      final int failed = await controller.deleteSelected();
+
+      // 列表有 2 条，只选了 1 条，删除 1 条成功 → 失败 0。
+      expect(failed, 0);
+      expect(batchArgs.single, hasLength(1));
+    });
+  });
 }

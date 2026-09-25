@@ -56,6 +56,20 @@
   "t_no_sms": "No messages",
   "b_remove_filter": "Clear Filter",
   "t_delete_all": "Delete All Messages in Current List",
+  "set_select": "Select",
+  "select_all": "Select All",
+  "exit_select": "Exit Selection",
+  "selected_num": "{num} selected",
+  "@selected_num": {
+    "description": "Number of selected messages",
+    "placeholders": {
+      "num": {
+        "type": "String",
+        "example": "5"
+      }
+    }
+  },
+  "toast_no_selection": "No messages selected",
   "t_deleting": "Deleting...",
   "delete_progress": "Deleted {done} / {total}",
   "@delete_progress": {

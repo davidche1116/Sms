@@ -20,23 +20,32 @@ class MessageItem extends StatelessWidget {
     required this.item,
     required this.animation,
     this.interactive = true,
+    this.selectionMode = false,
+    this.selected = false,
     required this.appLocalizations,
     required this.onDelete,
     required this.onRemove,
     required this.onSameAddress,
     required this.onSameSim,
     required this.onShowToast,
+    required this.onToggleSelection,
   });
 
   final SmsMessage item;
   final Animation<double> animation;
   final bool interactive;
+
+  /// 多选模式下：显示复选框、点击切换选中，不再弹出操作菜单。
+  final bool selectionMode;
+  final bool selected;
+
   final AppLocalizations appLocalizations;
   final void Function(SmsMessage) onDelete;
   final void Function(SmsMessage) onRemove;
   final void Function(SmsMessage) onSameAddress;
   final void Function(SmsMessage) onSameSim;
   final void Function(String) onShowToast;
+  final void Function(SmsMessage) onToggleSelection;
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +67,13 @@ class MessageItem extends StatelessWidget {
           ListTile(
             minVerticalPadding: 8,
             minLeadingWidth: 4,
+            leading: selectionMode
+                ? Checkbox(
+                    value: selected,
+                    onChanged: (_) => onToggleSelection(item),
+                  )
+                : null,
+            selected: selected,
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [Text(item.body ?? ''), const SizedBox(height: 5)],
@@ -98,75 +114,81 @@ class MessageItem extends StatelessWidget {
               ],
             ),
             onTap: interactive
-                ? () {
-                    showCupertinoModalPopup(
-                      context: context,
-                      builder: (context) {
-                        return CupertinoActionSheet(
-                          title: Text(appLocalizations.tips),
-                          message: Text(appLocalizations.delete_or_move),
-                          actions: <Widget>[
-                            CupertinoActionSheetAction(
-                              onPressed: () {
-                                Navigator.of(context).pop('remove');
-                                onRemove(item);
-                              },
-                              child: Text(appLocalizations.b_remove),
-                            ),
-                            CupertinoActionSheetAction(
-                              onPressed: () {
-                                Navigator.of(context).pop('delete');
-                                onDelete(item);
-                              },
-                              isDestructiveAction: true,
-                              isDefaultAction: true,
-                              child: Text(appLocalizations.b_delete),
-                            ),
-                            CupertinoActionSheetAction(
-                              onPressed: () {
-                                Navigator.of(context).pop('same');
-                                onSameAddress(item);
-                              },
-                              child: Text(appLocalizations.b_same_number),
-                            ),
-                            CupertinoActionSheetAction(
-                              onPressed: () {
-                                Navigator.of(context).pop('sim');
-                                onSameSim(item);
-                              },
-                              child: Text(appLocalizations.b_same_sim),
-                            ),
-                            CupertinoActionSheetAction(
-                              onPressed: () {
-                                Navigator.of(context).pop('copy');
-                                Clipboard.setData(
-                                  ClipboardData(
-                                    // 用创建弹窗时捕获的 item，不按 index 回查实时列表
-                                    //（列表刷新/移除后 index 可能指向别条甚至越界）。
-                                    text: buildSmsClipboardText(
-                                      address: item.address,
-                                      date: item.date,
-                                      body: item.body,
-                                    ),
+                ? (selectionMode
+                      ? () {
+                          onToggleSelection(item);
+                        }
+                      : () {
+                          showCupertinoModalPopup(
+                            context: context,
+                            builder: (context) {
+                              return CupertinoActionSheet(
+                                title: Text(appLocalizations.tips),
+                                message: Text(appLocalizations.delete_or_move),
+                                actions: <Widget>[
+                                  CupertinoActionSheetAction(
+                                    onPressed: () {
+                                      Navigator.of(context).pop('remove');
+                                      onRemove(item);
+                                    },
+                                    child: Text(appLocalizations.b_remove),
                                   ),
-                                );
-                                onShowToast(appLocalizations.toast_clipboard);
-                              },
-                              child: Text(appLocalizations.b_copy),
-                            ),
-                          ],
-                          cancelButton: CupertinoActionSheetAction(
-                            child: Text(appLocalizations.b_cancel),
-                            onPressed: () {
-                              Navigator.of(context).pop('cancel');
+                                  CupertinoActionSheetAction(
+                                    onPressed: () {
+                                      Navigator.of(context).pop('delete');
+                                      onDelete(item);
+                                    },
+                                    isDestructiveAction: true,
+                                    isDefaultAction: true,
+                                    child: Text(appLocalizations.b_delete),
+                                  ),
+                                  CupertinoActionSheetAction(
+                                    onPressed: () {
+                                      Navigator.of(context).pop('same');
+                                      onSameAddress(item);
+                                    },
+                                    child: Text(appLocalizations.b_same_number),
+                                  ),
+                                  CupertinoActionSheetAction(
+                                    onPressed: () {
+                                      Navigator.of(context).pop('sim');
+                                      onSameSim(item);
+                                    },
+                                    child: Text(appLocalizations.b_same_sim),
+                                  ),
+                                  CupertinoActionSheetAction(
+                                    onPressed: () {
+                                      Navigator.of(context).pop('copy');
+                                      Clipboard.setData(
+                                        ClipboardData(
+                                          // 用创建弹窗时捕获的 item，不按 index 回查实时列表
+                                          //（列表刷新/移除后 index 可能指向别条甚至越界）。
+                                          text: buildSmsClipboardText(
+                                            address: item.address,
+                                            date: item.date,
+                                            body: item.body,
+                                          ),
+                                        ),
+                                      );
+                                      onShowToast(
+                                        appLocalizations.toast_clipboard,
+                                      );
+                                    },
+                                    child: Text(appLocalizations.b_copy),
+                                  ),
+                                ],
+                                cancelButton: CupertinoActionSheetAction(
+                                  child: Text(appLocalizations.b_cancel),
+                                  onPressed: () {
+                                    Navigator.of(context).pop('cancel');
+                                  },
+                                ),
+                              );
                             },
-                          ),
-                        );
-                      },
-                    );
-                  }
+                          );
+                        })
                 : null,
-            onLongPress: interactive
+            onLongPress: interactive && !selectionMode
                 ? () {
                     showCupertinoModalPopup(
                       context: context,
