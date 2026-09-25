@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:sms_advanced/sms_advanced.dart';
 
@@ -19,10 +20,24 @@ class SmsRepository {
   Future<bool?> removeSmsById(int id, int threadId) =>
       SmsRemover().removeSmsById(id, threadId);
 
-  /// 当前应用是否为默认短信应用；平台调用异常由调用方决定如何兜底。
-  Future<bool> isDefaultSmsApp() async {
-    final smsApp = await _platform.invokeMethod<String>('getDefaultSmsApp');
-    return smsApp == defaultPackageId;
+  /// 当前应用是否为默认短信应用。
+  ///
+  /// 返回 `true` = 是默认；`false` = 明确不是默认（默认应用是别的包）；
+  /// `null` = 无法判定（默认应用不可知，或平台调用缺失/异常）。
+  /// 调用方据此区分提示，不把"拿不到"静默当成"不是默认"。
+  Future<bool?> isDefaultSmsApp() async {
+    try {
+      final smsApp = await _platform.invokeMethod<String>('getDefaultSmsApp');
+      if (smsApp == null || smsApp.isEmpty) return null;
+      return smsApp == defaultPackageId;
+    } on PlatformException catch (e) {
+      debugPrint('getDefaultSmsApp failed: ${e.message}');
+      return null;
+    } on MissingPluginException catch (e) {
+      // 方法缺失（如 iOS 或原生未注册该通道）属于"无法判定"，不是"不是默认"。
+      debugPrint('getDefaultSmsApp missing: $e');
+      return null;
+    }
   }
 
   /// 发起"设为默认短信应用"的系统流程。

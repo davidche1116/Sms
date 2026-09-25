@@ -112,17 +112,16 @@ class _SmsHomePageState extends State<SmsHomePage> {
   }
 
   Future<bool> _checkDefaultSmsApp() async {
-    try {
-      bool same = await _repository.isDefaultSmsApp();
-      if (!same) {
-        _showToast(appLocalizations.toast_default);
-      }
-      return same;
-    } on PlatformException catch (e) {
-      debugPrint(e.message);
+    // isDefaultSmsApp 返回三态：true=是默认 / false=明确不是 / null=无法判定。
+    final bool? same = await _repository.isDefaultSmsApp();
+    if (same == true) return true;
+    if (same == false) {
+      // 明确不是默认短信应用：提示用户去系统设置。
+      _showToast(appLocalizations.toast_default);
+      return false;
     }
-    // 查询失败时按"非默认短信应用"处理：删除操作依赖默认应用身份，
-    // 失败时继续删除只会静默失败甚至误删状态，宁可拦截。
+    // 无法判定（默认应用不可知或平台调用缺失/异常）：如实提示"操作失败"，
+    // 而不是误报"不是默认"。删除依赖默认应用身份，无法确认时宁可拦截。
     _showToast(appLocalizations.operation_failed);
     return false;
   }
