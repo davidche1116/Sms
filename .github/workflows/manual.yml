@@ -68,6 +68,10 @@ jobs:
         run: flutter doctor --verbose
         shell: bash
 
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed lib test
+        shell: bash
+
       - name: Analyze project source
         run: dart analyze
         shell: bash

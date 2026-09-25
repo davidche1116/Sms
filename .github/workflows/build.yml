@@ -69,6 +69,12 @@ jobs:
         run: flutter doctor --verbose
         shell: bash
 
+      - name: Check formatting
+        # AGENTS.md 要求提交前跑 dart format，但没有门禁就会漏。
+        # 这里只检查不改写，格式不一致直接失败。
+        run: dart format --output=none --set-exit-if-changed lib test
+        shell: bash
+
       - name: Analyze project source
         run: dart analyze
         shell: bash
