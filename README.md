@@ -31,7 +31,7 @@
   - `READ_SMS` / `RECEIVE_SMS` / `RECEIVE_MMS` / `RECEIVE_WAP_PUSH` — read and manage SMS/MMS messages.
   - `SEND_SMS` — required by the default-SMS-app role (the app itself does not send messages).
   - `READ_PHONE_STATE` — required by the default-SMS-app role on some Android versions.
-  - `READ_CONTACTS` / `READ_PROFILE` / `QUERY_ALL_PACKAGES` — declared alongside the legacy SMS plugin; not used by the app itself.
+  - `READ_CONTACTS` / `READ_PROFILE` / `QUERY_ALL_PACKAGES` — brought in by the legacy SMS plugin but never used; stripped at manifest-merge time with `tools:node="remove"`.
   - Default SMS app role — Android only allows SMS deletion from the default SMS app; the app asks you to switch temporarily and can restore your previous default.
 
 ## Development Environment

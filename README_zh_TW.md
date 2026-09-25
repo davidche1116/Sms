@@ -31,7 +31,7 @@
   - `READ_SMS` / `RECEIVE_SMS` / `RECEIVE_MMS` / `RECEIVE_WAP_PUSH`：讀取與管理簡訊/多媒體訊息。
   - `SEND_SMS`：預設簡訊應用程式角色所需（應用程式本身不傳送簡訊）。
   - `READ_PHONE_STATE`：部分 Android 版本上預設簡訊應用程式角色所需。
-  - `READ_CONTACTS` / `READ_PROFILE` / `QUERY_ALL_PACKAGES`：隨簡訊外掛一併宣告，應用程式本身未使用。
+  - `READ_CONTACTS` / `READ_PROFILE` / `QUERY_ALL_PACKAGES`：隨簡訊外掛一併帶入但從未使用，已在 manifest 合併階段用 `tools:node="remove"` 剔除。
   - 預設簡訊應用程式：Android 僅允許預設簡訊應用程式刪除簡訊，應用程式會引導暫時切換，並可還原原預設應用程式。
 
 ## 開發環境

@@ -31,7 +31,7 @@
   - `READ_SMS` / `RECEIVE_SMS` / `RECEIVE_MMS` / `RECEIVE_WAP_PUSH`：读取与管理短信/彩信。
   - `SEND_SMS`：默认短信应用角色所需（应用本身不发送短信）。
   - `READ_PHONE_STATE`：部分 Android 版本上默认短信应用角色所需。
-  - `READ_CONTACTS` / `READ_PROFILE` / `QUERY_ALL_PACKAGES`：随短信插件一并声明，应用本身未使用。
+  - `READ_CONTACTS` / `READ_PROFILE` / `QUERY_ALL_PACKAGES`：随短信插件一并带入但从未使用，已在 manifest 合并阶段用 `tools:node="remove"` 剔除。
   - 默认短信应用：Android 仅允许默认短信应用删除短信，应用会引导临时切换，并可恢复原默认应用。
 
 ## 开发环境
