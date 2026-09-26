@@ -19,7 +19,7 @@ issue_tracker: https://github.com/davidche1116/Sms/issues
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.7.0+260905
+version: 1.8.0+260926
 
 environment:
   sdk: ^3.13.4

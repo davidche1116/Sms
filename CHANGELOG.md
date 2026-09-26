@@ -5,6 +5,8 @@
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-09-26
+
 ### Added
 
 - feat(ui): 新增多选删除（AppBar 进入多选模式，列表项显示复选框，支持全选 / 逐条选择 / 退出多选，确认后批量删除选中项而非整列）
@@ -13,6 +15,7 @@
 
 ### Fixed
 
+- fix(permission): READ_SMS 以 AppOps（MODE_ALLOWED）而非仅 checkSelfPermission 判定，修复掉默认短信后 Flyme 将 AppOps 置 ignore、申请不弹框且查询恒空
 - fix(permission): 申请短信权限不再用 `Permission.sms.isGranted` 短路；一律 `request()` 并以原生 `checkSelfPermission` 复核。修复掉默认短信被系统强停后权限缓存假 true、toast「申请成功」却永远读不到短信
 - fix(query): 无 READ_SMS 且非默认短信时显式返回 permission，不再把 OEM 的空游标当成「没有短信」
 - fix(query): 新增原生 `querySms` 通道，按整表 + 收件箱/已发送/草稿多 URI 合并去重；只投影已知列、按列名安全取值。修复掉默认短信后 OEM 对 `content://sms` 返回空、有 READ_SMS 却看不到短信
