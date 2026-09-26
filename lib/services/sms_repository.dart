@@ -164,7 +164,26 @@ class SmsRepository {
     }
   }
 
-  /// 当前应用是否为默认短信应用。
+  /// 系统真实 READ_SMS 状态（原生 checkSelfPermission）。
+  ///
+  /// 勿用 `Permission.sms.isGranted` 代替：掉默认短信角色并被系统强停后
+  /// 插件可能仍缓存为 true，导致「申请权限」被短路成假成功。
+  Future<bool> hasReadSmsPermission() async {
+    try {
+      final dynamic ok = await _platform.invokeMethod<dynamic>(
+        'hasReadSmsPermission',
+      );
+      return ok == true;
+    } on MissingPluginException catch (e) {
+      debugPrint('hasReadSmsPermission missing: $e');
+      return false;
+    } on PlatformException catch (e) {
+      debugPrint('hasReadSmsPermission failed: ${e.message}');
+      return false;
+    }
+  }
+
+  /// 当前是否默认短信应用。
   ///
   /// 返回 `true` = 是默认；`false` = 明确不是默认（默认应用是别的包）；
   /// `null` = 无法判定（默认应用不可知，或平台调用缺失/异常）。

@@ -79,6 +79,7 @@ class MainActivity : FlutterFragmentActivity() {
                     "resetDefaultSmsApp" -> result.success(resetDefaultSmsApp())
                     "deleteSmsBatch" -> result.success(deleteSmsBatch(call.arguments))
                     "querySms" -> result.success(querySms(call.arguments))
+                    "hasReadSmsPermission" -> result.success(hasReadSmsPermission())
                     else -> result.notImplemented()
                 }
             } catch (e: Exception) {
@@ -170,6 +171,18 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     /**
+     * 系统真实 READ_SMS 状态（checkSelfPermission）。
+     *
+     * 不要用 permission_handler 的 isGranted 代替：交还默认短信角色并被系统
+     * 强停后，插件侧可能仍缓存为已授权，但系统权限早已收回——此时若短路
+     * request()，用户会一直「申请成功」却读不到短信。
+     */
+    private fun hasReadSmsPermission(): Boolean {
+        return checkSelfPermission(android.Manifest.permission.READ_SMS) ==
+            PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
      * 读取短信（收件箱 + 已发送 + 草稿）。
      *
      * 与 sms_advanced 插件查询路径并行提供一条自管通道：
@@ -184,6 +197,13 @@ class MainActivity : FlutterFragmentActivity() {
      *         messages 为 Dart 侧可安全解析的 Map 列表。
      */
     private fun querySms(arguments: Any?): Map<String, Any?> {
+        // 无 READ_SMS 且不是默认短信应用时，provider 有的 OEM 会静默返回空游标，
+        // 有的才抛 SecurityException。这里显式判定，统一映射成 permission，
+        // 免得用户看到「申请成功却空列表」。
+        if (!hasReadSmsPermission() && getDefaultSmsApp() != packageName) {
+            return mapOf("messages" to emptyList<Any>(), "error" to "permission")
+        }
+
         val address = (arguments as? Map<*, *>)?.get("address") as? String
         val selection: String?
         val selectionArgs: Array<String>?

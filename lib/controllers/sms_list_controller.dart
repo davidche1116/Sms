@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:sms_advanced/sms_advanced.dart';
 
 import '../l10n/generated/app_localizations.dart';
@@ -144,9 +143,11 @@ class SmsListController extends ChangeNotifier {
     final int token = ++_queryToken;
     List<SmsMessage> result = <SmsMessage>[];
     bool notifiedPermission = false;
+    bool querySucceeded = false;
     loading.value = true;
     try {
       result = _applyFilters(await query());
+      querySucceeded = true;
     } on SmsQueryPermissionException {
       result = <SmsMessage>[];
       notifiedPermission = true;
@@ -160,12 +161,15 @@ class SmsListController extends ChangeNotifier {
     } finally {
       loading.value = false;
     }
-    // 查询成功但为空，且运行时权限未授予：补一条权限提示，避免把
-    // "被系统挡掉"误读成"设备上没有短信"。已有数据或已提示过则不重复。
-    if (!notifiedPermission &&
-        result.isEmpty &&
-        !await Permission.sms.isGranted) {
-      _notify(l10n.toast_permission);
+    // 仅在「查询成功但为空」时再判权限：失败路径已提示过，不重复弹。
+    // 用原生 checkSelfPermission，不用 Permission.sms.isGranted
+    // （掉默认后可能缓存假 true）。
+    if (querySucceeded && !notifiedPermission && result.isEmpty) {
+      final bool reallyGranted = await _repository.hasReadSmsPermission();
+      final bool? isDefault = await _repository.isDefaultSmsApp();
+      if (!reallyGranted && isDefault != true) {
+        _notify(l10n.toast_permission);
+      }
     }
     _replaceAll(result, token);
   }

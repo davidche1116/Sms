@@ -116,6 +116,7 @@ All items below were verified the hard way — understand a hack before touching
 | `resetDefaultSmsApp` | `settings` (Android 10+: opened system settings) / `ok` / `no` |
 | `deleteSmsBatch` | deleted row count, or `null` on failure |
 | `querySms` | `{"messages": [...], "error": null\|"permission"\|"unknown"}`; optional `{"address": "..."}` argument |
+| `hasReadSmsPermission` | `bool` — system `checkSelfPermission(READ_SMS)`, not permission_handler's cached status |
 
 - Android 10+ cannot hand the default-SMS role back programmatically
   (`ACTION_CHANGE_DEFAULT` is ignored for third parties and RoleManager only

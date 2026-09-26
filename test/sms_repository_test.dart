@@ -142,6 +142,36 @@ void main() {
     });
   });
 
+  group('hasReadSmsPermission', () {
+    tearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(appChannel, null);
+    });
+
+    test('原生返回 true 时为 true', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(appChannel, (MethodCall call) async {
+            expect(call.method, 'hasReadSmsPermission');
+            return true;
+          });
+      expect(await SmsRepository().hasReadSmsPermission(), true);
+    });
+
+    test('原生返回 false 时为 false', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(appChannel, (MethodCall call) async {
+            return false;
+          });
+      expect(await SmsRepository().hasReadSmsPermission(), false);
+    });
+
+    test('通道缺失时为 false（宁可提示去授权，不误报已有权限）', () async {
+      // 回归：掉默认短信后 permission_handler 可能缓存 isGranted=true，
+      // 必须以原生 checkSelfPermission 为准，否则申请入口被短路成假成功。
+      expect(await SmsRepository().hasReadSmsPermission(), false);
+    });
+  });
+
   group('isDefaultSmsApp', () {
     tearDown(() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger

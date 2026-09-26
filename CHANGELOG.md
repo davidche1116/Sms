@@ -13,6 +13,8 @@
 
 ### Fixed
 
+- fix(permission): 申请短信权限不再用 `Permission.sms.isGranted` 短路；一律 `request()` 并以原生 `checkSelfPermission` 复核。修复掉默认短信被系统强停后权限缓存假 true、toast「申请成功」却永远读不到短信
+- fix(query): 无 READ_SMS 且非默认短信时显式返回 permission，不再把 OEM 的空游标当成「没有短信」
 - fix(query): 新增原生 `querySms` 通道，按整表 + 收件箱/已发送/草稿多 URI 合并去重；只投影已知列、按列名安全取值。修复掉默认短信后 OEM 对 `content://sms` 返回空、有 READ_SMS 却看不到短信
 - fix(query): 日常查询不再调用 sms_advanced（其 `readSms` 对 `creator` 等文本列 `getInt` 未捕获会打崩进程）；仅原生通道缺失时才回退插件，修复掉默认后的闪退
 - fix(query): 原生行解析不用 `SmsMessage.fromJson`，`date` 为 null 时不再抛错清空整次查询

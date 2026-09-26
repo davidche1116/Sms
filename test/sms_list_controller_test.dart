@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sms/controllers/sms_list_controller.dart';
 import 'package:sms/l10n/generated/app_localizations_en.dart';
+import 'package:sms/services/sms_repository.dart';
 import 'package:sms_advanced/sms_advanced.dart';
 
 const MethodChannel permissionChannel = MethodChannel(
@@ -62,11 +63,18 @@ void main() {
       return call.method == 'getInbox' ? twoMessages : <Map<String, dynamic>>[];
     });
     // 原生 querySms 未注册时 MissingPluginException → 回退插件。
+    // 其余方法给「已有 READ_SMS / 是默认应用」，避免空结果误报权限。
     setChannelHandler(appChannel, (MethodCall call) async {
-      if (call.method == 'querySms') {
-        throw MissingPluginException('querySms');
+      switch (call.method) {
+        case 'querySms':
+          throw MissingPluginException('querySms');
+        case 'hasReadSmsPermission':
+          return true;
+        case 'getDefaultSmsApp':
+          return SmsRepository.defaultPackageId;
+        default:
+          return null;
       }
-      return null;
     });
   }
 
@@ -118,6 +126,8 @@ void main() {
         if (call.method == 'querySms') {
           throw MissingPluginException('querySms');
         }
+        if (call.method == 'hasReadSmsPermission') return false;
+        if (call.method == 'getDefaultSmsApp') return '';
         return null;
       });
       setChannelHandler(queryChannel, (MethodCall call) async {
@@ -129,6 +139,22 @@ void main() {
       expect(controller.isEmpty, true);
       expect(controller.loading.value, false);
       expect(messages.first, contains('permission'));
+    });
+
+    test('查询成功且系统真有 READ_SMS 时，空列表不误报权限', () async {
+      // 真没有短信 ≠ 没权限。原生 check 为 true 时不应弹权限提示。
+      setChannelHandler(appChannel, (MethodCall call) async {
+        if (call.method == 'querySms') {
+          return <String, dynamic>{'messages': <dynamic>[], 'error': null};
+        }
+        if (call.method == 'hasReadSmsPermission') return true;
+        return null;
+      });
+
+      await controller.queryAll();
+
+      expect(controller.isEmpty, true);
+      expect(messages, isEmpty);
     });
 
     test('权限状态误报为拒绝时仍能读出短信', () async {
