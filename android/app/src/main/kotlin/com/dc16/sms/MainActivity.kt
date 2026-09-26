@@ -1,10 +1,13 @@
 package com.dc16.sms
 
+import android.app.AppOpsManager
 import android.app.role.RoleManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.database.Cursor
 import android.os.Build
+import android.os.Process
 import android.provider.BaseColumns
 import android.provider.Settings
 import android.provider.Telephony
@@ -171,15 +174,47 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     /**
-     * 系统真实 READ_SMS 状态（checkSelfPermission）。
+     * 系统真实 READ_SMS 状态。
      *
-     * 不要用 permission_handler 的 isGranted 代替：交还默认短信角色并被系统
-     * 强停后，插件侧可能仍缓存为已授权，但系统权限早已收回——此时若短路
-     * request()，用户会一直「申请成功」却读不到短信。
+     * 必须同时看 checkSelfPermission **和** AppOps：
+     * 掉默认短信角色后（Flyme/Android），`checkSelfPermission` 仍返回
+     * granted，但 AppOps 会把 READ_SMS 置为 `ignore`。此时
+     * `request()` 不弹框（系统认为已有权限），`contentResolver.query`
+     * 只回空游标——用户看到「申请成功却读不到短信」。
      */
     private fun hasReadSmsPermission(): Boolean {
-        return checkSelfPermission(android.Manifest.permission.READ_SMS) ==
+        if (checkSelfPermission(android.Manifest.permission.READ_SMS) !=
             PackageManager.PERMISSION_GRANTED
+        ) {
+            return false
+        }
+        return isReadSmsAppOpAllowed()
+    }
+
+    /** AppOps 侧 READ_SMS 是否真正放行（MODE_ALLOWED）。 */
+    private fun isReadSmsAppOpAllowed(): Boolean {
+        return try {
+            val appOps = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+            val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                appOps.unsafeCheckOpNoThrow(
+                    AppOpsManager.OPSTR_READ_SMS,
+                    Process.myUid(),
+                    packageName,
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                appOps.checkOpNoThrow(
+                    AppOpsManager.OPSTR_READ_SMS,
+                    Process.myUid(),
+                    packageName,
+                )
+            }
+            // MODE_IGNORED / MODE_ERRORED 都视为未放行。
+            mode == AppOpsManager.MODE_ALLOWED
+        } catch (e: Exception) {
+            Log.w("MainActivity", "isReadSmsAppOpAllowed failed", e)
+            true
+        }
     }
 
     /**
@@ -245,6 +280,12 @@ class MainActivity : FlutterFragmentActivity() {
                     Log.e("MainActivity", "querySms failed on $uri", e)
                 }
             }
+
+            Log.i(
+                "MainActivity",
+                "querySms done unique=${byId.size} security=$sawSecurity other=$sawOtherError " +
+                    "hasRead=${hasReadSmsPermission()}",
+            )
 
             when {
                 byId.isNotEmpty() -> mapOf("messages" to byId.values.toList(), "error" to null)
