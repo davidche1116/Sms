@@ -1,11 +1,8 @@
 name: sms
-description: "SMS cleaning tool application Flutter project."
+description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
-homepage: https://github.com/davidche1116/Sms
-repository: https://github.com/davidche1116/Sms
-issue_tracker: https://github.com/davidche1116/Sms/issues
 
 # The following defines the version and build number for your application.
 # A version number is three numbers separated by dots, like 1.2.43
@@ -19,7 +16,7 @@ issue_tracker: https://github.com/davidche1116/Sms/issues
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.8.0+260926
+version: 1.0.0+1
 
 environment:
   sdk: ^3.13.4
@@ -34,23 +31,9 @@ dependencies:
   flutter:
     sdk: flutter
 
-  flutter_localizations:
-    sdk: flutter
-
-  # 导出csv
-  csv: ^8.0.0
-  # 对话框loading
-  flutter_smart_dialog: ^5.3.0
-  # 国际化
-  intl: ^0.20.3
-  # 获取临时目录
-  path_provider: ^2.1.6
-  # 权限申请
-  permission_handler: ^13.0.2
-  # 分享
-  share_plus: ^13.3.0
-  # 短信读取、删除
-  sms_advanced: ^1.1.0
+  # The following adds the Cupertino Icons font to your application.
+  # Use with the CupertinoIcons class for iOS style icons.
+  cupertino_icons: ^1.0.8
 
 dev_dependencies:
   flutter_test:
@@ -63,17 +46,11 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
-  flutter_launcher_icons: ^0.14.4
-
-  flutter_native_splash: ^2.4.8
-
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
 # The following section is specific to Flutter packages.
 flutter:
-  # 添加代码生成（合成包）支持
-  generate: true
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
@@ -110,12 +87,3 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
-
-flutter_launcher_icons:
-  android: "ic_launcher"
-  ios: false
-  image_path: "assets/icon/icon.png"
-  min_sdk_android: 26 # android min sdk min:16, default 21
-  adaptive_icon_background: "#2BAE67"
-  adaptive_icon_foreground: "assets/icon/foreground.png"
-  adaptive_icon_foreground_inset: 0

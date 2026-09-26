@@ -1,94 +1,17 @@
-![LOGO](android/app/src/main/res/mipmap-xhdpi/ic_launcher.png)
+# sms
 
-# SMS Cleaner
+A new Flutter project.
 
-[简体中文](README_zh.md) | [繁體中文](README_zh_TW.md) | English
+## Getting Started
 
-- SMS Cleaner is a tool for reading and batch deleting SMS messages on Android, built with Flutter framework.
-- Although the UI framework Flutter supports cross-platform development, only Android SMS deletion functionality has been implemented.
+This project is a starting point for a Flutter application.
 
-## Features
+A few resources to get you started if this is your first Flutter project:
 
-- Get SMS permissions
-- Copy SMS to clipboard
-- Set/restore default SMS app
-- Filter SMS messages by keywords
-- Filter SMS messages by date range
-- Search messages from the same number or same SIM card
-- Remove/directly delete SMS from search results
-- One-click batch deletion of queried SMS messages
-- One-click export of all SMS messages to CSV file
+- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
+- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
+- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
 
-## Screenshot
-![UI](assets/screenshot/ui.jpg)
-
-## Privacy
-
-- All SMS data stays **on your device**. The app makes no network requests: nothing is uploaded, synced, or shared automatically.
-- Exported CSV files are written to the app's temporary directory and shared only via the system share sheet when you explicitly trigger the export.
-- Deleting SMS messages is irreversible — double-check your filters before batch deletion.
-- Permissions declared in the Android manifest:
-  - `READ_SMS` / `RECEIVE_SMS` / `RECEIVE_MMS` / `RECEIVE_WAP_PUSH` — read and manage SMS/MMS messages.
-  - `SEND_SMS` — required by the default-SMS-app role (the app itself does not send messages).
-  - `READ_PHONE_STATE` — required by the default-SMS-app role on some Android versions.
-  - `READ_CONTACTS` / `READ_PROFILE` / `QUERY_ALL_PACKAGES` — brought in by the legacy SMS plugin but never used; stripped at manifest-merge time with `tools:node="remove"`.
-  - Default SMS app role — Android only allows SMS deletion from the default SMS app; the app asks you to switch temporarily and can restore your previous default.
-
-## Development Environment
-
-- Flutter 3.47.5 (stable)
-- Dart 3.13.4
-- Gradle 9.3.1
-- Android Gradle Plugin 9.1.0
-- Kotlin 2.4.10
-- compileSdk 37 / minSdk 26
-- JDK 17
-
-Commands below assume `flutter` / `dart` are on your `PATH`. The setup used to develop this project resolves the stable channel through [fvm](https://fvm.app); see `AGENTS.md` for the exact `PATH` prefix if your SDK lives elsewhere.
-
-## Build & Publish
-
-Build the release APK with fastforge:
-
-```bash
-dart pub global activate fastforge
-fastforge release --name apk
-```
-
-Artifacts are output to `dist/`. The APK is signed with the release keystore and packages **arm64-v8a only** (single ABI). Debug builds use the standard debug signature; release builds fall back to the debug signature when `android/key.properties` is missing.
-
-### CI Workflows
-
-| Workflow | Trigger | Flutter Channel | Contents |
-| --- | --- | --- | --- |
-| `build.yml` | push main (version tags excluded) / PR (opened or updated) | stable | `dart analyze` + `flutter test` + build APK + upload artifact |
-| `manual.yml` | manual trigger | beta / master / stable selectable (default stable) | `dart analyze` + `flutter test` + build APK + upload artifact |
-| `publish.yml` | version tag (e.g. `1.6.1+250725`) | stable | build APK + create draft Release |
-
-### Build Notes
-
-- `permission_handler` upgraded to `13.0.2`: v13 requires compileSdk 37, so `android/app/build.gradle.kts` pins `compileSdk = 37` (above Flutter 3.47 template 36) with AGP 9.1.0 + Android SDK Platform 37. Permission code follows the v13 request-driven pattern (never derive `permanentlyDenied` from `status`).
-- Old plugins (e.g. `sms_advanced 1.1.0`, from the AGP 4.1 era) lack a `namespace` and hardcode `compileSdk 31`. The root `android/build.gradle.kts` auto-fills the namespace from `project.group` and raises the compileSdk of legacy library modules to 37.
-- Lint tasks are disabled in `android/build.gradle.kts`: legacy plugin buildscripts pin old AGP versions and crash the lint worker (`AndroidLintWorkAction`) when mixed with root AGP 9.1.0; `extract*Annotations` tasks are replaced with placeholder outputs.
-- `kotlin.incremental=false` is set in `android/gradle.properties`: on Windows, Kotlin incremental compilation cannot handle sources (pub cache on the C: drive) and build output (project on the D: drive) on different drives.
-- `sms_advanced` applies the Kotlin Gradle Plugin itself; future Flutter versions will reject this, so keep an eye out for an alternative.
-- Code quality is guaranteed by `dart analyze` + `flutter test` in CI.
-- Run tests locally with `flutter test` (platform channels are mocked, no device needed).
-
-## Project Structure
-
-```
-Sms
-├─android              # Android project configuration
-├─assets               # Assets
-├─lib                  # Flutter source code
-│  ├─main.dart         # App entry & SMS list page UI
-│  ├─controllers       # SmsListController: list state & business rules
-│  ├─l10n              # Localizations (ARB sources + generated code)
-│  ├─services          # Data access & pure logic (SMS repository / filtering / CSV export)
-│  ├─utils             # Small pure helpers (date formatting)
-│  └─widgets           # Reusable UI pieces (message item)
-├─test                 # Unit & widget tests
-├─.github/workflows    # CI workflows
-└─dist                 # Build output
-```
+For help getting started with Flutter development, view the
+[online documentation](https://docs.flutter.dev/), which offers tutorials,
+samples, guidance on mobile development, and a full API reference.

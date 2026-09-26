@@ -1,29 +1,6 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
-
-    <!-- Permissions options for the `sms` group -->
-    <uses-permission android:name="android.permission.SEND_SMS"/>
-    <uses-permission android:name="android.permission.RECEIVE_SMS"/>
-    <uses-permission android:name="android.permission.READ_SMS"/>
-    <uses-permission android:name="android.permission.RECEIVE_WAP_PUSH"/>
-    <uses-permission android:name="android.permission.RECEIVE_MMS"/>
-
-    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
-
-    <!-- 以下权限由旧的 sms_advanced 插件带入，本应用从未使用（不读通讯录、
-         不读个人资料、也不需要遍历已安装应用）。用 tools:node="remove" 在
-         manifest 合并阶段剔除，缩小权限面。
-         注意：QUERY_ALL_PACKAGES 移除后，探测其他应用是否存在完全依赖
-         下面的 <queries> 声明，新增探测目标时务必同步补上。 -->
-    <uses-permission
-        android:name="android.permission.READ_CONTACTS"
-        tools:node="remove" />
-    <uses-permission
-        android:name="android.permission.READ_PROFILE"
-        tools:node="remove" />
-    <uses-permission
-        android:name="android.permission.QUERY_ALL_PACKAGES"
-        tools:node="remove" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 只申请 READ_SMS；收/发组件用于 ROLE_SMS 资格与默认时入库 -->
+    <uses-permission android:name="android.permission.READ_SMS" />
 
     <application
         android:label="短信清理"
@@ -38,10 +15,6 @@
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
-            <!-- Specifies an Android theme to apply to this Activity as soon as
-                 the Android process has started. This theme is visible to the user
-                 while the Flutter UI initializes. After that, this theme continues
-                 to determine the Window background behind the Flutter UI. -->
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
@@ -50,10 +23,10 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Activity that allows the user to send new SMS/MMS messages -->
+            <!-- ROLE_SMS：可向某号码发消息 -->
             <intent-filter>
-                <action android:name="android.intent.action.SEND" />
                 <action android:name="android.intent.action.SENDTO" />
+                <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="sms" />
@@ -62,34 +35,37 @@
                 <data android:scheme="mmsto" />
             </intent-filter>
         </activity>
-        <!-- Don't delete the meta-data below.
-             This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-        <!-- BroadcastReceiver that listens for incoming SMS messages -->
-        <receiver android:name=".SmsReceiver"
-                  android:permission="android.permission.BROADCAST_SMS"
-                  android:exported="true">
+
+        <!-- ROLE_SMS：默认时收信入库 -->
+        <receiver
+            android:name=".SmsReceiver"
+            android:permission="android.permission.BROADCAST_SMS"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.provider.Telephony.SMS_DELIVER" />
             </intent-filter>
         </receiver>
 
-        <!-- BroadcastReceiver that listens for incoming MMS messages -->
-        <receiver android:name=".MmsReceiver"
-                  android:permission="android.permission.BROADCAST_WAP_PUSH"
-                  android:exported="true">
+        <!-- ROLE_SMS：彩信占位 -->
+        <receiver
+            android:name=".MmsReceiver"
+            android:permission="android.permission.BROADCAST_WAP_PUSH"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.provider.Telephony.WAP_PUSH_DELIVER" />
                 <data android:mimeType="application/vnd.wap.mms-message" />
             </intent-filter>
         </receiver>
 
-        <!-- Service that delivers messages from the phone "quick response" -->
-        <service android:name=".HeadlessSmsSendService"
-                 android:permission="android.permission.SEND_RESPOND_VIA_MESSAGE"
-                 android:exported="true" >
+        <!-- ROLE_SMS：来电快速回复占位 -->
+        <service
+            android:name=".HeadlessSmsSendService"
+            android:permission="android.permission.SEND_RESPOND_VIA_MESSAGE"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.RESPOND_VIA_MESSAGE" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -100,28 +76,23 @@
             </intent-filter>
         </service>
     </application>
-    <!-- Required to query activities that can process text, see:
-         https://developer.android.com/training/package-visibility and
-         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
 
-         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- RoleManager / getDefaultSmsPackage 需要能看见短信应用 -->
+        <intent>
+            <action android:name="android.provider.Telephony.SMS_DELIVER"/>
+        </intent>
         <intent>
             <action android:name="android.intent.action.SENDTO"/>
-            <data android:scheme="smsto" android:host="*" />
+            <data android:scheme="smsto"/>
         </intent>
         <intent>
-            <action android:name="android.intent.action.DIAL"/>
-            <data android:scheme="tel" android:host="*" />
+            <action android:name="android.provider.Telephony.WAP_PUSH_DELIVER"/>
+            <data android:mimeType="application/vnd.wap.mms-message"/>
         </intent>
-        <package android:name="com.android.mms" />
-        <!-- 未声明的包在 Android 11+ 包可见性限制下不可见，
-             getPackageInfo 会抛 NameNotFoundException -->
-        <package android:name="com.google.android.apps.messaging" />
-        <package android:name="com.dc16.sms" />
     </queries>
 </manifest>

@@ -1,0 +1,792 @@
+<!-- AI生成 -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>短信清理 2.0 · 界面草图</title>
+<style>
+  :root{
+    --primary:#2BAE67; --on-primary:#ffffff; --primary-soft:color-mix(in srgb,var(--primary) 14%,transparent);
+    --surface:#F6F8F7; --card:#FFFFFF; --outline:#E2E8E4;
+    --text:#15211A; --text2:#5C6B63; --error:#C62828; --error-bg:#FDECEC;
+    --radius:16px;
+  }
+  html[data-theme="dark"]{
+    --on-primary:#0B2A17;
+    --surface:#0F1411; --card:#1A221D; --outline:#2E3832;
+    --text:#E3ECE6; --text2:#A8B5AE; --error:#FF8A80; --error-bg:#3A1B1B;
+    --primary-soft:color-mix(in srgb,var(--primary) 22%,transparent);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,sans-serif;
+    background:#111;display:flex;flex-direction:column;align-items:center;
+    min-height:100%;padding:10px 8px 20px;color:var(--text);
+  }
+  .demo-bar{
+    width:100%;max-width:420px;display:flex;flex-wrap:wrap;gap:6px;
+    justify-content:center;margin-bottom:10px;
+  }
+  .demo-bar button{
+    border:0;background:#2a2a2a;color:#eee;font-size:11px;font-weight:600;
+    padding:7px 10px;border-radius:10px;cursor:pointer;
+  }
+  .demo-bar button.active{background:var(--primary);color:var(--on-primary)}
+  .shell{
+    width:100%;max-width:420px;height:min(880px,92vh);
+    background:var(--surface);border-radius:28px;overflow:hidden;
+    box-shadow:0 20px 60px rgba(0,0,0,.5);display:flex;flex-direction:column;position:relative;
+  }
+  .status{
+    height:28px;background:var(--primary);opacity:.92;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 18px;font-size:11px;color:#fff;font-weight:600;
+  }
+  .topbar{
+    display:flex;align-items:center;gap:4px;padding:10px 10px 12px;
+    background:var(--primary);color:var(--on-primary);
+  }
+  .topbar h1{font-size:19px;font-weight:700;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .topbar .sub{display:block;font-size:11px;font-weight:500;opacity:.88}
+  .ibtn{
+    width:42px;height:42px;border:0;background:transparent;color:inherit;
+    border-radius:12px;font-size:19px;cursor:pointer;display:grid;place-items:center;flex-shrink:0;
+  }
+  .ibtn:active{background:rgba(255,255,255,.16)}
+  .body{flex:1;overflow:auto;padding:12px 12px 92px;-webkit-overflow-scrolling:touch}
+
+  /* chips */
+  .chips{display:flex;gap:8px;flex-wrap:wrap;padding:2px 2px 12px}
+  .chip{
+    display:inline-flex;align-items:center;gap:6px;padding:7px 11px;border-radius:999px;
+    background:var(--primary-soft);color:var(--primary);font-size:12.5px;font-weight:600;cursor:pointer;
+  }
+  .chip .x{opacity:.7;font-size:14px}
+  .chip.out{background:transparent;border:1px dashed var(--outline);color:var(--text2);font-weight:500}
+
+  /* list */
+  .day{font-size:12px;font-weight:700;color:var(--text2);margin:16px 4px 8px;letter-spacing:.03em}
+  .item{
+    background:var(--card);border:1px solid var(--outline);border-radius:var(--radius);
+    margin-bottom:8px;overflow:hidden;position:relative;
+  }
+  .item-main{padding:14px 14px 12px;cursor:pointer;transition:background .12s}
+  .item-main:active{background:var(--primary-soft)}
+  .item .body-text{
+    margin:0 0 10px;font-size:15.5px;line-height:1.45;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+  }
+  .item .meta{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2)}
+  .sim{background:var(--primary-soft);color:var(--primary);font-weight:700;padding:3px 8px;border-radius:999px;font-size:11px}
+  .addr{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .time{margin-left:auto;white-space:nowrap}
+  .swipe-actions{
+    position:absolute;right:0;top:0;bottom:0;width:96px;display:flex;
+  }
+  .swipe-actions button{
+    flex:1;border:0;color:#fff;font-size:12px;font-weight:700;cursor:pointer;
+  }
+  .swipe-actions .del{background:var(--error)}
+  .item.swiped .item-main{transform:translateX(-96px);transition:transform .18s ease}
+  .item-main{transition:transform .18s ease}
+
+  /* select */
+  .shell.sel .item-main{padding-left:46px}
+  .cbox{
+    display:none;position:absolute;left:14px;top:18px;width:22px;height:22px;
+    border-radius:50%;border:2px solid var(--outline);background:var(--card);
+  }
+  .shell.sel .cbox{display:block}
+  .item.on .cbox{background:var(--primary);border-color:var(--primary)}
+  .item.on .cbox::after{content:"✓";color:#fff;font-size:12px;font-weight:800;display:grid;place-items:center;height:100%}
+  .item.on{border-color:var(--primary);background:var(--primary-soft)}
+
+  /* FAB + bottom */
+  .fab{
+    position:absolute;right:16px;bottom:calc(18px + env(safe-area-inset-bottom,0));
+    width:56px;height:56px;border-radius:18px;border:0;background:var(--primary);
+    color:var(--on-primary);font-size:22px;cursor:pointer;
+    box-shadow:0 10px 28px color-mix(in srgb,var(--primary) 45%,transparent);
+  }
+  .bot{
+    position:absolute;left:0;right:0;bottom:0;display:none;gap:10px;
+    background:var(--card);border-top:1px solid var(--outline);
+    padding:12px 14px calc(12px + env(safe-area-inset-bottom,0));
+  }
+  .shell.sel .bot{display:flex}
+  .shell.sel .fab{display:none}
+
+  .btn{
+    border:0;border-radius:12px;padding:13px 14px;font-size:14.5px;font-weight:700;
+    min-height:48px;cursor:pointer;flex:1;
+  }
+  .btn-pri{background:var(--primary);color:var(--on-primary)}
+  .btn-err{background:var(--error);color:#fff}
+  .btn-gh{background:transparent;color:var(--text);border:1px solid var(--outline)}
+  .btn:disabled{opacity:.4}
+
+  /* sheets */
+  .ov{position:absolute;inset:0;background:rgba(0,0,0,.36);opacity:0;pointer-events:none;transition:opacity .18s;z-index:40}
+  .ov.open{opacity:1;pointer-events:auto}
+  .sheet{
+    position:absolute;left:0;right:0;bottom:0;background:var(--card);
+    border-radius:22px 22px 0 0;padding:10px 18px calc(22px + env(safe-area-inset-bottom,0));
+    transform:translateY(105%);transition:transform .22s ease;max-height:90%;overflow:auto;
+  }
+  .ov.open .sheet{transform:translateY(0)}
+  .grab{width:36px;height:4px;border-radius:99px;background:var(--outline);margin:6px auto 12px}
+  .sheet h2{margin:4px 0 8px;font-size:18px}
+  .sheet .hint{margin:0 0 14px;color:var(--text2);font-size:13px;line-height:1.5}
+  .act{
+    display:flex;align-items:center;gap:12px;width:100%;padding:15px 6px;
+    border:0;background:transparent;color:var(--text);font-size:16px;font-weight:500;
+    cursor:pointer;text-align:left;border-bottom:1px solid var(--outline);
+  }
+  .act:last-of-type{border-bottom:0}
+  .act .ico{width:36px;height:36px;border-radius:12px;background:var(--primary-soft);color:var(--primary);
+    display:grid;place-items:center;font-size:16px;flex-shrink:0}
+  .act.danger{color:var(--error)}
+  .act.danger .ico{background:var(--error-bg);color:var(--error)}
+  .act small{display:block;color:var(--text2);font-size:12px;font-weight:400;margin-top:2px}
+
+  .field{margin:12px 0}
+  .field label{display:block;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px;letter-spacing:.02em}
+  .field input,.field select{
+    width:100%;border:1px solid var(--outline);background:var(--surface);color:var(--text);
+    border-radius:12px;padding:12px;font-size:15px;outline:none;
+  }
+  .field input:focus{border-color:var(--primary)}
+  .row{display:flex;gap:10px}
+  .row>*{flex:1}
+
+  /* settings */
+  .sec{margin:18px 2px 8px;font-size:12px;font-weight:700;color:var(--text2);letter-spacing:.06em}
+  .group{background:var(--card);border:1px solid var(--outline);border-radius:14px;overflow:hidden}
+  .srow{
+    display:flex;align-items:center;gap:12px;padding:14px 14px;
+    border-bottom:1px solid var(--outline);cursor:pointer;min-height:56px;
+  }
+  .srow:last-child{border-bottom:0}
+  .srow:active{background:var(--primary-soft)}
+  .srow .ic{
+    width:32px;height:32px;border-radius:10px;display:grid;place-items:center;
+    font-size:15px;color:#fff;flex-shrink:0;
+  }
+  .srow .txt{flex:1;min-width:0}
+  .srow .txt b{display:block;font-size:15px;font-weight:600}
+  .srow .txt span{display:block;font-size:12px;color:var(--text2);margin-top:2px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .srow .val{color:var(--text2);font-size:13px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .srow .chev{color:var(--outline);font-size:16px;font-weight:700}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px}
+  .dot.ok{background:var(--primary)}
+  .dot.warn{background:#E6A23C}
+  .dot.bad{background:var(--error)}
+
+  .swatches{display:flex;flex-wrap:wrap;gap:14px;padding:8px 4px 4px}
+  .sw{
+    width:44px;height:44px;border-radius:50%;border:3px solid transparent;cursor:pointer;
+    display:grid;place-items:center;color:#fff;font-size:14px;font-weight:800;
+  }
+  .sw.on{border-color:var(--text);transform:scale(1.08)}
+  .seg{display:flex;background:var(--surface);border:1px solid var(--outline);border-radius:12px;padding:4px;gap:4px}
+  .seg button{
+    flex:1;border:0;background:transparent;color:var(--text2);font-size:13px;font-weight:600;
+    padding:10px 6px;border-radius:10px;cursor:pointer;
+  }
+  .seg button.on{background:var(--card);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+
+  .empty{text-align:center;padding:56px 22px;color:var(--text2)}
+  .empty .ic{
+    width:84px;height:84px;margin:0 auto 18px;border-radius:28px;background:var(--primary-soft);
+    display:grid;place-items:center;font-size:34px;color:var(--primary);
+  }
+  .empty h3{margin:0 0 8px;color:var(--text);font-size:19px}
+  .empty p{margin:0 0 22px;font-size:13.5px;line-height:1.55}
+
+  .prog{height:8px;border-radius:99px;background:var(--outline);overflow:hidden;margin:10px 0 8px}
+  .prog i{display:block;height:100%;width:0;background:var(--primary);transition:width .15s}
+  .prog-t{font-size:12px;color:var(--text2);margin-bottom:14px}
+
+  .toast{
+    position:absolute;left:50%;bottom:96px;transform:translateX(-50%) translateY(16px);
+    background:#1c2420;color:#fff;padding:12px 16px;border-radius:12px;font-size:13px;
+    opacity:0;pointer-events:none;transition:.22s;z-index:60;max-width:88%;text-align:center;
+  }
+  html[data-theme="dark"] .toast{background:#2a3530}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .hidden{display:none !important}
+</style>
+</head>
+<body>
+<p data-aigc-mark="1" style="margin:0 0 8px;font-size:10px;line-height:1.3;color:#6b6560;font-weight:400;">AI生成</p>
+
+
+<div class="demo-bar" id="demoBar">
+  <button data-p="list" class="active">列表</button>
+  <button data-p="actions">动作</button>
+  <button data-p="filter">筛选</button>
+  <button data-p="multi">多选</button>
+  <button data-p="set">设置</button>
+  <button data-p="theme">主题色</button>
+  <button data-p="perm">权限</button>
+  <button data-p="empty">空态</button>
+  <button data-p="del">删除</button>
+  <button id="darkBtn">深色</button>
+</div>
+
+<div class="shell" id="shell">
+  <div class="status"><span>12:30</span><span>5G · 100%</span></div>
+
+  <!-- ===== LIST PAGE ===== -->
+  <div id="page-list" style="display:flex;flex-direction:column;flex:1;min-height:0">
+    <div class="topbar" id="mainTop">
+      <button class="ibtn hidden" id="btnCloseSel" onclick="exitSel()">✕</button>
+      <h1 id="ttl">短信<span class="sub" id="ttlSub">3,578 条 · 点卡片看操作</span></h1>
+      <span class="hidden" id="selN" style="font-size:13px;font-weight:700">已选 0</span>
+      <button class="ibtn" onclick="openOv('sheet-filter')" title="搜索 / 筛选">🔍</button>
+      <button class="ibtn" onclick="show('set')" title="设置">⚙</button>
+      <button class="ibtn" onclick="openOv('sheet-menu')" title="更多">⋯</button>
+      <button class="ibtn hidden" id="btnAll" onclick="toggleAll()">全选</button>
+    </div>
+    <div class="body" id="listBody">
+      <div class="chips" id="chips">
+        <div class="chip">同号 10010 <span class="x" onclick="rmChip(this)">×</span></div>
+        <div class="chip">09-01–09-26 <span class="x" onclick="rmChip(this)">×</span></div>
+        <div class="chip out" onclick="openOv('sheet-filter')">+ 筛选</div>
+      </div>
+
+      <div id="items">
+        <div class="day">今天</div>
+        <div class="item" data-addr="1069452226612058152">
+          <div class="swipe-actions"><button class="del" onclick="quickDel(this)">快速删除</button></div>
+          <div class="item-main" onclick="itemTap(this)">
+            <div class="cbox"></div>
+            <p class="body-text">【嘿哈猫健身】亲爱的会员，您购买的嘿哈猫会员服务已于2026-09-26 11:02:24开通。</p>
+            <div class="meta"><span class="sim">卡1</span><span class="addr">1069452226612058152</span><span class="time">11:02</span></div>
+          </div>
+        </div>
+        <div class="item" data-addr="10010">
+          <div class="swipe-actions"><button class="del" onclick="quickDel(this)">快速删除</button></div>
+          <div class="item-main" onclick="itemTap(this)">
+            <div class="cbox"></div>
+            <p class="body-text">【流量提醒】尊敬的5G用户，截至09月25日24时，当月共享国内通用流量已用47.552GB，剩余72.448GB。</p>
+            <div class="meta"><span class="sim">卡2</span><span class="addr">10010</span><span class="time">11:02</span></div>
+          </div>
+        </div>
+        <div class="item" data-addr="95566">
+          <div class="swipe-actions"><button class="del" onclick="quickDel(this)">快速删除</button></div>
+          <div class="item-main" onclick="itemTap(this)">
+            <div class="cbox"></div>
+            <p class="body-text">您的借记卡账户8309，于09月25日网上支付支取人民币270.34元，交易后余额9420.35。</p>
+            <div class="meta"><span class="sim">卡1</span><span class="addr">95566</span><span class="time">09:39</span></div>
+          </div>
+        </div>
+        <div class="day">昨天</div>
+        <div class="item" data-addr="12329">
+          <div class="swipe-actions"><button class="del" onclick="quickDel(this)">快速删除</button></div>
+          <div class="item-main" onclick="itemTap(this)">
+            <div class="cbox"></div>
+            <p class="body-text">【湖南住房公积金】尊敬的车阳，您账户2026年09月24日汇缴220元，余额为3198.33元。</p>
+            <div class="meta"><span class="sim">卡1</span><span class="addr">12329</span><span class="time">17:37</span></div>
+          </div>
+        </div>
+        <div class="item" data-addr="106509768010914">
+          <div class="swipe-actions"><button class="del" onclick="quickDel(this)">快速删除</button></div>
+          <div class="item-main" onclick="itemTap(this)">
+            <div class="cbox"></div>
+            <p class="body-text">车阳同志：您于2026年08月16日申请的社保关系终止业务，已审核通过，请继续关注待遇核定情况。</p>
+            <div class="meta"><span class="sim">卡2</span><span class="addr">106509768010914</span><span class="time">15:06</span></div>
+          </div>
+        </div>
+        <div class="item" data-addr="10690">
+          <div class="swipe-actions"><button class="del" onclick="quickDel(this)">快速删除</button></div>
+          <div class="item-main" onclick="itemTap(this)">
+            <div class="cbox"></div>
+            <p class="body-text">验证码 884215，您正在登录微信。请勿转发给他人。</p>
+            <div class="meta"><span class="sim">卡1</span><span class="addr">10690</span><span class="time">09:12</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="empty hidden" id="emptyBox">
+        <div class="ic" id="emptyIc">✉</div>
+        <h3 id="emptyH">没有短信</h3>
+        <p id="emptyP">当前条件下没有可显示的短信。</p>
+        <button class="btn btn-pri" id="emptyBtn" style="flex:0 0 auto;padding-left:28px;padding-right:28px">清除筛选</button>
+      </div>
+    </div>
+    <button class="fab" onclick="openOv('sheet-del')" title="删除列表">🗑</button>
+    <div class="bot">
+      <button class="btn btn-gh" onclick="toast('已导出选中 CSV')">导出选中</button>
+      <button class="btn btn-err" onclick="openOv('sheet-del')">删除选中</button>
+    </div>
+  </div>
+
+  <!-- ===== SETTINGS ===== -->
+  <div id="page-set" class="hidden" style="display:flex;flex-direction:column;flex:1;min-height:0">
+    <div class="topbar">
+      <button class="ibtn" onclick="show('list')">←</button>
+      <h1>设置</h1>
+    </div>
+    <div class="body">
+      <div class="sec">外观</div>
+      <div class="group">
+        <div class="srow" onclick="show('theme')">
+          <div class="ic" style="background:var(--primary)">🎨</div>
+          <div class="txt"><b>主题色</b><span>主按钮、选中态与强调色</span></div>
+          <div class="val" id="themeVal">绿色</div><div class="chev">›</div>
+        </div>
+        <div class="srow" onclick="toast('深色模式：跟随系统 / 浅色 / 深色')">
+          <div class="ic" style="background:#546E7A">🌙</div>
+          <div class="txt"><b>深色模式</b><span>跟随系统</span></div>
+          <div class="val">跟随系统</div><div class="chev">›</div>
+        </div>
+      </div>
+
+      <div class="sec">权限</div>
+      <div class="group">
+        <div class="srow" onclick="show('perm')">
+          <div class="ic" style="background:#E6A23C">🔐</div>
+          <div class="txt"><b>短信权限</b><span><span class="dot ok"></span>已授予 · 用于读取与导出</span></div>
+          <div class="chev">›</div>
+        </div>
+        <div class="srow" onclick="toast('打开系统「默认应用 · 短信」设置')">
+          <div class="ic" style="background:#2BAE67">✉</div>
+          <div class="txt"><b>默认短信应用</b><span><span class="dot ok"></span>本应用 · 删除短信需要</span></div>
+          <div class="chev">›</div>
+        </div>
+      </div>
+
+      <div class="sec">数据</div>
+      <div class="group">
+        <div class="srow" onclick="toast('已导出全部短信 CSV')">
+          <div class="ic" style="background:#42A5F5">📤</div>
+          <div class="txt"><b>导出短信 CSV</b><span>导出当前列表到文件并分享</span></div>
+          <div class="chev">›</div>
+        </div>
+      </div>
+
+      <div class="sec">关于</div>
+      <div class="group">
+        <div class="srow" onclick="toast('短信清理 2.0.0')">
+          <div class="ic" style="background:#8D6E63">ℹ</div>
+          <div class="txt"><b>版本</b></div>
+          <div class="val">2.0.0</div>
+        </div>
+        <div class="srow" onclick="toast('数据仅在本机处理，不上传、不收集')">
+          <div class="ic" style="background:#7E57C2">🔒</div>
+          <div class="txt"><b>隐私说明</b><span>数据仅在本机处理</span></div>
+          <div class="chev">›</div>
+        </div>
+      </div>
+      <p style="text-align:center;color:var(--text2);font-size:11px;margin:22px 0 8px">短信清理 · 本地工具</p>
+    </div>
+  </div>
+
+  <!-- ===== THEME ===== -->
+  <div id="page-theme" class="hidden" style="display:flex;flex-direction:column;flex:1;min-height:0">
+    <div class="topbar">
+      <button class="ibtn" onclick="show('set')">←</button>
+      <h1>主题色</h1>
+    </div>
+    <div class="body">
+      <p class="hint" style="color:var(--text2);font-size:13px;line-height:1.5;margin:8px 4px 4px">
+        选择强调色，立即作用于主按钮、选中项、Chip 与图标底色。
+      </p>
+      <div class="sec">预设</div>
+      <div class="swatches" id="swatches">
+        <div class="sw on" data-c="#2BAE67" data-n="绿色" style="background:#2BAE67">✓</div>
+        <div class="sw" data-c="#2B7FE7" data-n="蓝色" style="background:#2B7FE7"></div>
+        <div class="sw" data-c="#7B61FF" data-n="紫色" style="background:#7B61FF"></div>
+        <div class="sw" data-c="#E67E22" data-n="橙色" style="background:#E67E22"></div>
+        <div class="sw" data-c="#E74C3C" data-n="红色" style="background:#E74C3C"></div>
+        <div class="sw" data-c="#00BCD4" data-n="青色" style="background:#00BCD4"></div>
+        <div class="sw" data-c="#EC407A" data-n="粉色" style="background:#EC407A"></div>
+        <div class="sw" data-c="#546E7A" data-n="石墨" style="background:#546E7A"></div>
+      </div>
+      <div class="sec">自定义</div>
+      <div class="group" style="padding:14px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <input type="color" id="customColor" value="#2BAE67"
+                 style="width:52px;height:44px;border:1px solid var(--outline);border-radius:12px;background:transparent;cursor:pointer;padding:2px"/>
+          <div style="flex:1">
+            <label style="display:block;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">颜色值</label>
+            <input id="customHex" type="text" value="#2BAE67" placeholder="#2BAE67"
+                   style="width:100%;border:1px solid var(--outline);background:var(--surface);color:var(--text);border-radius:12px;padding:12px;font-size:15px;font-family:ui-monospace,Menlo,monospace;outline:none"
+                   oninput="onHexInput(this.value)"/>
+          </div>
+        </div>
+        <button class="btn btn-pri" style="width:100%;margin-top:12px" onclick="applyCustomColor()">应用自定义颜色</button>
+      </div>
+      <div class="sec">预览</div>
+      <div class="group" style="padding:16px">
+        <button class="btn btn-pri" style="width:100%;margin-bottom:10px">主按钮示例</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <div class="chip">筛选 Chip</div>
+          <div class="chip">同号 10086</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== PERMISSION ===== -->
+  <div id="page-perm" class="hidden" style="display:flex;flex-direction:column;flex:1;min-height:0">
+    <div class="topbar">
+      <button class="ibtn" onclick="show('set')">←</button>
+      <h1>短信权限</h1>
+    </div>
+    <div class="body">
+      <div class="group" style="margin-top:8px">
+        <div class="srow" style="cursor:default">
+          <div class="ic" style="background:var(--primary)">✓</div>
+          <div class="txt"><b>读取短信</b><span><span class="dot ok"></span>已授予</span></div>
+        </div>
+        <div class="srow" style="cursor:default">
+          <div class="ic" style="background:#E6A23C">!</div>
+          <div class="txt"><b>默认短信</b><span><span class="dot warn"></span>用于删除短信（可选）</span></div>
+        </div>
+      </div>
+      <p style="color:var(--text2);font-size:13px;line-height:1.55;margin:16px 6px">
+        未授予时无法读取短信列表。若系统曾收回权限（切换默认短信后常见），点下方按钮重新申请。
+      </p>
+      <button class="btn btn-pri" style="width:100%" onclick="toast('已发起系统授权（或跳转设置）')">申请短信权限</button>
+      <button class="btn btn-gh" style="width:100%;margin-top:10px" onclick="toast('打开应用设置')">打开应用设置</button>
+    </div>
+  </div>
+
+  <!-- ===== OVERLAYS ===== -->
+  <div class="ov" id="sheet-menu" onclick="bgClose(event,'sheet-menu')">
+    <div class="sheet" onclick="event.stopPropagation()">
+      <div class="grab"></div>
+      <h2>更多</h2>
+      <button class="act" onclick="closeAll();toast('已导出全部 CSV')">
+        <div class="ico">📤</div><div>导出全部 CSV<small>当前列表导出并分享</small></div>
+      </button>
+      <button class="act" onclick="closeAll();enterSel()">
+        <div class="ico">☑</div><div>多选<small>长按列表也可进入</small></div>
+      </button>
+      <button class="act" onclick="closeAll();toast('已申请短信权限')">
+        <div class="ico">🔐</div><div>申请短信权限<small>读取 / 导出需要</small></div>
+      </button>
+    </div>
+  </div>
+
+  <div class="ov" id="sheet-actions" onclick="bgClose(event,'sheet-actions')">
+    <div class="sheet" onclick="event.stopPropagation()">
+      <div class="grab"></div>
+      <h2 id="actTitle">10010</h2>
+      <p class="hint" id="actSub">卡2 · 今天 11:02</p>
+      <button class="act" onclick="sameNumber()">
+        <div class="ico">#</div><div>同号短信<small>只看这个号码的全部短信</small></div>
+      </button>
+      <button class="act" onclick="closeAll();toast('已筛选同卡短信')">
+        <div class="ico">▣</div><div>同卡短信<small>只看同一 SIM 卡</small></div>
+      </button>
+      <button class="act" onclick="closeAll();toast('已复制号码')">
+        <div class="ico">⧉</div><div>复制号码</div>
+      </button>
+      <button class="act" onclick="closeAll();toast('已复制正文')">
+        <div class="ico">⎘</div><div>复制正文</div>
+      </button>
+      <button class="act danger" onclick="quickDelCurrent()">
+        <div class="ico">🗑</div><div>快速删除<small>删除这一条，不弹确认</small></div>
+      </button>
+      <button class="act" onclick="closeAll();toast('已移出列表（未删系统短信）')">
+        <div class="ico">👁</div><div>移出列表<small>仅本地隐藏</small></div>
+      </button>
+    </div>
+  </div>
+
+  <div class="ov" id="sheet-filter" onclick="bgClose(event,'sheet-filter')">
+    <div class="sheet" onclick="event.stopPropagation()">
+      <div class="grab"></div>
+      <h2>搜索 / 筛选</h2>
+      <p class="hint">关键词即搜正文与号码；可再叠加日期等条件。</p>
+      <div class="field">
+        <label>关键词</label>
+        <input id="fKeyword" type="search" placeholder="正文或号码，即时过滤列表" oninput="doSearch(this.value)"/>
+      </div>
+      <div class="row">
+        <div class="field"><label>开始日期</label><input type="date" value="2026-09-01"/></div>
+        <div class="field"><label>结束日期</label><input type="date" value="2026-09-26"/></div>
+      </div>
+      <div class="field">
+        <label>类型</label>
+        <select>
+          <option>全部（收件箱 + 已发送 + 草稿）</option>
+          <option>仅收件箱</option>
+          <option>仅已发送</option>
+        </select>
+      </div>
+      <div class="row" style="margin-top:18px">
+        <button class="btn btn-gh" onclick="closeAll();toast('已重置筛选')">重置</button>
+        <button class="btn btn-pri" onclick="closeAll();toast('已应用筛选')">完成</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ov" id="sheet-del" onclick="bgClose(event,'sheet-del')">
+    <div class="sheet" onclick="event.stopPropagation()">
+      <div class="grab"></div>
+      <h2>删除短信？</h2>
+      <p class="hint">将删除 <b id="delN">2</b> 条短信。删除后<strong>不可恢复</strong>，建议先导出备份。</p>
+      <div class="prog"><i id="delBar"></i></div>
+      <div class="prog-t" id="delT">准备删除…</div>
+      <div class="row">
+        <button class="btn btn-gh" onclick="closeAll()">取消</button>
+        <button class="btn btn-err" id="delOk" onclick="runDel()">确认删除</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const shell = $('shell');
+let currentAddr = '';
+
+function show(page){
+  ['list','set','theme','perm'].forEach(p=>{
+    const el = $('page-'+p);
+    if(el) el.classList.toggle('hidden', p!==page);
+    if(el && p===page) el.style.display='flex';
+    if(el && p!==page) el.style.display='none';
+  });
+  document.querySelectorAll('#demoBar button[data-p]').forEach(b=>{
+    b.classList.toggle('active', b.dataset.p===page || (page==='list'&&b.dataset.p==='list'));
+  });
+  if(page==='list'){ /* keep */ }
+}
+
+function openOv(id){ $(id).classList.add('open'); }
+function closeAll(){ document.querySelectorAll('.ov').forEach(o=>o.classList.remove('open')); }
+function bgClose(e,id){ if(e.target.id===id) e.target.classList.remove('open'); }
+
+function itemTap(el){
+  const item = el.closest('.item');
+  if(shell.classList.contains('sel')){
+    item.classList.toggle('on');
+    updateSel();
+    return;
+  }
+  // 打开动作表
+  currentAddr = item.dataset.addr || '';
+  $('actTitle').textContent = currentAddr || '短信';
+  $('actSub').textContent = '点击「同号短信」只看这个号码';
+  openOv('sheet-actions');
+}
+
+function enterSel(){
+  closeAll();
+  shell.classList.add('sel');
+  $('btnCloseSel').classList.remove('hidden');
+  $('btnAll').classList.remove('hidden');
+  $('selN').classList.remove('hidden');
+  $('ttlSub').textContent = '长按或点击选择，可导出/删除';
+  updateSel();
+}
+function exitSel(){
+  shell.classList.remove('sel');
+  $('btnCloseSel').classList.add('hidden');
+  $('btnAll').classList.add('hidden');
+  $('selN').classList.add('hidden');
+  $('ttlSub').textContent = '3,578 条 · 点卡片看操作';
+  document.querySelectorAll('.item.on').forEach(i=>i.classList.remove('on'));
+}
+function toggleAll(){
+  const items = document.querySelectorAll('#items .item');
+  const all = [...items].every(i=>i.classList.contains('on'));
+  items.forEach(i=>i.classList.toggle('on', !all));
+  updateSel();
+}
+function updateSel(){
+  const n = document.querySelectorAll('#items .item.on').length;
+  $('selN').textContent = '已选 '+n;
+}
+
+function sameNumber(){
+  closeAll();
+  const chips = $('chips');
+  const c = document.createElement('div');
+  c.className = 'chip';
+  c.innerHTML = '同号 '+currentAddr+' <span class="x">×</span>';
+  c.querySelector('.x').onclick = e => { e.stopPropagation(); c.remove(); toast('已移除同号筛选'); };
+  chips.insertBefore(c, chips.firstChild);
+  toast('已筛选同号短信');
+}
+
+function quickDel(btn){
+  const item = btn.closest('.item');
+  item.style.transition = 'opacity .18s, margin .18s, height .18s';
+  item.style.opacity = '0';
+  item.style.height = item.offsetHeight+'px';
+  requestAnimationFrame(()=>{ item.style.height='0'; item.style.margin='0'; });
+  setTimeout(()=>item.remove(), 200);
+  toast('已删除 1 条');
+}
+function quickDelCurrent(){
+  closeAll();
+  const item = document.querySelector('#items .item');
+  if(item) quickDel(item.querySelector('.del'));
+  else toast('已删除 1 条');
+}
+
+function rmChip(el){
+  el.parentElement.remove();
+  toast('已移除筛选条件');
+}
+
+function runDel(){
+  const btn = $('delOk'), bar = $('delBar'), t = $('delT');
+  btn.disabled = true; btn.textContent = '删除中…';
+  let i = 0, total = 2;
+  const timer = setInterval(()=>{
+    i++;
+    bar.style.width = (i/total*100)+'%';
+    t.textContent = '已完成 '+i+' / '+total;
+    if(i>=total){
+      clearInterval(timer);
+      setTimeout(()=>{
+        closeAll();
+        document.querySelectorAll('#items .item.on').forEach(x=>x.remove());
+        // 若未多选则删前 2 条演示
+        if(!document.querySelector('#items .item.on')){
+          const list = document.querySelectorAll('#items .item');
+          if(list[0]) list[0].remove();
+          if(list[1]) list[1].remove();
+        }
+        exitSel();
+        btn.disabled = false; btn.textContent = '确认删除';
+        bar.style.width = '0'; t.textContent = '准备删除…';
+        toast('已删除 2 条短信');
+      }, 320);
+    }
+  }, 420);
+}
+
+// theme
+function setPrimary(c, name){
+  document.documentElement.style.setProperty('--primary', c);
+  document.documentElement.style.setProperty('--primary-soft', 'color-mix(in srgb,'+c+' 16%,transparent)');
+  if(name) $('themeVal').textContent = name;
+}
+function isHex(v){
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v.trim());
+}
+function onHexInput(v){
+  const ok = isHex(v);
+  if(ok) $('customColor').value = normalizeHex(v);
+}
+function normalizeHex(v){
+  v = v.trim();
+  if(v[0] !== '#') v = '#'+v;
+  if(v.length === 4){
+    v = '#'+v[1]+v[1]+v[2]+v[2]+v[3]+v[3];
+  }
+  return v.toUpperCase();
+}
+function applyCustomColor(){
+  const raw = $('customHex').value;
+  if(!isHex(raw)){
+    toast('请输入合法颜色值，如 #2BAE67');
+    return;
+  }
+  const c = normalizeHex(raw);
+  $('customColor').value = c.toLowerCase();
+  document.querySelectorAll('.sw').forEach(s=>{ s.classList.remove('on'); s.textContent=''; });
+  setPrimary(c, c);
+  toast('已应用自定义主题色 '+c);
+}
+document.getElementById('customColor').addEventListener('input', e=>{
+  const c = e.target.value;
+  $('customHex').value = c.toUpperCase();
+  setPrimary(c, c.toUpperCase());
+  document.querySelectorAll('.sw').forEach(s=>{ s.classList.remove('on'); s.textContent=''; });
+});
+document.querySelectorAll('.sw').forEach(sw=>{
+  sw.onclick = ()=>{
+    document.querySelectorAll('.sw').forEach(s=>{ s.classList.remove('on'); s.textContent=''; });
+    sw.classList.add('on'); sw.textContent = '✓';
+    const c = sw.dataset.c;
+    setPrimary(c, sw.dataset.n);
+    $('customHex').value = c.toUpperCase();
+    $('customColor').value = c.toLowerCase();
+    toast('主题色已切换为'+sw.dataset.n);
+  };
+});
+
+function doSearch(q){
+  q = (q||'').trim().toLowerCase();
+  document.querySelectorAll('#items .item').forEach(item=>{
+    const t = item.innerText.toLowerCase();
+    item.style.display = (!q || t.includes(q)) ? '' : 'none';
+  });
+}
+
+let tt;
+function toast(msg){
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(tt);
+  tt = setTimeout(()=>el.classList.remove('show'), 2200);
+}
+
+// demo pages
+document.querySelectorAll('#demoBar button[data-p]').forEach(b=>{
+  b.onclick = ()=>{
+    const p = b.dataset.p;
+    closeAll();
+    if(p==='list'){ show('list'); exitSel(); }
+    if(p==='actions'){ show('list'); currentAddr='10010'; $('actTitle').textContent='10010'; $('actSub').textContent='卡2 · 今天 11:02'; openOv('sheet-actions'); }
+    if(p==='filter'){ show('list'); openOv('sheet-filter'); }
+    if(p==='multi'){ show('list'); enterSel();
+      document.querySelectorAll('#items .item').forEach((it,i)=>{ if(i<2) it.classList.add('on'); });
+      updateSel();
+    }
+    if(p==='set'){ show('set'); }
+    if(p==='theme'){ show('theme'); }
+    if(p==='perm'){ show('perm'); }
+    if(p==='empty'){
+      show('list');
+      $('items').classList.add('hidden');
+      $('chips').classList.add('hidden');
+      $('emptyBox').classList.remove('hidden');
+      $('emptyIc').textContent = '🔐';
+      $('emptyH').textContent = '需要短信权限';
+      $('emptyP').textContent = '授予后即可读取、搜索与导出短信。若曾切换默认短信导致权限被收回，请重新申请。';
+      $('emptyBtn').textContent = '申请短信权限';
+      $('emptyBtn').onclick = ()=>{ toast('已发起系统授权'); };
+    }
+    if(p==='del'){ show('list'); openOv('sheet-del'); }
+  };
+});
+
+$('darkBtn').onclick = ()=>{
+  const dark = document.documentElement.getAttribute('data-theme')==='dark';
+  document.documentElement.setAttribute('data-theme', dark?'light':'dark');
+  $('darkBtn').textContent = dark?'深色':'浅色';
+};
+
+// simple swipe-left to reveal delete
+document.querySelectorAll('.item').forEach(item=>{
+  let x0 = null;
+  item.addEventListener('touchstart', e=>{ x0 = e.touches[0].clientX; }, {passive:true});
+  item.addEventListener('touchend', e=>{
+    if(x0==null) return;
+    const dx = e.changedTouches[0].clientX - x0;
+    if(dx < -40) item.classList.add('swiped');
+    else if(dx > 40) item.classList.remove('swiped');
+    x0 = null;
+  }, {passive:true});
+});
+
+show('list');
+</script>
+</body>
+</html>

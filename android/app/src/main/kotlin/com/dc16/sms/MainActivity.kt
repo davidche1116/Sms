@@ -1,381 +1,102 @@
 package com.dc16.sms
 
-import android.app.AppOpsManager
+import android.Manifest
 import android.app.role.RoleManager
-import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.database.Cursor
 import android.os.Build
-import android.os.Process
-import android.provider.BaseColumns
-import android.provider.Settings
-import android.provider.Telephony
-import android.util.Log
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-/**
- * MainActivity类负责处理SMS应用的主要功能
- * 包括获取、设置和重置默认短信应用
- */
 class MainActivity : FlutterFragmentActivity() {
-    private val CHANNEL = "com.dc16.sms/smsApp"
+  private val channelName = "com.dc16.sms/smsApp"
+  private lateinit var access: SmsAccess
 
-    /**
-     * 单次 SQL 的占位符上限：SQLite 默认 SQLITE_MAX_VARIABLE_NUMBER 为 999，
-     * 留出余量按 900 一批切分。
-     */
-    private val DELETE_CHUNK_SIZE = 900
+  /** 等待系统权限弹窗结果后再回包，Dart 才能刷新。 */
+  private var pendingRead: MethodChannel.Result? = null
+  private var pendingRole: MethodChannel.Result? = null
 
-    /**
-     * 查询用投影：只声明 Dart 侧真正消费的列。
-     *
-     * 不用 `null`（全列）是因为部分 ROM 会在结果里塞进 `creator` 等文本列；
-     * 也不把 `sub_id` 等可缺列写死进投影——某些 OEM 的 SMS provider 对
-     * 不存在的列会直接让整次 query 抛异常，表现为空列表。
-     * 读取侧一律走 [readSmsRow] 按列名安全取值。
-     */
-    private val SMS_QUERY_PROJECTION = arrayOf(
-        BaseColumns._ID,
-        Telephony.Sms.THREAD_ID,
-        Telephony.Sms.ADDRESS,
-        Telephony.Sms.BODY,
-        Telephony.Sms.DATE,
-        Telephony.Sms.DATE_SENT,
-        Telephony.Sms.READ,
-        Telephony.Sms.TYPE,
-    )
-
-    /**
-     * 多 URI 合并查询。
-     *
-     * `content://sms`（整表）在「非默认短信应用」场景下，部分 OEM（含
-     * HyperOS/MIUI）会返回空游标或直接无数据；而 `content://sms/inbox|sent|draft`
-     * 在仅有 READ_SMS 时仍可读。这里把整表与分箱 URI 都查一遍并按 `_id` 去重，
-     * 覆盖掉默认前后两种访问路径。
-     */
-    private val SMS_QUERY_URIS = listOf(
-        Telephony.Sms.CONTENT_URI,
-        Telephony.Sms.Inbox.CONTENT_URI,
-        Telephony.Sms.Sent.CONTENT_URI,
-        Telephony.Sms.Draft.CONTENT_URI,
-    )
-
-    // startActivityForResult 已废弃，改用 Activity Result API。
-    // 选择结果通过 onResume 后的 getDefaultSmsApp 重新读取，无需在此处理。
-    private val roleRequestLauncher =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
-
-    override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
-        super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
-            // 通道回调里任何未捕获异常都会变成进程崩溃（用户看到的"闪退"）。
-            // 统一兜住后回 error，由 Dart 侧按失败处理。
-            try {
-                when (call.method) {
-                    "getDefaultSmsApp" -> result.success(getDefaultSmsApp())
-                    "setDefaultSmsApp" -> result.success(setDefaultSmsApp())
-                    "resetDefaultSmsApp" -> result.success(resetDefaultSmsApp())
-                    "deleteSmsBatch" -> result.success(deleteSmsBatch(call.arguments))
-                    "querySms" -> result.success(querySms(call.arguments))
-                    "hasReadSmsPermission" -> result.success(hasReadSmsPermission())
-                    else -> result.notImplemented()
-                }
-            } catch (e: Exception) {
-                Log.e("MainActivity", "method ${call.method} failed", e)
-                result.error("error", e.message, null)
-            }
-        }
+  private val requestRead =
+    registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+      val r = pendingRead
+      pendingRead = null
+      r?.success(access.hasReadSms())
     }
 
-    /**
-     * 获取当前默认短信应用
-     * @return 返回当前默认短信应用的包名，如果没有则返回空字符串
-     */
-    private fun getDefaultSmsApp(): String {
-        val defaultSmsApp = Telephony.Sms.getDefaultSmsPackage(this)
-        if (defaultSmsApp == null) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val roleManager = getSystemService(RoleManager::class.java)
-                val isRoleHeld = roleManager?.isRoleHeld(RoleManager.ROLE_SMS) ?: false
-                if (isRoleHeld) {
-                    return packageName
-                }
-                return ""
-            }
-        }
-        return defaultSmsApp ?: ""
+  private val requestRole =
+    registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+      val r = pendingRole
+      pendingRole = null
+      // 用户从角色页返回后无论结果如何都回包，让 Dart 刷新
+      r?.success(if (access.isDefaultSms() == true) "had" else "no")
     }
 
-    /**
-     * 设置当前应用为默认短信应用
-     * @return 返回设置状态："had"(已经是默认应用)，"ok"(设置成功)，"no"(需要用户确认)
-     */
-    private fun setDefaultSmsApp(): String {
-        val packageName = this.packageName
-        val defaultName = getDefaultSmsApp()
-        
-        if (defaultName.isEmpty() || packageName != defaultName) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val roleManager = getSystemService(RoleManager::class.java)
-                val isRoleHeld = roleManager?.isRoleHeld(RoleManager.ROLE_SMS) ?: false
-                if (isRoleHeld) {
-                    return "had"
-                }
-                val roleRequestIntent = roleManager?.createRequestRoleIntent(RoleManager.ROLE_SMS)
-                roleRequestIntent?.let {
-                    roleRequestLauncher.launch(it)
-                }
-            } else {
-                val intent = Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT)
-                intent.putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, packageName)
-                startActivity(intent)
+  override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+    super.configureFlutterEngine(flutterEngine)
+    access = SmsAccess(applicationContext)
+    MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
+      .setMethodCallHandler { call, result ->
+        try {
+          when (call.method) {
+            "hasReadSmsPermission" -> result.success(access.hasReadSms())
+            "requestReadSms" -> {
+              if (access.hasReadSms()) {
+                result.success(true)
+              } else if (pendingRead != null) {
+                result.success(false)
+              } else {
+                pendingRead = result
+                requestRead.launch(Manifest.permission.READ_SMS)
+              }
             }
-            return "no"
-        }
-        return "ok"
-    }
-
-    /**
-     * 批量删除短信。
-     *
-     * sms_advanced 只提供逐条删除，3000 条就是 3000 次跨进程调用，耗时可达
-     * 分钟级。这里在原生侧按 `_id IN (...)` 分批删除，次数降到
-     * ceil(n / 900) 次。
-     *
-     * @param arguments id 列表
-     * @return 实际删除的行数；`null` 表示参数非法或删除过程中抛出异常，
-     *         调用方应回退到逐条删除。
-     */
-    private fun deleteSmsBatch(arguments: Any?): Int? {
-        val ids = (arguments as? List<*>)?.mapNotNull { (it as? Number)?.toInt() }
-            ?: return null
-        if (ids.isEmpty()) return 0
-
-        return try {
-            var deleted = 0
-            ids.chunked(DELETE_CHUNK_SIZE).forEach { chunk ->
-                val placeholders = chunk.joinToString(",") { "?" }
-                deleted += contentResolver.delete(
-                    Telephony.Sms.CONTENT_URI,
-                    "_id IN ($placeholders)",
-                    chunk.map { it.toString() }.toTypedArray(),
-                )
+            "isDefaultSms" -> result.success(access.isDefaultSms())
+            "setDefaultSms" -> launchRoleRequest(result)
+            "restoreDefaultSms" -> result.success(access.restoreDefaultSms(this))
+            "openDefaultSmsSettings" ->
+              result.success(access.openDefaultSmsSettings(this))
+            "querySms" -> {
+              val addr = (call.arguments as? Map<*, *>)?.get("address") as? String
+              result.success(access.querySms(addr))
             }
-            deleted
+            "deleteSmsBatch" -> {
+              val ids = (call.arguments as? List<*>)?.mapNotNull { (it as? Number)?.toInt() }
+              result.success(access.deleteSmsBatch(ids ?: emptyList()))
+            }
+            else -> result.notImplemented()
+          }
         } catch (e: Exception) {
-            Log.e("MainActivity", "deleteSmsBatch failed", e)
-            null
+          result.error("error", e.message, null)
         }
-    }
+      }
+  }
 
-    /**
-     * 系统真实 READ_SMS 状态。
-     *
-     * 必须同时看 checkSelfPermission **和** AppOps：
-     * 掉默认短信角色后（Flyme/Android），`checkSelfPermission` 仍返回
-     * granted，但 AppOps 会把 READ_SMS 置为 `ignore`。此时
-     * `request()` 不弹框（系统认为已有权限），`contentResolver.query`
-     * 只回空游标——用户看到「申请成功却读不到短信」。
-     */
-    private fun hasReadSmsPermission(): Boolean {
-        if (checkSelfPermission(android.Manifest.permission.READ_SMS) !=
-            PackageManager.PERMISSION_GRANTED
+  /** 优先 RoleManager 申请；失败则打开系统默认应用设置页。 */
+  private fun launchRoleRequest(result: MethodChannel.Result) {
+    if (access.isDefaultSms() == true) {
+      result.success("had")
+      return
+    }
+    try {
+      val rm = getSystemService(RoleManager::class.java)
+      val intent =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && rm != null && rm.isRoleAvailable(RoleManager.ROLE_SMS)
         ) {
-            return false
-        }
-        return isReadSmsAppOpAllowed()
-    }
-
-    /** AppOps 侧 READ_SMS 是否真正放行（MODE_ALLOWED）。 */
-    private fun isReadSmsAppOpAllowed(): Boolean {
-        return try {
-            val appOps = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
-            val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                appOps.unsafeCheckOpNoThrow(
-                    AppOpsManager.OPSTR_READ_SMS,
-                    Process.myUid(),
-                    packageName,
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                appOps.checkOpNoThrow(
-                    AppOpsManager.OPSTR_READ_SMS,
-                    Process.myUid(),
-                    packageName,
-                )
-            }
-            // MODE_IGNORED / MODE_ERRORED 都视为未放行。
-            mode == AppOpsManager.MODE_ALLOWED
-        } catch (e: Exception) {
-            Log.w("MainActivity", "isReadSmsAppOpAllowed failed", e)
-            true
-        }
-    }
-
-    /**
-     * 读取短信（收件箱 + 已发送 + 草稿）。
-     *
-     * 与 sms_advanced 插件查询路径并行提供一条自管通道：
-     * - 只按已知列名取值，避免插件对任意列 `getInt` 在 `creator` 等文本列上
-     *   抛异常导致 MethodChannel 回调崩溃（掉默认短信后更易触发）；
-     * - 同时查整表与分箱 URI 并按 `_id` 去重，覆盖非默认应用下整表 URI
-     *   被 OEM 返回空的情况；
-     * - 全路径 try/catch，SecurityException 映射为 permission，不让异常冒泡。
-     *
-     * @param arguments 可选 Map，`address` 非空时只返回该号码的短信。
-     * @return `{"messages": [...], "error": null|"permission"|"unknown"}`，
-     *         messages 为 Dart 侧可安全解析的 Map 列表。
-     */
-    private fun querySms(arguments: Any?): Map<String, Any?> {
-        // 无 READ_SMS 且不是默认短信应用时，provider 有的 OEM 会静默返回空游标，
-        // 有的才抛 SecurityException。这里显式判定，统一映射成 permission，
-        // 免得用户看到「申请成功却空列表」。
-        if (!hasReadSmsPermission() && getDefaultSmsApp() != packageName) {
-            return mapOf("messages" to emptyList<Any>(), "error" to "permission")
-        }
-
-        val address = (arguments as? Map<*, *>)?.get("address") as? String
-        val selection: String?
-        val selectionArgs: Array<String>?
-        if (address.isNullOrEmpty()) {
-            selection = null
-            selectionArgs = null
+          rm.createRequestRoleIntent(RoleManager.ROLE_SMS)
         } else {
-            selection = "${Telephony.Sms.ADDRESS} = ?"
-            selectionArgs = arrayOf(address)
+          null
         }
-
-        return try {
-            val byId = LinkedHashMap<Int, Map<String, Any?>>()
-            var sawSecurity = false
-            var sawOtherError = false
-
-            for (uri in SMS_QUERY_URIS) {
-                try {
-                    contentResolver.query(
-                        uri,
-                        SMS_QUERY_PROJECTION,
-                        selection,
-                        selectionArgs,
-                        null,
-                    ).use { cursor ->
-                        if (cursor == null) return@use
-                        while (cursor.moveToNext()) {
-                            val row = readSmsRow(cursor)
-                            val id = row["_id"] as? Int ?: continue
-                            // 整表 URI 与分箱 URI 会重复，按 _id 去重即可。
-                            byId.putIfAbsent(id, row)
-                        }
-                    }
-                } catch (e: SecurityException) {
-                    sawSecurity = true
-                    Log.w("MainActivity", "querySms permission denied on $uri", e)
-                } catch (e: Exception) {
-                    sawOtherError = true
-                    Log.e("MainActivity", "querySms failed on $uri", e)
-                }
-            }
-
-            Log.i(
-                "MainActivity",
-                "querySms done unique=${byId.size} security=$sawSecurity other=$sawOtherError " +
-                    "hasRead=${hasReadSmsPermission()}",
-            )
-
-            when {
-                byId.isNotEmpty() -> mapOf("messages" to byId.values.toList(), "error" to null)
-                // 有数据就以数据为准；全空时才区分是被拒绝还是查询失败。
-                sawSecurity -> mapOf("messages" to emptyList<Any>(), "error" to "permission")
-                sawOtherError -> mapOf("messages" to emptyList<Any>(), "error" to "unknown")
-                else -> mapOf("messages" to emptyList<Any>(), "error" to null)
-            }
-        } catch (e: Exception) {
-            Log.e("MainActivity", "querySms failed", e)
-            mapOf("messages" to emptyList<Any>(), "error" to "unknown")
-        }
+      if (intent != null && pendingRole == null) {
+        pendingRole = result
+        requestRole.launch(intent)
+      } else {
+        // 角色申请不可用 / 正在请求中 → 直接打开系统默认应用页
+        access.openDefaultSmsSettings(this)
+        result.success("no")
+      }
+    } catch (e: Exception) {
+      access.openDefaultSmsSettings(this)
+      result.success("no")
     }
-
-    private fun readSmsRow(cursor: Cursor): Map<String, Any?> {
-        fun col(name: String): Int = cursor.getColumnIndex(name)
-        fun longOrNull(index: Int): Long? =
-            if (index >= 0 && !cursor.isNull(index)) cursor.getLong(index) else null
-        fun intOrNull(index: Int): Int? =
-            if (index >= 0 && !cursor.isNull(index)) cursor.getInt(index) else null
-        fun stringOrNull(name: String): String? {
-            val index = col(name)
-            return if (index >= 0 && !cursor.isNull(index)) cursor.getString(index) else null
-        }
-
-        return mapOf(
-            "_id" to longOrNull(col(BaseColumns._ID))?.toInt(),
-            "thread_id" to longOrNull(col(Telephony.Sms.THREAD_ID))?.toInt(),
-            "address" to stringOrNull(Telephony.Sms.ADDRESS),
-            "body" to stringOrNull(Telephony.Sms.BODY),
-            "date" to longOrNull(col(Telephony.Sms.DATE)),
-            "date_sent" to longOrNull(col(Telephony.Sms.DATE_SENT)),
-            "read" to intOrNull(col(Telephony.Sms.READ)),
-            "type" to intOrNull(col(Telephony.Sms.TYPE)),
-            // 未进投影，仅当 provider 意外带上该列时才读到。
-            "sub_id" to intOrNull(col(Telephony.Sms.SUBSCRIPTION_ID)),
-        )
-    }
-
-    /**
-     * 判断某个包是否已安装。
-     *
-     * 未在本应用 `<queries>` 中声明的包，在 Android 11+ 的包可见性限制下会抛
-     * NameNotFoundException，因此这里按"不可见即未安装"处理。
-     */
-    private fun isPackageInstalled(pkg: String): Boolean {
-        return try {
-            packageManager.getPackageInfo(pkg, 0) != null
-        } catch (e: PackageManager.NameNotFoundException) {
-            false
-        }
-    }
-
-    /**
-     * 将默认短信应用交还给系统短信应用。
-     *
-     * Android Q(10) 起默认短信应用由 RoleManager 角色机制管控，
-     * Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT 对第三方应用失效，且
-     * RoleManager 只允许应用为自己申请角色、无法代他人释放。因此在 Q 及以上
-     * 只能引导用户到系统的"默认应用"设置页手动切换。
-     *
-     * Q 以下仍可用 ACTION_CHANGE_DEFAULT 直接指定目标包名，由系统弹窗确认。
-     *
-     * @return "settings" 表示已打开系统默认应用设置页（需用户手动切换）；
-     *         "ok" 表示已发起系统切换流程（需用户在系统对话框确认）；
-     *         "no" 表示未找到可切换的系统短信应用或发起失败。
-     */
-    private fun resetDefaultSmsApp(): String {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            return try {
-                startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
-                "settings"
-            } catch (e: Exception) {
-                "no"
-            }
-        }
-
-        val targets = listOf(
-            "com.android.mms",
-            "com.google.android.apps.messaging",
-        )
-        val installed = targets.firstOrNull(::isPackageInstalled) ?: return "no"
-
-        return try {
-            val intent = Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT)
-            intent.putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, installed)
-            startActivity(intent)
-            "ok"
-        } catch (e: Exception) {
-            "no"
-        }
-    }
+  }
 }
