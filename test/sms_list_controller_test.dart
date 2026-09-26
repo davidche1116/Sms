@@ -57,9 +57,16 @@ void main() {
     setChannelHandler(permissionChannel, (MethodCall call) async => 1);
     setChannelHandler(queryChannel, (MethodCall call) async {
       if (queryResult != null) throw queryResult;
-      // getAllSms 会按 Inbox/Sent/Draft 各查一次；只在收件箱返回数据，
+      // 回退路径会按 Inbox/Sent/Draft 各查一次；只在收件箱返回数据，
       // 保证列表长度可预期。
       return call.method == 'getInbox' ? twoMessages : <Map<String, dynamic>>[];
+    });
+    // 原生 querySms 未注册时 MissingPluginException → 回退插件。
+    setChannelHandler(appChannel, (MethodCall call) async {
+      if (call.method == 'querySms') {
+        throw MissingPluginException('querySms');
+      }
+      return null;
     });
   }
 
@@ -103,13 +110,76 @@ void main() {
       expect(messages, contains('Operation Failed'));
     });
 
-    test('无权限时提示权限缺失', () async {
+    test('无权限且查询为空时提示权限缺失', () async {
+      // 回归：掉默认短信后部分 ROM 会把 Permission.sms 误报为拒绝。
+      // 查询仍会执行；空结果 + 未授权才提示权限，而不是直接跳过查询。
       setChannelHandler(permissionChannel, (MethodCall call) async => 0);
+      setChannelHandler(appChannel, (MethodCall call) async {
+        if (call.method == 'querySms') {
+          throw MissingPluginException('querySms');
+        }
+        return null;
+      });
+      setChannelHandler(queryChannel, (MethodCall call) async {
+        return <Map<String, dynamic>>[];
+      });
 
       await controller.queryAll();
 
       expect(controller.isEmpty, true);
       expect(controller.loading.value, false);
+      expect(messages.first, contains('permission'));
+    });
+
+    test('权限状态误报为拒绝时仍能读出短信', () async {
+      // 核心回归：READ_SMS 可用但 Permission.sms.isGranted 为 false，
+      // 不得因此跳过查询导致"有权限却读不到短信"。
+      setChannelHandler(appChannel, (MethodCall call) async {
+        if (call.method == 'querySms') {
+          throw MissingPluginException('querySms');
+        }
+        return null;
+      });
+      setChannelHandler(queryChannel, (MethodCall call) async {
+        return call.method == 'getInbox'
+            ? twoMessages
+            : <Map<String, dynamic>>[];
+      });
+      setChannelHandler(permissionChannel, (MethodCall call) async => 0);
+
+      await controller.queryAll();
+
+      expect(controller.count, 2);
+      expect(messages, isEmpty);
+    });
+
+    test('原生 querySms 返回数据时直接使用', () async {
+      setChannelHandler(appChannel, (MethodCall call) async {
+        if (call.method == 'querySms') {
+          return <String, dynamic>{'messages': twoMessages, 'error': null};
+        }
+        return null;
+      });
+
+      await controller.queryAll();
+
+      expect(controller.count, 2);
+    });
+
+    test('原生 querySms 返回 permission 时提示权限', () async {
+      setChannelHandler(appChannel, (MethodCall call) async {
+        if (call.method == 'querySms') {
+          return <String, dynamic>{
+            'messages': <dynamic>[],
+            'error': 'permission',
+          };
+        }
+        return null;
+      });
+
+      await controller.queryAll();
+
+      expect(controller.isEmpty, true);
       expect(messages.first, contains('permission'));
     });
   });

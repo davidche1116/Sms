@@ -2,6 +2,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:sms_advanced/sms_advanced.dart';
 
+/// 平台拒绝读取短信（无 READ_SMS 等）。
+///
+/// 与"查询失败"区分开：调用方应提示去授权，而不是笼统的"操作失败"。
+class SmsQueryPermissionException implements Exception {
+  const SmsQueryPermissionException();
+
+  @override
+  String toString() => 'SmsQueryPermissionException';
+}
+
 /// 短信数据访问层：统一封装 sms_advanced 插件与默认短信应用平台通道，
 /// UI 层不直接接触 MethodChannel 与插件查询/删除 API，便于替换底层实现
 /// （如未来用自写 platform channel 替换 sms_advanced 时只改这里）。
@@ -10,15 +20,110 @@ class SmsRepository {
   static const String defaultPackageId = 'com.dc16.sms';
 
   /// 读取设备上的全部短信。
-  Future<List<SmsMessage>> getAllSms() => SmsQuery().getAllSms;
+  Future<List<SmsMessage>> getAllSms() => _querySms();
 
   /// 按号码查询该地址的全部短信。
   ///
-  /// 必须显式传全部类型：`querySms` 的 kinds 默认是 `[SmsQueryKind.Inbox]`，
-  /// 不传就只回收件箱，与"全部短信"（Sent+Inbox+Draft）口径不一致，
-  /// 用户会看到"同号码"结果比预期少。
+  /// 必须覆盖全部类型（Sent+Inbox+Draft）：插件 `querySms` 的 kinds 默认是
+  /// `[SmsQueryKind.Inbox]`，不传就只回收件箱，与"全部短信"口径不一致。
   Future<List<SmsMessage>> queryByAddress(String? address) =>
-      SmsQuery().querySms(address: address, kinds: SmsQueryKind.values);
+      _querySms(address: address);
+
+  /// 统一查询入口：优先原生通道，缺失/失败时回退 sms_advanced。
+  ///
+  /// 原生路径只投影已知列，避免插件对 `creator` 等文本列 `getInt` 抛异常
+  /// 把 MethodChannel 打崩（表现为闪退）；掉默认短信应用后该问题更易触发。
+  Future<List<SmsMessage>> _querySms({String? address}) async {
+    try {
+      return await _querySmsNative(address);
+    } on MissingPluginException catch (e) {
+      debugPrint('querySms native missing, fall back: $e');
+      return _querySmsViaPlugin(address);
+    } on SmsQueryPermissionException {
+      rethrow;
+    } catch (e) {
+      debugPrint('querySms native failed, fall back: $e');
+      return _querySmsViaPlugin(address);
+    }
+  }
+
+  Future<List<SmsMessage>> _querySmsNative(String? address) async {
+    final dynamic raw = await _platform.invokeMethod<dynamic>(
+      'querySms',
+      address == null || address.isEmpty
+          ? null
+          : <String, dynamic>{'address': address},
+    );
+    if (raw is! Map) {
+      throw StateError('querySms returned unexpected payload: $raw');
+    }
+    final dynamic error = raw['error'];
+    if (error == 'permission') {
+      throw const SmsQueryPermissionException();
+    }
+    if (error != null) {
+      throw PlatformException(code: 'querySms', message: '$error');
+    }
+    final List<dynamic> rows =
+        (raw['messages'] as List<dynamic>?) ?? const <dynamic>[];
+    return rows
+        .map((dynamic row) {
+          final SmsMessage message = SmsMessage.fromJson(
+            Map<dynamic, dynamic>.from(row as Map),
+          );
+          message.kind = _kindFromType(row['type'] as int?);
+          return message;
+        })
+        .toList(growable: false);
+  }
+
+  /// 插件兜底：按类型分次查询且不排序，避免
+  /// 1) 单类失败拖垮整次 getAllSms；
+  /// 2) 插件 `SmsMessage.compareTo` 对 null id 强解包崩溃。
+  Future<List<SmsMessage>> _querySmsViaPlugin(String? address) async {
+    final List<SmsMessage> result = <SmsMessage>[];
+    Object? lastError;
+    for (final SmsQueryKind kind in SmsQueryKind.values) {
+      try {
+        result.addAll(
+          await SmsQuery().querySms(
+            address: address,
+            kinds: <SmsQueryKind>[kind],
+            sort: false,
+          ),
+        );
+      } catch (e) {
+        lastError = e;
+        debugPrint('querySms plugin $kind failed: $e');
+      }
+    }
+    if (result.isEmpty && lastError != null) {
+      if (lastError is PlatformException &&
+          (lastError.code == '#01' ||
+              (lastError.message ?? '').toLowerCase().contains('permission'))) {
+        throw const SmsQueryPermissionException();
+      }
+      // 保底抛出，让上层走"操作失败"而不是静默空列表。
+      throw lastError is Exception ? lastError : Exception('$lastError');
+    }
+    return result;
+  }
+
+  /// Telephony.Sms.TYPE → 插件语义的 kind（收件箱/已发送/草稿）。
+  static SmsMessageKind _kindFromType(int? type) {
+    // 1=INBOX 2=SENT 3=DRAFT 4=OUTBOX 5=FAILED 6=QUEUED
+    switch (type) {
+      case 2:
+      case 4:
+      case 5:
+      case 6:
+        return SmsMessageKind.Sent;
+      case 3:
+        return SmsMessageKind.Draft;
+      default:
+        return SmsMessageKind.Received;
+    }
+  }
 
   /// 按 id + threadId 删除单条短信，返回 null/true/false 由插件语义决定。
   Future<bool?> removeSmsById(int id, int threadId) =>

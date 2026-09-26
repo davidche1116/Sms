@@ -23,6 +23,16 @@ void main() {
           return 0;
         });
 
+    // 本项目原生查询通道：未实现 querySms，回退 sms_advanced。
+    const appChannel = MethodChannel('com.dc16.sms/smsApp');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(appChannel, (MethodCall call) async {
+          if (call.method == 'querySms') {
+            throw MissingPluginException('querySms');
+          }
+          return null;
+        });
+
     // sms_advanced：短信库为空。
     const queryChannel = MethodChannel(
       'plugins.elyudde.com/querySMS',
@@ -35,19 +45,14 @@ void main() {
   });
 
   tearDown(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(
-          const MethodChannel('flutter.baseflow.com/permissions/methods'),
-          null,
-        );
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(
-          const MethodChannel(
-            'plugins.elyudde.com/querySMS',
-            JSONMethodCodec(),
-          ),
-          null,
-        );
+    for (final MethodChannel channel in <MethodChannel>[
+      const MethodChannel('flutter.baseflow.com/permissions/methods'),
+      const MethodChannel('com.dc16.sms/smsApp'),
+      const MethodChannel('plugins.elyudde.com/querySMS', JSONMethodCodec()),
+    ]) {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    }
   });
 
   testWidgets('App boots and shows empty SMS state', (

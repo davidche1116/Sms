@@ -3,7 +3,9 @@ package com.dc16.sms
 import android.app.role.RoleManager
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.database.Cursor
 import android.os.Build
+import android.provider.BaseColumns
 import android.provider.Settings
 import android.provider.Telephony
 import android.util.Log
@@ -26,6 +28,22 @@ class MainActivity : FlutterFragmentActivity() {
      */
     private val DELETE_CHUNK_SIZE = 900
 
+    /**
+     * 只投影 Dart 侧真正消费的列。不要改成 `null`（全列）：部分 ROM 会在
+     * 结果里塞进 `creator` 等文本列，插件式 `getInt` 读它们会抛异常。
+     */
+    private val SMS_QUERY_PROJECTION = arrayOf(
+        BaseColumns._ID,
+        Telephony.Sms.THREAD_ID,
+        Telephony.Sms.ADDRESS,
+        Telephony.Sms.BODY,
+        Telephony.Sms.DATE,
+        Telephony.Sms.DATE_SENT,
+        Telephony.Sms.READ,
+        Telephony.Sms.TYPE,
+        Telephony.Sms.SUBSCRIPTION_ID,
+    )
+
     // startActivityForResult 已废弃，改用 Activity Result API。
     // 选择结果通过 onResume 后的 getDefaultSmsApp 重新读取，无需在此处理。
     private val roleRequestLauncher =
@@ -34,12 +52,20 @@ class MainActivity : FlutterFragmentActivity() {
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "getDefaultSmsApp" -> result.success(getDefaultSmsApp())
-                "setDefaultSmsApp" -> result.success(setDefaultSmsApp())
-                "resetDefaultSmsApp" -> result.success(resetDefaultSmsApp())
-                "deleteSmsBatch" -> result.success(deleteSmsBatch(call.arguments))
-                else -> result.notImplemented()
+            // 通道回调里任何未捕获异常都会变成进程崩溃（用户看到的"闪退"）。
+            // 统一兜住后回 error，由 Dart 侧按失败处理。
+            try {
+                when (call.method) {
+                    "getDefaultSmsApp" -> result.success(getDefaultSmsApp())
+                    "setDefaultSmsApp" -> result.success(setDefaultSmsApp())
+                    "resetDefaultSmsApp" -> result.success(resetDefaultSmsApp())
+                    "deleteSmsBatch" -> result.success(deleteSmsBatch(call.arguments))
+                    "querySms" -> result.success(querySms(call.arguments))
+                    else -> result.notImplemented()
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "method ${call.method} failed", e)
+                result.error("error", e.message, null)
             }
         }
     }
@@ -123,6 +149,82 @@ class MainActivity : FlutterFragmentActivity() {
             Log.e("MainActivity", "deleteSmsBatch failed", e)
             null
         }
+    }
+
+    /**
+     * 读取短信（收件箱 + 已发送 + 草稿）。
+     *
+     * 与 sms_advanced 插件查询路径并行提供一条自管通道：
+     * - 只按已知列名取值，避免插件对任意列 `getInt` 在 `creator` 等文本列上
+     *   抛 NumberFormatException / IllegalStateException 导致 MethodChannel
+     *   回调崩溃（掉默认短信后更易触发）；
+     * - 全路径 try/catch，SecurityException 映射为 permission，不让异常冒泡。
+     *
+     * @param arguments 可选 Map，`address` 非空时只返回该号码的短信。
+     * @return `{"messages": [...], "error": null|"permission"|"unknown"}`，
+     *         messages 为 SmsMessage.fromJson 可解析的 Map 列表。
+     */
+    private fun querySms(arguments: Any?): Map<String, Any?> {
+        val address = (arguments as? Map<*, *>)?.get("address") as? String
+        val selection: String?
+        val selectionArgs: Array<String>?
+        if (address.isNullOrEmpty()) {
+            selection = null
+            selectionArgs = null
+        } else {
+            selection = "${Telephony.Sms.ADDRESS} = ?"
+            selectionArgs = arrayOf(address)
+        }
+
+        return try {
+            val messages = ArrayList<Map<String, Any?>>(64)
+            // content://sms 一张表覆盖 inbox/sent/draft 等全部类型，避免
+            // 分 URI 查询时某一类失败导致整次查询落空。
+            contentResolver.query(
+                Telephony.Sms.CONTENT_URI,
+                SMS_QUERY_PROJECTION,
+                selection,
+                selectionArgs,
+                null,
+            ).use { cursor ->
+                if (cursor != null) {
+                    while (cursor.moveToNext()) {
+                        messages.add(readSmsRow(cursor))
+                    }
+                }
+            }
+            mapOf("messages" to messages, "error" to null)
+        } catch (e: SecurityException) {
+            Log.w("MainActivity", "querySms permission denied", e)
+            mapOf("messages" to emptyList<Any>(), "error" to "permission")
+        } catch (e: Exception) {
+            Log.e("MainActivity", "querySms failed", e)
+            mapOf("messages" to emptyList<Any>(), "error" to "unknown")
+        }
+    }
+
+    private fun readSmsRow(cursor: Cursor): Map<String, Any?> {
+        fun col(name: String): Int = cursor.getColumnIndex(name)
+        fun longOrNull(index: Int): Long? =
+            if (index >= 0 && !cursor.isNull(index)) cursor.getLong(index) else null
+        fun intOrNull(index: Int): Int? =
+            if (index >= 0 && !cursor.isNull(index)) cursor.getInt(index) else null
+        fun stringOrNull(name: String): String? {
+            val index = col(name)
+            return if (index >= 0 && !cursor.isNull(index)) cursor.getString(index) else null
+        }
+
+        return mapOf(
+            "_id" to longOrNull(col(BaseColumns._ID))?.toInt(),
+            "thread_id" to longOrNull(col(Telephony.Sms.THREAD_ID))?.toInt(),
+            "address" to stringOrNull(Telephony.Sms.ADDRESS),
+            "body" to stringOrNull(Telephony.Sms.BODY),
+            "date" to longOrNull(col(Telephony.Sms.DATE)),
+            "date_sent" to longOrNull(col(Telephony.Sms.DATE_SENT)),
+            "read" to intOrNull(col(Telephony.Sms.READ)),
+            "type" to intOrNull(col(Telephony.Sms.TYPE)),
+            "sub_id" to intOrNull(col(Telephony.Sms.SUBSCRIPTION_ID)),
+        )
     }
 
     /**
