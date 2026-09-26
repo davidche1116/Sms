@@ -29,20 +29,17 @@ class SmsRepository {
   Future<List<SmsMessage>> queryByAddress(String? address) =>
       _querySms(address: address);
 
-  /// 统一查询入口：优先原生通道，缺失/失败时回退 sms_advanced。
+  /// 统一查询入口：只走原生多 URI；原生通道缺失时才回退插件。
   ///
-  /// 原生路径只投影已知列，避免插件对 `creator` 等文本列 `getInt` 抛异常
-  /// 把 MethodChannel 打崩（表现为闪退）；掉默认短信应用后该问题更易触发。
+  /// 刻意不「原生 + 插件合并」：sms_advanced 的 `readSms` 会对任意列
+  /// `getInt`，碰到 `creator` 等文本列抛出的异常没有被它自己接住，会直接
+  /// 把进程打崩（掉默认短信后该列更容易有值，表现为闪退）。插件只作
+  /// MissingPluginException 时的兜底，平时不调用。
   Future<List<SmsMessage>> _querySms({String? address}) async {
     try {
       return await _querySmsNative(address);
     } on MissingPluginException catch (e) {
-      debugPrint('querySms native missing, fall back: $e');
-      return _querySmsViaPlugin(address);
-    } on SmsQueryPermissionException {
-      rethrow;
-    } catch (e) {
-      debugPrint('querySms native failed, fall back: $e');
+      debugPrint('querySms native missing, fall back to plugin: $e');
       return _querySmsViaPlugin(address);
     }
   }
@@ -67,14 +64,35 @@ class SmsRepository {
     final List<dynamic> rows =
         (raw['messages'] as List<dynamic>?) ?? const <dynamic>[];
     return rows
-        .map((dynamic row) {
-          final SmsMessage message = SmsMessage.fromJson(
-            Map<dynamic, dynamic>.from(row as Map),
-          );
-          message.kind = _kindFromType(row['type'] as int?);
-          return message;
-        })
+        .map(
+          (dynamic row) =>
+              _fromNativeRow(Map<dynamic, dynamic>.from(row as Map)),
+        )
         .toList(growable: false);
+  }
+
+  /// 安全解析原生行：不用 `SmsMessage.fromJson`。
+  ///
+  /// `fromJson` 在 `containsKey('date')` 且值为 null 时会
+  /// `DateTime.fromMillisecondsSinceEpoch(null)` 直接抛错；原生侧会把
+  /// 空列以 null 放进 map，必须自己判空。
+  static SmsMessage _fromNativeRow(Map<dynamic, dynamic> data) {
+    return SmsMessage(
+      data['address'] as String?,
+      data['body'] as String?,
+      id: (data['_id'] as num?)?.toInt(),
+      threadId: (data['thread_id'] as num?)?.toInt(),
+      sim: (data['sub_id'] as num?)?.toInt(),
+      read: (data['read'] as num?) == 1,
+      date: _dateFrom(data['date']),
+      dateSent: _dateFrom(data['date_sent']),
+      kind: _kindFromType((data['type'] as num?)?.toInt()),
+    );
+  }
+
+  static DateTime? _dateFrom(Object? value) {
+    if (value is num) return DateTime.fromMillisecondsSinceEpoch(value.toInt());
+    return null;
   }
 
   /// 插件兜底：按类型分次查询且不排序，避免

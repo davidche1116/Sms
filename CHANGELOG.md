@@ -13,9 +13,11 @@
 
 ### Fixed
 
-- fix(query): 新增原生 `querySms` 通道（只投影已知列、全路径 try/catch），优先于 sms_advanced 插件查询；修复掉默认短信后插件对 `creator` 等文本列 `getInt` 抛异常导致的闪退与读不到短信
+- fix(query): 新增原生 `querySms` 通道，按整表 + 收件箱/已发送/草稿多 URI 合并去重；只投影已知列、按列名安全取值。修复掉默认短信后 OEM 对 `content://sms` 返回空、有 READ_SMS 却看不到短信
+- fix(query): 日常查询不再调用 sms_advanced（其 `readSms` 对 `creator` 等文本列 `getInt` 未捕获会打崩进程）；仅原生通道缺失时才回退插件，修复掉默认后的闪退
+- fix(query): 原生行解析不用 `SmsMessage.fromJson`，`date` 为 null 时不再抛错清空整次查询
 - fix(query): 查询不再以 `Permission.sms.isGranted` 作为前置门闩，修复交还默认短信角色后权限误报为拒绝、有 READ_SMS 却读不到任何短信
-- fix(query): 插件回退路径改为按类型分次查询且 `sort:false`，单类失败不再拖垮整次查询，并避开插件 `compareTo` 对 null id 强解包
+- fix(lifecycle): 从系统设置返回后自动重查短信列表
 - fix(app): 首次短信查询推迟到首帧之后，避免国际化对象未初始化导致的潜在崩溃
 - fix(default-sms): 查询默认短信应用发生平台异常时按失败处理（fail-safe），不再继续删除
 - fix(query): 关键词过滤对 null 正文做空安全处理，不再强解包崩溃

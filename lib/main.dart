@@ -64,7 +64,7 @@ class SmsHomePage extends StatefulWidget {
 
 /// 列表页只负责渲染与交互呈现：业务状态与规则都在 SmsListController 里，
 /// 这里不保存短信数据、不重复实现过滤与删除逻辑。
-class _SmsHomePageState extends State<SmsHomePage> {
+class _SmsHomePageState extends State<SmsHomePage> with WidgetsBindingObserver {
   late SmsListController _controller;
   final FocusNode _focusNode = FocusNode();
   late AppLocalizations appLocalizations;
@@ -489,6 +489,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // 系统 UI 一次性配置：原先放在 build 里，每次重建都会触发
     // platform channel 调用。透明导航栏 + edge-to-edge 由系统自动
     // 处理图标对比度，无需按主题逐帧更新。
@@ -496,6 +497,15 @@ class _SmsHomePageState extends State<SmsHomePage> {
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(systemNavigationBarColor: Colors.transparent),
     );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 从系统设置（改默认短信/权限）返回后自动重查。掉默认短信角色时系统可能
+    // 杀进程，冷启动会走 didChangeDependencies；进程仍在时靠这里刷新。
+    if (state == AppLifecycleState.resumed && _didInitQuery) {
+      _controller.queryAll();
+    }
   }
 
   @override
@@ -520,6 +530,7 @@ class _SmsHomePageState extends State<SmsHomePage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _focusNode.dispose();
     _controller.dispose();
     super.dispose();

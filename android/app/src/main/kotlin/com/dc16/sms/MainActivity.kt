@@ -29,8 +29,12 @@ class MainActivity : FlutterFragmentActivity() {
     private val DELETE_CHUNK_SIZE = 900
 
     /**
-     * 只投影 Dart 侧真正消费的列。不要改成 `null`（全列）：部分 ROM 会在
-     * 结果里塞进 `creator` 等文本列，插件式 `getInt` 读它们会抛异常。
+     * 查询用投影：只声明 Dart 侧真正消费的列。
+     *
+     * 不用 `null`（全列）是因为部分 ROM 会在结果里塞进 `creator` 等文本列；
+     * 也不把 `sub_id` 等可缺列写死进投影——某些 OEM 的 SMS provider 对
+     * 不存在的列会直接让整次 query 抛异常，表现为空列表。
+     * 读取侧一律走 [readSmsRow] 按列名安全取值。
      */
     private val SMS_QUERY_PROJECTION = arrayOf(
         BaseColumns._ID,
@@ -41,7 +45,21 @@ class MainActivity : FlutterFragmentActivity() {
         Telephony.Sms.DATE_SENT,
         Telephony.Sms.READ,
         Telephony.Sms.TYPE,
-        Telephony.Sms.SUBSCRIPTION_ID,
+    )
+
+    /**
+     * 多 URI 合并查询。
+     *
+     * `content://sms`（整表）在「非默认短信应用」场景下，部分 OEM（含
+     * HyperOS/MIUI）会返回空游标或直接无数据；而 `content://sms/inbox|sent|draft`
+     * 在仅有 READ_SMS 时仍可读。这里把整表与分箱 URI 都查一遍并按 `_id` 去重，
+     * 覆盖掉默认前后两种访问路径。
+     */
+    private val SMS_QUERY_URIS = listOf(
+        Telephony.Sms.CONTENT_URI,
+        Telephony.Sms.Inbox.CONTENT_URI,
+        Telephony.Sms.Sent.CONTENT_URI,
+        Telephony.Sms.Draft.CONTENT_URI,
     )
 
     // startActivityForResult 已废弃，改用 Activity Result API。
@@ -156,13 +174,14 @@ class MainActivity : FlutterFragmentActivity() {
      *
      * 与 sms_advanced 插件查询路径并行提供一条自管通道：
      * - 只按已知列名取值，避免插件对任意列 `getInt` 在 `creator` 等文本列上
-     *   抛 NumberFormatException / IllegalStateException 导致 MethodChannel
-     *   回调崩溃（掉默认短信后更易触发）；
+     *   抛异常导致 MethodChannel 回调崩溃（掉默认短信后更易触发）；
+     * - 同时查整表与分箱 URI 并按 `_id` 去重，覆盖非默认应用下整表 URI
+     *   被 OEM 返回空的情况；
      * - 全路径 try/catch，SecurityException 映射为 permission，不让异常冒泡。
      *
      * @param arguments 可选 Map，`address` 非空时只返回该号码的短信。
      * @return `{"messages": [...], "error": null|"permission"|"unknown"}`，
-     *         messages 为 SmsMessage.fromJson 可解析的 Map 列表。
+     *         messages 为 Dart 侧可安全解析的 Map 列表。
      */
     private fun querySms(arguments: Any?): Map<String, Any?> {
         val address = (arguments as? Map<*, *>)?.get("address") as? String
@@ -177,26 +196,43 @@ class MainActivity : FlutterFragmentActivity() {
         }
 
         return try {
-            val messages = ArrayList<Map<String, Any?>>(64)
-            // content://sms 一张表覆盖 inbox/sent/draft 等全部类型，避免
-            // 分 URI 查询时某一类失败导致整次查询落空。
-            contentResolver.query(
-                Telephony.Sms.CONTENT_URI,
-                SMS_QUERY_PROJECTION,
-                selection,
-                selectionArgs,
-                null,
-            ).use { cursor ->
-                if (cursor != null) {
-                    while (cursor.moveToNext()) {
-                        messages.add(readSmsRow(cursor))
+            val byId = LinkedHashMap<Int, Map<String, Any?>>()
+            var sawSecurity = false
+            var sawOtherError = false
+
+            for (uri in SMS_QUERY_URIS) {
+                try {
+                    contentResolver.query(
+                        uri,
+                        SMS_QUERY_PROJECTION,
+                        selection,
+                        selectionArgs,
+                        null,
+                    ).use { cursor ->
+                        if (cursor == null) return@use
+                        while (cursor.moveToNext()) {
+                            val row = readSmsRow(cursor)
+                            val id = row["_id"] as? Int ?: continue
+                            // 整表 URI 与分箱 URI 会重复，按 _id 去重即可。
+                            byId.putIfAbsent(id, row)
+                        }
                     }
+                } catch (e: SecurityException) {
+                    sawSecurity = true
+                    Log.w("MainActivity", "querySms permission denied on $uri", e)
+                } catch (e: Exception) {
+                    sawOtherError = true
+                    Log.e("MainActivity", "querySms failed on $uri", e)
                 }
             }
-            mapOf("messages" to messages, "error" to null)
-        } catch (e: SecurityException) {
-            Log.w("MainActivity", "querySms permission denied", e)
-            mapOf("messages" to emptyList<Any>(), "error" to "permission")
+
+            when {
+                byId.isNotEmpty() -> mapOf("messages" to byId.values.toList(), "error" to null)
+                // 有数据就以数据为准；全空时才区分是被拒绝还是查询失败。
+                sawSecurity -> mapOf("messages" to emptyList<Any>(), "error" to "permission")
+                sawOtherError -> mapOf("messages" to emptyList<Any>(), "error" to "unknown")
+                else -> mapOf("messages" to emptyList<Any>(), "error" to null)
+            }
         } catch (e: Exception) {
             Log.e("MainActivity", "querySms failed", e)
             mapOf("messages" to emptyList<Any>(), "error" to "unknown")
@@ -223,6 +259,7 @@ class MainActivity : FlutterFragmentActivity() {
             "date_sent" to longOrNull(col(Telephony.Sms.DATE_SENT)),
             "read" to intOrNull(col(Telephony.Sms.READ)),
             "type" to intOrNull(col(Telephony.Sms.TYPE)),
+            // 未进投影，仅当 provider 意外带上该列时才读到。
             "sub_id" to intOrNull(col(Telephony.Sms.SUBSCRIPTION_ID)),
         )
     }

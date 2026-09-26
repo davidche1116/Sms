@@ -107,6 +107,39 @@ void main() {
         throwsA(isA<SmsQueryPermissionException>()),
       );
     });
+
+    test('date 为 null 的行不会让整次查询崩溃', () async {
+      // 回归：SmsMessage.fromJson 对 containsKey('date') 且值为 null 会
+      // DateTime.fromMillisecondsSinceEpoch(null) 抛错；原生侧空列就是 null。
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(appChannel, (MethodCall call) async {
+            return <String, dynamic>{
+              'messages': <Map<String, dynamic>>[
+                <String, dynamic>{
+                  '_id': 9,
+                  'thread_id': 1,
+                  'address': '10086',
+                  'body': 'draft-like',
+                  'date': null,
+                  'date_sent': null,
+                  'read': 0,
+                  'type': 3,
+                },
+              ],
+              'error': null,
+            };
+          });
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(appChannel, null),
+      );
+
+      final List<SmsMessage> messages = await SmsRepository().getAllSms();
+
+      expect(messages, hasLength(1));
+      expect(messages.single.date, isNull);
+      expect(messages.single.kind, SmsMessageKind.Draft);
+    });
   });
 
   group('isDefaultSmsApp', () {
