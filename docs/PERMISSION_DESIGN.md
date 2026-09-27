@@ -59,8 +59,8 @@ Manifest 仅声明上述组件 + `READ_SMS`；**不申请** `SEND_SMS`/`RECEIVE_
 | `isDefaultSms` | `true` / `false` / `null`（RoleManager 异常） |
 | `setDefaultSms` | `had` / `no`（已拉起 `createRequestRoleIntent`） / `error` |
 | `openDefaultSmsSettings` | `ok` / `no`（`ACTION_MANAGE_DEFAULT_APPS_SETTINGS`） |
-| `querySms` `{address?}` | `{messages, error: null\|"permission"\|"unknown"}` |
-| `deleteSmsBatch` `[ids]` | 行数 / `null`（非默认或失败） |
+| `querySms` `{address?, limit?, offset?}` | `{messages, total, error: null\|"permission"\|"unknown"}`（分页/明细见 [CHANNEL_CONTRACT.md](CHANNEL_CONTRACT.md)） |
+| `deleteSmsBatch` `[ids]` | 行数 / `null`（非默认或失败）；UI 删除入口均先确认 |
 
 ### querySms
 

@@ -2,6 +2,7 @@
 
 > 范围：`querySms` / `deleteSmsBatch` 的完整规格。  
 > 参考：老项目 `sms_advanced` 实战坑 + Android 官方 `Telephony.Sms`。  
+> 线协议字面量与枚举对照以 [CHANNEL_CONTRACT.md](CHANNEL_CONTRACT.md) 为准。  
 > **本阶段只定设计，不写实现。**
 
 ---
@@ -212,7 +213,7 @@ ids.chunked(900)     // SQLITE_MAX_VARIABLE_NUMBER 默认 999
 ### 6.4 单条删除
 
 - 同一批量路径：`deleteSmsBatch([id])`，不再走插件 `removeSmsById`。
-- UI「快速删除」：先本地移除，再调批量接口；失败 toast（2.0 可不做撤销）。
+- UI 单条删除（左滑 / 动作 Sheet）与多选 / FAB **一律先弹确认**（P0-2）：确认成功才删，取消或失败**回弹** UI（滑删卡片滑回）；无撤销。
 
 ### 6.5 与查询的一致性
 
@@ -351,7 +352,7 @@ SmsItem { id, threadId, address, body, dateMs, read, type, subId, kind }
 
 1. 查询是否包含 **Outbox/FAILED**（整表 URI 会带上）？建议 **要**，type 映射为 Sent，便于清理。  
 2. 批量删除上限 UI（如 >3000 条）是否保留「提示后继续」？（1.x 有）  
-3. 快速删除是否要「撤销」？建议 **v1 不做**。
+3. 快速删除是否要「撤销」？建议 **v1 不做**（已落地：无撤销；所有删除入口先确认，失败回弹）。
 
 ---
 

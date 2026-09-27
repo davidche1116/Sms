@@ -123,11 +123,11 @@ setDefaultSms 返回
 |------|------|------|------|
 | 单击 | — | — | 开动作 Sheet |
 | 长按 | — | — | 进多选 |
-| 左滑删除 | 需默认（否则 toast） | 快速删 1 条，**无撤销** | 删后 `_load()` |
+| 左滑删除 | 需默认（否则 toast） | **确认弹层** → 删 1 条，**无撤销**；取消/失败卡片回弹 | 删后 `_load()` |
 | 同号短信 | — | — | `address=` 过滤 + Chip |
 | 同卡短信 | — | — | 本地 sim 过滤 + Chip |
 | 复制号码/正文 | — | — | 系统剪贴板 |
-| 快速删除 | 需默认 | 无确认、无撤销 | `_load()` |
+| 删除 | 需默认 | **与其他删除入口一样先确认**；取消/失败不改列表，**无撤销** | `_load()` |
 | 移出列表 | — | **不**删系统库 | 仅本地隐藏 |
 
 ### 4.4 FAB（垃圾桶）
@@ -155,10 +155,10 @@ setDefaultSms 返回
 _load()
   hasRead = hasReadSms()          // checkSelf + AppOps
   if (!hasRead && !isDefault) → NeedPerm
-  else querySms(address?)       // 多 URI 合并
+  else querySms(limit/offset)    // 多 URI 合并；分页见 CHANNEL_CONTRACT / QUERY_DELETE
        → List / Empty / 错误提示
 
-delete(ids)
+delete(ids)                       // 入口先走确认弹层（左滑取消/失败回弹）
   if (!isDefault) → 引导设默认
   else deleteSmsBatch(ids)      // chunk 900
        → _load()
@@ -166,6 +166,8 @@ delete(ids)
 
 - 客户端过滤：关键词 / 日期 / 同号 / 同卡（不重复打库）。
 - `id` 一律用 `_id`，不用下标。
+- 查询分页：`limit/offset` + `total`（已加载 X / total）；筛选时补齐全量。导出「全部」必须 `queryAll()`。
+- 类型化返回：`SmsRepository` 把线协议收成 `SmsQueryPage` / `DeleteBatchResult` / `InsertBatchResult` 等，枚举线值见 [CHANNEL_CONTRACT.md](CHANNEL_CONTRACT.md)。
 
 ---
 
@@ -223,8 +225,8 @@ delete(ids)
 | 2 | 点申请 → 允许 | 列表/空态 |
 | 3 | 有数据 → 筛选关键词 | 列表变短 + Chip |
 | 4 | 点卡片 → 同号 | Chip + 过滤 |
-| 5 | 左滑快删（非默认） | toast 去设默认 |
-| 6 | 设默认后快删 | 秒删 + 列表刷新 |
+| 5 | 左滑删（非默认） | toast 去设默认 |
+| 6 | 设默认后左滑删 | 确认弹层 → 删除 → 列表刷新 |
 | 7 | FAB 删全部 | 确认（>3000 有提示）→ 进度/结果 |
 | 8 | 多选导出 | 系统分享 CSV |
 | 9 | 设置改主题色 | 全局换色 |
@@ -238,7 +240,7 @@ delete(ids)
 |------|------|
 | 删除成功 | 已删除 n 条 |
 | 删除失败 | 删除失败，请设为默认短信应用 |
-| 快速删除 | 已删除 1 条 |
+| 删除单条（确认后） | 已删除 1 条 |
 | 移出列表 | 已移出列表 |
 | 复制 | 已复制号码/正文 |
 | 权限申请后成功 | 已可读取短信 |

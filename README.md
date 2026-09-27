@@ -106,7 +106,10 @@ android/app/src/main/kotlin/com/davidche1116/sms/
 - [INTERACTION_DESIGN.md](docs/INTERACTION_DESIGN.md) — 交互与状态
 - [PERMISSION_DESIGN.md](docs/PERMISSION_DESIGN.md) — 权限模型
 - [QUERY_DELETE_DESIGN.md](docs/QUERY_DELETE_DESIGN.md) — 查询 / 删除契约
+- [CHANNEL_CONTRACT.md](docs/CHANNEL_CONTRACT.md) — MethodChannel 线协议（方法 / 枚举线值 / 错误码 / 双端 `ChannelCodes`）
 - [TODO.md](docs/TODO.md) — 施工清单与回归记录
+
+贡献流程与测试约定见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 隐私
 
