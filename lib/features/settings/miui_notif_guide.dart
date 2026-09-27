@@ -75,35 +75,39 @@ Future<MiuiGuideAction?> showMiuiNotificationSmsSheet(BuildContext context) {
 /// 申请读权限，成功后在 MIUI 上自动跟上「通知类短信」引导。
 ///
 /// 返回是否拿到 READ_SMS。MIUI 引导不阻塞返回值。
+/// 系统超时 / Activity 销毁未回包时 toast「系统未返回结果，可在设置中手动开启」，
+/// 不把超时误报成用户拒绝。
 Future<bool> requestReadSmsWithMiuiGuide(
   BuildContext context,
   SmsRepository repo, {
   Future<void> Function()? onRefresh,
 }) async {
-  final ok = await repo.requestReadSms();
-  if (!context.mounted) return ok;
+  final messenger = ScaffoldMessenger.of(context);
+  final r = await repo.requestReadSms();
+  if (!context.mounted) return r == RequestReadSmsResult.granted;
 
-  if (!ok) {
-    ScaffoldMessenger.of(context)
+  void toast(String msg, {int seconds = 2}) {
+    messenger
       ..clearSnackBars()
       ..showSnackBar(
-        const SnackBar(
-          content: Text('仍未获得权限，可到系统设置开启'),
-          duration: Duration(seconds: 2),
-        ),
+        SnackBar(content: Text(msg), duration: Duration(seconds: seconds)),
       );
-    await onRefresh?.call();
-    return ok;
   }
 
-  ScaffoldMessenger.of(context)
-    ..clearSnackBars()
-    ..showSnackBar(
-      const SnackBar(
-        content: Text('已可读取短信'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+  switch (r) {
+    case RequestReadSmsResult.timeout:
+      toast('系统未返回结果，可在设置中手动开启', seconds: 3);
+      await onRefresh?.call();
+      return false;
+    case RequestReadSmsResult.denied:
+      toast('仍未获得权限，可到系统设置开启');
+      await onRefresh?.call();
+      return false;
+    case RequestReadSmsResult.granted:
+      break;
+  }
+
+  toast('已可读取短信');
 
   // MIUI：私有权限无法自动授权，用引导弹层一键跳转。
   if (context.mounted && await repo.isMiui()) {
@@ -118,5 +122,5 @@ Future<bool> requestReadSmsWithMiuiGuide(
   }
 
   await onRefresh?.call();
-  return ok;
+  return true;
 }

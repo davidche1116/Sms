@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sms/services/sms_repository.dart';
@@ -131,6 +133,134 @@ void main() {
       });
 
       expect(() => SmsRepository().queryAll(), throwsException);
+    });
+  });
+
+  group('系统申请防悬挂（Future.timeout + 可注入超时）', () {
+    /// 让指定 method 永不回包（模拟系统弹窗久置 / 进程被杀前的悬挂）。
+    void mockHang(String method, {Object? Function(String other)? others}) {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(appChannel, (call) async {
+            if (call.method == method) {
+              return Completer<Object?>().future; // 永不完成
+            }
+            return others?.call(call.method);
+          });
+    }
+
+    void mockThrow(
+      String method,
+      Object error, {
+      Object? Function(String other)? others,
+    }) {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(appChannel, (call) async {
+            if (call.method == method) throw error;
+            return others?.call(call.method);
+          });
+    }
+
+    test('requestReadSms：通道挂起 → 短超时后完成，回查仍无权限 → timeout', () async {
+      mockHang(
+        'requestReadSms',
+        others: (m) => m == 'hasReadSmsPermission' ? false : null,
+      );
+      final repo = SmsRepository(
+        systemResponseTimeout: const Duration(milliseconds: 40),
+      );
+      final sw = Stopwatch()..start();
+      final r = await repo.requestReadSms();
+      sw.stop();
+      expect(r, RequestReadSmsResult.timeout);
+      // 必须在超时附近完成，而不是永久 pending
+      expect(sw.elapsedMilliseconds, lessThan(2000));
+    });
+
+    test('requestReadSms：超时但回查已有权限 → granted', () async {
+      mockHang(
+        'requestReadSms',
+        others: (m) => m == 'hasReadSmsPermission' ? true : null,
+      );
+      final repo = SmsRepository(
+        systemResponseTimeout: const Duration(milliseconds: 40),
+      );
+      expect(await repo.requestReadSms(), RequestReadSmsResult.granted);
+    });
+
+    test('requestReadSms：原生 lifecycle 取消 → timeout 语义', () async {
+      mockThrow(
+        'requestReadSms',
+        PlatformException(code: ChannelCodes.errorLifecycle),
+        others: (m) => m == 'hasReadSmsPermission' ? false : null,
+      );
+      final repo = SmsRepository(
+        systemResponseTimeout: const Duration(milliseconds: 40),
+      );
+      expect(await repo.requestReadSms(), RequestReadSmsResult.timeout);
+    });
+
+    test('requestReadSms：用户拒绝（回 false）→ denied，不误报 timeout', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(appChannel, (call) async {
+            if (call.method == 'requestReadSms') return false;
+            if (call.method == 'hasReadSmsPermission') return false;
+            return null;
+          });
+      expect(
+        await SmsRepository().requestReadSms(),
+        RequestReadSmsResult.denied,
+      );
+    });
+
+    test('setDefaultSms：通道挂起 → 短超时后完成 → timeout', () async {
+      mockHang(
+        'setDefaultSms',
+        others: (m) => m == 'isDefaultSms' ? false : null,
+      );
+      final repo = SmsRepository(
+        systemResponseTimeout: const Duration(milliseconds: 40),
+      );
+      final sw = Stopwatch()..start();
+      final r = await repo.setDefaultSms();
+      sw.stop();
+      expect(r, DefaultSmsResult.timeout);
+      expect(sw.elapsedMilliseconds, lessThan(2000));
+    });
+
+    test('setDefaultSms：超时但回查已是默认 → alreadyDefault', () async {
+      mockHang(
+        'setDefaultSms',
+        others: (m) => m == 'isDefaultSms' ? true : null,
+      );
+      final repo = SmsRepository(
+        systemResponseTimeout: const Duration(milliseconds: 40),
+      );
+      expect(await repo.setDefaultSms(), DefaultSmsResult.alreadyDefault);
+    });
+
+    test('setDefaultSms：原生 lifecycle 取消 → timeout 语义', () async {
+      mockThrow(
+        'setDefaultSms',
+        PlatformException(code: ChannelCodes.errorLifecycle),
+        others: (m) => m == 'isDefaultSms' ? false : null,
+      );
+      final repo = SmsRepository(
+        systemResponseTimeout: const Duration(milliseconds: 40),
+      );
+      expect(await repo.setDefaultSms(), DefaultSmsResult.timeout);
+    });
+
+    test('setDefaultSms：正常回包不受超时影响', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(appChannel, (call) async {
+            if (call.method == 'setDefaultSms') return 'had';
+            return null;
+          });
+      // 极短超时也应在回包后立刻完成，不误判 timeout
+      final repo = SmsRepository(
+        systemResponseTimeout: const Duration(seconds: 5),
+      );
+      expect(await repo.setDefaultSms(), DefaultSmsResult.alreadyDefault);
     });
   });
 }

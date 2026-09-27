@@ -29,6 +29,10 @@ object ChannelCodes {
   const val QUERY_ERROR_PERMISSION = "permission"
   const val QUERY_ERROR_UNKNOWN = "unknown"
 
+  // ---- MethodChannel error code（error() 的 errorCode）----
+  /** Activity 销毁/引擎重建，挂起的 Result 被取消回包。Dart 映射为 timeout 语义。 */
+  const val ERROR_LIFECYCLE = "lifecycle"
+
   // ---- insertTestSms / deleteTestSmsByPrefix 载荷键 ----
   const val KEY_OK = "ok"
   const val KEY_IDS = "ids"

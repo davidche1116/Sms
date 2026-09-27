@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
@@ -8,6 +10,19 @@ export 'channel_codes.dart';
 
 class SmsQueryPermissionException implements Exception {
   const SmsQueryPermissionException();
+}
+
+/// `requestReadSms` 结果：区分「用户拒绝」与「系统未返回」，供 UI 给出不同提示。
+enum RequestReadSmsResult {
+  /// 已真正可读。
+  granted,
+
+  /// 系统明确返回且仍无权限（用户拒绝 / 未授）。
+  denied,
+
+  /// 超时或 Activity 被销毁，系统没给结果；回查后仍不可读。
+  /// UI 应提示可去设置手动开启，不要当成用户拒绝。
+  timeout,
 }
 
 /// `queryPage` 结果：本页 items + 库内去重总数。
@@ -24,7 +39,24 @@ class SmsQueryPage {
 
 /// 薄封装原生通道 `com.dc16.sms/smsApp`。
 class SmsRepository {
+  /// [systemResponseTimeout]：等待系统权限弹窗 / 角色页返回的最长时限。
+  /// 超时后回退再查一次真实状态，绝不让 `invokeMethod` 永久 pending。
+  /// 测试可注入更短的 Duration。
+  SmsRepository({
+    this.systemResponseTimeout = defaultSystemResponseTimeout,
+  });
+
+  /// 默认等系统回包时限（2 分钟）。
+  static const Duration defaultSystemResponseTimeout = Duration(minutes: 2);
+
+  /// 见构造参数。
+  final Duration systemResponseTimeout;
+
   static const _ch = MethodChannel('com.dc16.sms/smsApp');
+
+  /// 等系统回包并套超时；超时抛 [TimeoutException]，由调用方回退再查状态。
+  Future<T> _awaitSystem<T>(Future<T> future) =>
+      future.timeout(systemResponseTimeout);
 
   Future<bool> hasReadSmsPermission() async {
     try {
@@ -36,14 +68,40 @@ class SmsRepository {
   }
 
   /// 等待系统弹窗结束并返回是否真正可读。
-  Future<bool> requestReadSms() async {
+  ///
+  /// 通道挂起 / 超时 / Activity 被销毁（`lifecycle`）时回退再查一次
+  /// [hasReadSmsPermission]，绝不永久 pending。超时且仍无权限时返回
+  /// [RequestReadSmsResult.timeout]，UI 可提示「系统未返回结果，可在设置中手动开启」。
+  Future<RequestReadSmsResult> requestReadSms() async {
     try {
-      final ok = await _ch.invokeMethod<bool>('requestReadSms');
-      return ok == true || await hasReadSmsPermission();
+      final ok = await _awaitSystem(_ch.invokeMethod<bool>('requestReadSms'));
+      return (ok == true || await hasReadSmsPermission())
+          ? RequestReadSmsResult.granted
+          : RequestReadSmsResult.denied;
+    } on TimeoutException {
+      debugPrint('requestReadSms: timeout after $systemResponseTimeout');
+      return _readAfterNoResult();
+    } on PlatformException catch (e) {
+      if (e.code == ChannelCodes.errorLifecycle) {
+        debugPrint('requestReadSms: cancelled by activity lifecycle');
+        return _readAfterNoResult();
+      }
+      debugPrint('requestReadSms: $e');
+      return (await hasReadSmsPermission())
+          ? RequestReadSmsResult.granted
+          : RequestReadSmsResult.denied;
     } catch (e) {
       debugPrint('requestReadSms: $e');
-      return hasReadSmsPermission();
+      return (await hasReadSmsPermission())
+          ? RequestReadSmsResult.granted
+          : RequestReadSmsResult.denied;
     }
+  }
+
+  /// 系统未回包（超时 / 销毁）后：回查一次是否已可读，否则报 timeout。
+  Future<RequestReadSmsResult> _readAfterNoResult() async {
+    if (await hasReadSmsPermission()) return RequestReadSmsResult.granted;
+    return RequestReadSmsResult.timeout;
   }
 
   /// true=默认 / false=非默认 / null=无法判定
@@ -57,15 +115,34 @@ class SmsRepository {
   }
 
   /// 见 [DefaultSmsResult]。
+  ///
+  /// 超时 / Activity 销毁时返回 [DefaultSmsResult.timeout]（或已在系统页
+  /// 完成切换则 [DefaultSmsResult.alreadyDefault]），绝不永久 pending。
   Future<DefaultSmsResult> setDefaultSms() async {
     try {
       return DefaultSmsResult.fromWire(
-        await _ch.invokeMethod<String>('setDefaultSms'),
+        await _awaitSystem(_ch.invokeMethod<String>('setDefaultSms')),
       );
+    } on TimeoutException {
+      debugPrint('setDefaultSms: timeout after $systemResponseTimeout');
+      return _defaultSmsAfterNoResult();
+    } on PlatformException catch (e) {
+      if (e.code == ChannelCodes.errorLifecycle) {
+        debugPrint('setDefaultSms: cancelled by activity lifecycle');
+        return _defaultSmsAfterNoResult();
+      }
+      debugPrint('setDefaultSms: $e');
+      return DefaultSmsResult.error;
     } catch (e) {
       debugPrint('setDefaultSms: $e');
       return DefaultSmsResult.error;
     }
+  }
+
+  /// 系统未回包（超时 / 销毁）后：回查一次是否已成为默认，否则报 timeout。
+  Future<DefaultSmsResult> _defaultSmsAfterNoResult() async {
+    if (await isDefaultSms() == true) return DefaultSmsResult.alreadyDefault;
+    return DefaultSmsResult.timeout;
   }
 
   /// 见 [RestoreDefaultResult]。

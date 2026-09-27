@@ -11,25 +11,94 @@ import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
+/**
+ * MethodChannel.Result 一次性包装：success/error/notImplemented 只会发出一次。
+ *
+ * 防止「系统弹窗回调 + Activity 销毁收尾」或「handler catch + 销毁收尾」
+ * 对同一个 Result 二次回包（Flutter 会抛 IllegalStateException）。
+ */
+private class OnceResult(private val raw: MethodChannel.Result) : MethodChannel.Result {
+  @Volatile
+  private var done = false
+
+  override fun success(result: Any?) {
+    if (done) return
+    done = true
+    try {
+      raw.success(result)
+    } catch (e: Exception) {
+      Log.w("OnceResult", "success", e)
+    }
+  }
+
+  override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) {
+    if (done) return
+    done = true
+    try {
+      raw.error(errorCode, errorMessage, errorDetails)
+    } catch (e: Exception) {
+      Log.w("OnceResult", "error", e)
+    }
+  }
+
+  override fun notImplemented() {
+    if (done) return
+    done = true
+    try {
+      raw.notImplemented()
+    } catch (e: Exception) {
+      Log.w("OnceResult", "notImplemented", e)
+    }
+  }
+}
+
 class MainActivity : FlutterFragmentActivity() {
   private val channelName = "com.dc16.sms/smsApp"
   private lateinit var access: SmsAccess
 
-  /** 等待系统权限弹窗结果后再回包，Dart 才能刷新。 */
+  /** 等待系统权限弹窗结果后再回包，Dart 才能刷新。取出即清空，保证只 complete 一次。 */
   private var pendingRead: MethodChannel.Result? = null
   private var pendingRole: MethodChannel.Result? = null
 
+  /** 原子取出并清空 pendingRead。 */
+  private fun takePendingRead(): MethodChannel.Result? {
+    val r = pendingRead
+    pendingRead = null
+    return r
+  }
+
+  /** 原子取出并清空 pendingRole。 */
+  private fun takePendingRole(): MethodChannel.Result? {
+    val r = pendingRole
+    pendingRole = null
+    return r
+  }
+
+  /**
+   * Activity 销毁 / 引擎换绑前收尾挂起的 Result，绝不丢包。
+   * 回 [ChannelCodes.ERROR_LIFECYCLE]，Dart 映射为 timeout 语义后再查一次状态。
+   */
+  private fun completePendingOnTeardown(reason: String) {
+    takePendingRead()?.let { r ->
+      Log.i("MainActivity", "completePendingRead on $reason")
+      r.error(ChannelCodes.ERROR_LIFECYCLE, "requestReadSms cancelled: $reason", null)
+    }
+    takePendingRole()?.let { r ->
+      Log.i("MainActivity", "completePendingRole on $reason")
+      r.error(ChannelCodes.ERROR_LIFECYCLE, "setDefaultSms cancelled: $reason", null)
+    }
+  }
+
   private val requestRead =
     registerForActivityResult(ActivityResultContracts.RequestPermission()) {
-      val r = pendingRead
-      pendingRead = null
+      val r = takePendingRead()
+      // 用户从系统弹窗返回后无论结果如何都回包，让 Dart 刷新
       r?.success(access.hasReadSms())
     }
 
   private val requestRole =
     registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-      val r = pendingRole
-      pendingRole = null
+      val r = takePendingRole()
       // 用户从角色页返回后无论结果如何都回包，让 Dart 刷新
       r?.success(
         if (access.isDefaultSms() == true) ChannelCodes.SET_DEFAULT_HAD
@@ -37,11 +106,20 @@ class MainActivity : FlutterFragmentActivity() {
       )
     }
 
+  override fun onDestroy() {
+    completePendingOnTeardown("onDestroy")
+    super.onDestroy()
+  }
+
   override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
     super.configureFlutterEngine(flutterEngine)
+    // 引擎换绑时旧 pending 的 Result 已无法被系统回调送达，先收尾
+    completePendingOnTeardown("configureFlutterEngine")
     access = SmsAccess(applicationContext)
     MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
-      .setMethodCallHandler { call, result ->
+      .setMethodCallHandler { call, rawResult ->
+        // 一次性包装：系统回调 / 销毁收尾 / 异常 catch 对同一 Result 只回一次
+        val result = OnceResult(rawResult)
         try {
           when (call.method) {
             "hasReadSmsPermission" -> result.success(access.hasReadSms())
@@ -49,10 +127,17 @@ class MainActivity : FlutterFragmentActivity() {
               if (access.hasReadSms()) {
                 result.success(true)
               } else if (pendingRead != null) {
+                // 已有弹窗在途，不重复 launch；直接回 false，Dart 会再查权限
                 result.success(false)
               } else {
                 pendingRead = result
-                requestRead.launch(Manifest.permission.READ_SMS)
+                try {
+                  requestRead.launch(Manifest.permission.READ_SMS)
+                } catch (e: Exception) {
+                  // launch 失败：收回 pending 交给外层 error，避免悬挂
+                  takePendingRead()
+                  throw e
+                }
               }
             }
             "isDefaultSms" -> result.success(access.isDefaultSms())
@@ -211,7 +296,14 @@ class MainActivity : FlutterFragmentActivity() {
         }
       if (intent != null && pendingRole == null) {
         pendingRole = result
-        requestRole.launch(intent)
+        try {
+          requestRole.launch(intent)
+        } catch (e: Exception) {
+          // launch 失败：收回 pending，走下方 fallback 回包
+          takePendingRole()
+          access.openDefaultSmsSettings(this)
+          result.success(ChannelCodes.SET_DEFAULT_NO)
+        }
       } else {
         // 角色申请不可用 / 正在请求中 → 直接打开系统默认应用页
         access.openDefaultSmsSettings(this)

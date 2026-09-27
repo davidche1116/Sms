@@ -137,6 +137,7 @@ class _SettingsPageState extends State<SettingsPage> {
             content: Text(switch (r) {
               DefaultSmsResult.alreadyDefault => '已是默认短信应用',
               DefaultSmsResult.requested => '请在系统弹窗中点「设为默认应用」',
+              DefaultSmsResult.timeout => '系统未返回结果，可在设置中手动开启',
               DefaultSmsResult.error => '已打开系统默认应用设置',
             }),
           ),

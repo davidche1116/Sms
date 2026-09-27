@@ -78,6 +78,8 @@ class _PermissionPageState extends State<PermissionPage> {
         _toast('已是默认短信应用');
       case DefaultSmsResult.requested:
         _toast('请在系统弹窗中点「设为默认应用」');
+      case DefaultSmsResult.timeout:
+        _toast('系统未返回结果，可在设置中手动开启');
       case DefaultSmsResult.error:
         await widget.repo.openDefaultSmsSettings();
     }

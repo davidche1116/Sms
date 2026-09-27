@@ -27,6 +27,10 @@ abstract final class ChannelCodes {
   static const String queryErrorPermission = 'permission';
   static const String queryErrorUnknown = 'unknown';
 
+  // ---- MethodChannel error code（PlatformException.code）----
+  /// Activity 销毁/引擎重建，挂起的 Result 被取消（Kotlin `ERROR_LIFECYCLE`）。
+  static const String errorLifecycle = 'lifecycle';
+
   // ---- insertTestSms / deleteTestSmsByPrefix 载荷键 ----
   static const String keyOk = 'ok';
   static const String keyIds = 'ids';
@@ -46,10 +50,15 @@ enum DefaultSmsResult {
   /// `'no'`：已发起角色请求或已打开系统设置。
   requested,
 
+  /// 系统未在时限内返回（Activity 销毁 / 弹窗久置不回）。
+  /// 非线值：仅 Dart 超时路径产生，UI 应提示可去设置手动开启。
+  timeout,
+
   /// `'error'`：失败（含未知线值）。
   error;
 
   /// 线字符串 → 枚举；未知值映射到 [error]。
+  /// 注意：[timeout] 不经过线协议，由 Dart 超时包装产生。
   static DefaultSmsResult fromWire(String? raw) => switch (raw) {
     ChannelCodes.setDefaultHad => DefaultSmsResult.alreadyDefault,
     ChannelCodes.setDefaultNo => DefaultSmsResult.requested,
