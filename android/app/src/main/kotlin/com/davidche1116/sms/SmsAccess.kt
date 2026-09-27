@@ -1029,4 +1029,87 @@ class SmsAccess(private val context: Context) {
         false
       }
   }
+
+  /**
+   * 默认短信应用收到彩信通知（`WAP_PUSH_DELIVER`）时写入骨架行。
+   *
+   * 只落元数据（`content://mms` + `addr` + 主题 text part）：完整 smil/媒体 part
+   * 落库依赖非公开的 `PduPersister`，本应用不做下载重建（见 README「彩信支持范围」）。
+   * 骨架行保证新彩信**不丢条**（可浏览/导出/删除），正文占位由 Dart 侧补齐。
+   *
+   * AOSP MmsProvider 字段：`msg_box` / `read` / `seen` / `date`（**秒**）/ `m_id` /
+   * `sub_id` / `thread_id` / `ct_l` / `m_type` / `sub`。
+   *
+   * @return 插入的 mms `_id`；null=失败
+   */
+  @androidx.annotation.VisibleForTesting
+  internal fun insertMmsNotification(
+    n: MmsPduParser.MmsNotification,
+    subId: Int?,
+  ): Int? = try {
+    // 彩信表 date 是秒；通知 Date 缺失/非法时用当前时间。
+    val dateSec = n.dateSec?.takeIf { it > 0 } ?: (System.currentTimeMillis() / 1000)
+    val address = n.from
+    val threadId = address?.let { addr ->
+      try {
+        Telephony.Threads.getOrCreateThreadId(context, addr)
+      } catch (_: Exception) {
+        null
+      }
+    }
+    val v = android.content.ContentValues().apply {
+      put(Telephony.Mms.MESSAGE_BOX, Telephony.Mms.MESSAGE_BOX_INBOX)
+      put(Telephony.Mms.READ, 0)
+      put(Telephony.Mms.SEEN, 0)
+      put(Telephony.Mms.DATE, dateSec)
+      put(Telephony.Mms.DATE_SENT, dateSec)
+      put(Telephony.Mms.MESSAGE_TYPE, n.messageType)
+      put(Telephony.Mms.TEXT_ONLY, 0)
+      if (threadId != null) put(Telephony.Mms.THREAD_ID, threadId)
+      if (n.messageId != null) put(Telephony.Mms.MESSAGE_ID, n.messageId)
+      if (n.subject != null) put(Telephony.Mms.SUBJECT, n.subject)
+      if (n.contentLocation != null) put(Telephony.Mms.CONTENT_LOCATION, n.contentLocation)
+      if (subId != null && subId >= 0) put(Telephony.Mms.SUBSCRIPTION_ID, subId)
+    }
+    val uri = context.contentResolver.insert(Telephony.Mms.Inbox.CONTENT_URI, v)
+    val id = uri?.lastPathSegment?.toIntOrNull() ?: return null
+    if (address != null) insertMmsAddr(id, address)
+    // 主题写入 text part，使本应用列表正文摘要非空（无主题时 Dart 显示「[彩信]」）。
+    val subject = n.subject
+    if (!subject.isNullOrEmpty()) insertMmsTextPart(id, subject)
+    id
+  } catch (e: Exception) {
+    Log.e(TAG, "insertMmsNotification", e)
+    null
+  }
+
+  /** `content://mms/addr` 写一行 FROM（type=137）。失败忽略，不回滚主行。 */
+  private fun insertMmsAddr(msgId: Int, address: String) {
+    try {
+      val v = android.content.ContentValues().apply {
+        put(Telephony.Mms.Addr.MSG_ID, msgId)
+        put(Telephony.Mms.Addr.ADDRESS, address)
+        put(Telephony.Mms.Addr.TYPE, MMS_ADDR_TYPE_FROM)
+        put(Telephony.Mms.Addr.CHARSET, 0)
+      }
+      context.contentResolver.insert(mmsAddrUri(), v)
+    } catch (e: Exception) {
+      Log.e(TAG, "insertMmsAddr", e)
+    }
+  }
+
+  /** `content://mms/part` 写一行 text/plain（主题/摘要）。 */
+  private fun insertMmsTextPart(msgId: Int, text: String) {
+    try {
+      val v = android.content.ContentValues().apply {
+        put(Telephony.Mms.Part.MSG_ID, msgId)
+        put(Telephony.Mms.Part.CONTENT_TYPE, "text/plain")
+        put(Telephony.Mms.Part.TEXT, text)
+        put(Telephony.Mms.Part.CHARSET, 106) // UTF-8
+      }
+      context.contentResolver.insert(mmsPartUri(), v)
+    } catch (e: Exception) {
+      Log.e(TAG, "insertMmsTextPart", e)
+    }
+  }
 }

@@ -17,6 +17,7 @@
 
 ### Added
 
+- **默认短信应用时彩信通知入库**（R2 / P0-2）：`MmsReceiver` 不再空实现。解析 `WAP_PUSH_DELIVER` 的 MMS PDU（`MmsPduParser`），把通知元数据写入 `content://mms/inbox` + `addr`（可选主题 text part），新彩信不丢条；完整 smil/媒体不下载重建（无公开 `PduPersister`），README / PERMISSION_DESIGN / 设置页明示限制
 - **彩信（MMS）纳入统一数据面**（P3-17）：浏览 / 筛选 / 删除 / 导出；wire 身份为 `_id` + `is_mms` 二元组，删除按 `is_mms` 路由到 `content://sms` / `content://mms`，绝不跨表
 - `SmsItem.isMms` / `hasMedia` / `uid`（MMS id + 2^30 偏移，多选/隐藏/去重专用）；卡片「彩信」徽章 + 「含附件」标注；筛选类型新增「仅彩信」
 - CSV 导出新增 `is_mms` 列；导入**跳过彩信行**（smil/pdu/媒体无法用 insertSmsBatch 重建）

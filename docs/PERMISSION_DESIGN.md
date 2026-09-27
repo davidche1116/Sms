@@ -26,10 +26,12 @@
 | Activity | `ACTION_SENDTO` + `sms/smsto/mms/mmsto`（发送入口，可只弹提示） |
 | Service | `RESPOND_VIA_MESSAGE`，`android:permission="android.permission.SEND_RESPOND_VIA_MESSAGE"` |
 | Receiver | `SMS_DELIVER`，`android:permission="android.permission.BROADCAST_SMS"`（默认应用负责写入短信库；**空实现或忽略即可**） |
-| Receiver | `WAP_PUSH_DELIVER` + `application/vnd.wap.mms-message`，`android:permission="android.permission.BROADCAST_WAP_PUSH"`（占位） |
+| Receiver | `WAP_PUSH_DELIVER` + `application/vnd.wap.mms-message`，`android:permission="android.permission.BROADCAST_WAP_PUSH"`（默认时收信入库） |
 
 Manifest 仅声明上述组件 + `READ_SMS`；**不申请** `SEND_SMS`/`RECEIVE_*` 作为运行时权限（清理器不收发新信）。  
 `SMS_DELIVER` 仅投递给默认短信应用，无需 `RECEIVE_SMS` 运行时权限。
+
+**彩信收信（默认应用时）**：`MmsReceiver` 处理 `WAP_PUSH_DELIVER`（PDU 在 intent `data` extra），把**通知元数据**写入 `content://mms/inbox` + `addr`（`msg_box/read/seen/date(秒)/m_id/sub_id/thread_id/ct_l/m_type/sub`）。不下载完整 smil/媒体（无公开 `PduPersister`），正文为占位或主题摘要；完整彩信请用系统信息应用接收。与 `SmsReceiver.insertInbox` 同级 try/catch，广播绝不崩溃。
 
 ## 2. 能力与判定
 

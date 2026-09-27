@@ -608,4 +608,18 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get errorSummarySeparator => '；';
+
+  @override
+  String get defaultSmsMmsWarnTitle => '彩信接收有限制';
+
+  @override
+  String get defaultSmsMmsWarnBody =>
+      '作为默认短信应用时，新彩信只入库发件人/时间/主题，不下载完整正文与附件。需要完整彩信请改回系统「信息」接收。';
+
+  @override
+  String get aboutMmsReceiveTitle => '彩信接收说明';
+
+  @override
+  String get aboutMmsReceiveBody =>
+      '浏览/筛选/删除/导出系统库中的彩信。本应用为默认时，新彩信仅入库元数据骨架，不下载完整正文。';
 }

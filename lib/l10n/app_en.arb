@@ -197,5 +197,10 @@
   "importedPartial": "Imported {inserted} / {parsed} ({failed} failed)",
   "importedAll": "Imported {inserted} / {parsed}",
   "errorSummaryMore": " and {count} more",
-  "errorSummarySeparator": "; "
+  "errorSummarySeparator": "; ",
+
+  "defaultSmsMmsWarnTitle": "MMS receive is limited",
+  "defaultSmsMmsWarnBody": "As the default SMS app, new MMS messages only store sender/time/subject. Full body and attachments are not downloaded. Use the system Messages app if you need complete MMS.",
+  "aboutMmsReceiveTitle": "MMS receive",
+  "aboutMmsReceiveBody": "Browse/filter/delete/export MMS from the system database. When this app is default, new MMS is stored as metadata only (no full body download)."
 }

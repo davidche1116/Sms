@@ -1207,6 +1207,30 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'；'**
   String get errorSummarySeparator;
+
+  /// No description provided for @defaultSmsMmsWarnTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'彩信接收有限制'**
+  String get defaultSmsMmsWarnTitle;
+
+  /// No description provided for @defaultSmsMmsWarnBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'作为默认短信应用时，新彩信只入库发件人/时间/主题，不下载完整正文与附件。需要完整彩信请改回系统「信息」接收。'**
+  String get defaultSmsMmsWarnBody;
+
+  /// No description provided for @aboutMmsReceiveTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'彩信接收说明'**
+  String get aboutMmsReceiveTitle;
+
+  /// No description provided for @aboutMmsReceiveBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'浏览/筛选/删除/导出系统库中的彩信。本应用为默认时，新彩信仅入库元数据骨架，不下载完整正文。'**
+  String get aboutMmsReceiveBody;
 }
 
 class _AppLocalizationsDelegate

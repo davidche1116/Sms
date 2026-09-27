@@ -50,7 +50,7 @@
             </intent-filter>
         </receiver>
 
-        <!-- ROLE_SMS：彩信占位 -->
+        <!-- ROLE_SMS：默认时彩信通知入库（元数据骨架，见 MmsReceiver） -->
         <receiver
             android:name=".MmsReceiver"
             android:permission="android.permission.BROADCAST_WAP_PUSH"

@@ -305,6 +305,14 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               onTap: _onDefaultSmsRow,
             ),
+            // 已是默认时明示彩信接收限制（P0-2），避免用户以为彩信完整入库
+            if (_isDefault == true)
+              _warnRow(
+                context,
+                icon: Icons.warning_amber_rounded,
+                title: l10n.defaultSmsMmsWarnTitle,
+                subtitle: l10n.defaultSmsMmsWarnBody,
+              ),
             _row(
               icon: Icons.build_outlined,
               iconBg: const Color(0xFF42A5F5),
@@ -353,6 +361,12 @@ class _SettingsPageState extends State<SettingsPage> {
               title: l10n.privacy,
               subtitle: l10n.privacyHint,
               onTap: () => _toast(l10n.privacyToast),
+            ),
+            _warnRow(
+              context,
+              icon: Icons.perm_phone_msg_outlined,
+              title: l10n.aboutMmsReceiveTitle,
+              subtitle: l10n.aboutMmsReceiveBody,
             ),
           ]),
           const SizedBox(height: 24),
@@ -452,6 +466,36 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
       onTap: onTap,
+    );
+  }
+
+  /// 警告行：不截断副文，多行完整展示。
+  Widget _warnRow(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    return ListTile(
+      leading: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: scheme.errorContainer,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: scheme.onErrorContainer, size: 20),
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          color: scheme.onErrorContainer,
+        ),
+      ),
+      subtitle: Text(subtitle, style: TextStyle(color: scheme.error)),
+      trailing: const SizedBox.shrink(),
     );
   }
 }

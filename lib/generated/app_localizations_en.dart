@@ -628,4 +628,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get errorSummarySeparator => '; ';
+
+  @override
+  String get defaultSmsMmsWarnTitle => 'MMS receive is limited';
+
+  @override
+  String get defaultSmsMmsWarnBody =>
+      'As the default SMS app, new MMS messages only store sender/time/subject. Full body and attachments are not downloaded. Use the system Messages app if you need complete MMS.';
+
+  @override
+  String get aboutMmsReceiveTitle => 'MMS receive';
+
+  @override
+  String get aboutMmsReceiveBody =>
+      'Browse/filter/delete/export MMS from the system database. When this app is default, new MMS is stored as metadata only (no full body download).';
 }
