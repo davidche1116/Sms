@@ -118,43 +118,9 @@ class _HomePageState extends State<HomePage> {
 
   /// 客户端过滤：关键词 / 日期范围 / 类型 / 同号 / 同卡（不重复打库）。
   List<SmsItem> get _visible {
-    final q = _filter.keyword.trim();
     return items.where((e) {
       if (e.id != null && _hiddenIds.contains(e.id)) return false;
-      if (_filter.sameAddress != null && e.address != _filter.sameAddress) {
-        return false;
-      }
-      if (_filter.sameSim != null && e.sim != _filter.sameSim) return false;
-      if (q.isNotEmpty && !e.body.contains(q) && !e.address.contains(q)) {
-        return false;
-      }
-      if (_filter.start != null || _filter.end != null) {
-        final d = e.date;
-        if (d == null) return false;
-        if (_filter.start != null && d.isBefore(_filter.start!)) return false;
-        if (_filter.end != null) {
-          // 结束日期按当天 23:59:59.999 闭区间
-          final end = DateTime(
-            _filter.end!.year,
-            _filter.end!.month,
-            _filter.end!.day,
-            23,
-            59,
-            59,
-            999,
-          );
-          if (d.isAfter(end)) return false;
-        }
-      }
-      switch (_filter.type) {
-        case 1:
-          if (e.kind != SmsKind.received) return false;
-        case 2:
-          if (e.kind == SmsKind.received) return false;
-        default:
-          break;
-      }
-      return true;
+      return _filter.matches(e);
     }).toList();
   }
 

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../models/sms_item.dart';
+
 /// 列表筛选条件。type：0 全部 / 1 仅收件箱 / 2 仅已发送（草稿归入发送侧）。
 class SmsFilter {
   String keyword = '';
@@ -33,6 +35,35 @@ class SmsFilter {
     ..type = type
     ..sameAddress = sameAddress
     ..sameSim = sameSim;
+
+  /// 单条是否命中筛选（不含隐藏列表）。可单测。
+  bool matches(SmsItem e) {
+    if (sameAddress != null && e.address != sameAddress) return false;
+    if (sameSim != null && e.sim != sameSim) return false;
+    final q = keyword.trim();
+    if (q.isNotEmpty && !e.body.contains(q) && !e.address.contains(q)) {
+      return false;
+    }
+    if (start != null || end != null) {
+      final d = e.date;
+      if (d == null) return false;
+      if (start != null && d.isBefore(start!)) return false;
+      if (end != null) {
+        // 结束日期按当天 23:59:59.999 闭区间
+        final endOfDay = DateTime(end!.year, end!.month, end!.day, 23, 59, 59, 999);
+        if (d.isAfter(endOfDay)) return false;
+      }
+    }
+    switch (type) {
+      case 1:
+        if (e.kind != SmsKind.received) return false;
+      case 2:
+        if (e.kind == SmsKind.received) return false;
+      default:
+        break;
+    }
+    return true;
+  }
 
   /// 供测试 / Chip 文案使用。
   static String fmtDate(DateTime? d) => d == null

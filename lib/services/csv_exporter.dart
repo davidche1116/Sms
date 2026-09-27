@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -32,11 +33,11 @@ class CsvExporter {
                 '${d.minute.toString().padLeft(2, '0')}:'
                 '${d.second.toString().padLeft(2, '0')}';
       buf
-        ..write(_esc(e.address))
+        ..write(escapeField(e.address))
         ..write(',')
-        ..write(_esc(e.body))
+        ..write(escapeField(e.body))
         ..write(',')
-        ..write(_esc(dateStr))
+        ..write(escapeField(dateStr))
         ..write(',')
         ..write(e.kind.name)
         ..write(',')
@@ -64,7 +65,8 @@ class CsvExporter {
   }
 
   /// RFC 4180：含逗号/引号/换行的字段加引号，内部引号翻倍。
-  static String _esc(String v) {
+  @visibleForTesting
+  static String escapeField(String v) {
     final needs = v.contains(',') ||
         v.contains('"') ||
         v.contains('\n') ||

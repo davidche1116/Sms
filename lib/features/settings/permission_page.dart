@@ -16,6 +16,8 @@ class PermissionPage extends StatefulWidget {
 class _PermissionPageState extends State<PermissionPage> {
   bool? _hasRead;
   bool? _isDefault;
+  bool _isMiui = false;
+  String _miuiNotif = 'unknown';
   bool _busy = false;
 
   @override
@@ -27,10 +29,16 @@ class _PermissionPageState extends State<PermissionPage> {
   Future<void> _refresh() async {
     final r = await widget.repo.hasReadSmsPermission();
     final d = await widget.repo.isDefaultSms();
+    final miui = await widget.repo.isMiui();
+    final notif = miui
+        ? await widget.repo.miuiNotificationSmsState()
+        : 'unknown';
     if (!mounted) return;
     setState(() {
       _hasRead = r;
       _isDefault = d;
+      _isMiui = miui;
+      _miuiNotif = notif;
     });
   }
 
@@ -130,13 +138,38 @@ class _PermissionPageState extends State<PermissionPage> {
                         : '检查中…',
                   ),
                 ),
+                if (_isMiui) ...[
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: Icon(
+                      _miuiNotif == 'allow'
+                          ? Icons.check_circle
+                          : Icons.warning_amber_outlined,
+                      color: _miuiNotif == 'allow'
+                          ? scheme.primary
+                          : const Color(0xFFE6A23C),
+                    ),
+                    title: const Text('MIUI 通知类短信'),
+                    subtitle: Text(
+                      switch (_miuiNotif) {
+                        'allow' => '已允许 · 通知类短信可见',
+                        'deny' || 'ignore' => '未开通 · 只能读到点对点短信',
+                        _ => 'MIUI 附加权限 · 建议开通',
+                      },
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
           const SizedBox(height: 16),
           Text(
-            '读取与删除相互独立：读列表只需短信权限；删除必须是默认短信应用。'
-            '在系统中改掉默认短信后，系统可能同时收回读权限，回到本页重新申请即可。',
+            _isMiui
+                ? '读取与删除相互独立：读列表只需短信权限；删除必须是默认短信应用。'
+                    'MIUI 额外有「通知类短信」开关，不开通时 10086/银行等通知类会读不到。'
+                    '在系统中改掉默认短信后，系统可能同时收回读权限，回到本页重新申请即可。'
+                : '读取与删除相互独立：读列表只需短信权限；删除必须是默认短信应用。'
+                    '在系统中改掉默认短信后，系统可能同时收回读权限，回到本页重新申请即可。',
             style: Theme.of(context).textTheme.bodyMedium
                 ?.copyWith(color: scheme.onSurfaceVariant),
           ),
@@ -152,6 +185,24 @@ class _PermissionPageState extends State<PermissionPage> {
             FilledButton.tonal(
               onPressed: _busy ? null : _setDefault,
               child: const Text('设为默认短信应用'),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (_isMiui) ...[
+            FilledButton.tonal(
+              onPressed: _busy
+                  ? null
+                  : () => _run(() async {
+                      final ok = await widget.repo.openMiuiPermissionEditor();
+                      if (!ok && mounted) _toast('打开 MIUI 权限页失败');
+                    }),
+              child: const Text('打开 MIUI 通知类短信设置'),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '路径：应用信息 → 权限管理 → 其他权限 → 通知类短信',
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: 12),
           ],

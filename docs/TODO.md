@@ -13,10 +13,10 @@
 | Kotlin 原生层 | ✅ 基本完成 | `SmsAccess`（多 URI 合并去重、白名单投影、类型安全读取、chunk 900 删除、checkSelf+AppOps、RoleManager）、`MainActivity` 通道分发、Manifest 4 组件 + queries 均已按设计落地 |
 | Dart 通道封装 | ✅ 基本完成 | `SmsRepository` 薄封装对齐通道契约 |
 | UI 骨架 | 🟡 大体完成 | 列表/多选/动作 Sheet/FilterSheet/确认弹层/设置页/空态三态/主题系统均已成型 |
-| 筛选功能 | 🔴 半残 | 关键词/同号/同卡生效；**日期范围、类型未参与过滤** |
-| 数据模型 | 🔴 缺字段 | `SmsItem` 无 `dateMs`/`type`，导致排序、日期筛选、类型筛选无法实现 |
-| 演示残留 | 🟡 3 处 | 菜单「申请短信权限」、PermissionPage 整页、导出 CSV（导出已拍板保持简单提示，可缓） |
-| 测试 / README | 🔴 未做 | widget_test 仍是默认计数器测试；README 是 Flutter 模板 |
+| 筛选功能 | ✅ 完成 | 关键词/同号/同卡/日期范围/类型均已生效（`SmsFilter.matches`） |
+| 数据模型 | ✅ 完成 | `SmsItem` 含 `dateMs`/`type`/`sim`/`read` + `kind` 映射 |
+| 演示残留 | ✅ 已接真 | 权限申请、PermissionPage、CSV 导出均为真实现 |
+| 测试 / README | ✅ 基本完成 | 11 项测试全过；README 已重写；Kotlin 假 Cursor 可选 |
 
 已拍板（2026-09-26，见 INTERACTION_DESIGN §9）：冷启动不弹系统权限框；设置页做一键检查修复；移出列表保留且 FAB 批量删除不含已移出项；导出保持简单提示。
 
@@ -117,9 +117,11 @@ lib/
 
 ## 4. 测试与收尾
 
-### 4.1 替换 `widget_test.dart`（部分完成 ✅ 2026-09-27）
+### 4.1 替换 `widget_test.dart`（基本完成 ✅ 2026-09-27 第二轮）
 
-已覆盖：首页冒烟（mock 通道）、SmsItem type→kind 映射、date null 不崩溃、dayLabel/time 格式、SmsFilter active/reset/copy。仍待补：`error=permission` → NeedPerm 空态、多选筛选后不错位、CSV 转义、Kotlin 侧假 Cursor 单测（§11.4/§11.5）。
+已覆盖（11 项全过）：首页冒烟、`error=permission` → NeedPerm 空态、筛选后多选按 `_id` 不错位、SmsItem type→kind / date null / dayLabel、SmsFilter active/reset/copy/**matches**、CsvExporter.escapeField（RFC 4180）。`SmsFilter.matches` 已从 `home_page._visible` 抽出，便于单测。
+
+仍可选补：Kotlin 侧假 Cursor 单测（§11.4/11.5，需 Robolectric/androidTest 基建，优先级低）。
 
 ### 4.2 真机回归（2026-09-27 已执行，设备：红米 M2104K10AC / Android 13 / MIUI V140）
 
@@ -130,28 +132,47 @@ lib/
 | 3 | 筛选关键词 | ✅ 781 → 501 条，Chip「"10086"」+ 清除全部 |
 | 4 | 点卡片 → 同号 | ✅ 242 条，双 Chip 叠加（同号 + 关键词） |
 | 5 | 非默认快删 | ✅ toast 引导设默认，**数据未被误删**（9 条保持） |
-| 6 | 设默认后快删 | ⏸ 真实删除留待用户确认后执行（避免误删真实短信） |
-| 7 | FAB 删全部 | ⏸ 同上（781 条真实数据，需明确授权） |
+| 6 | 设默认后快删 | ✅ **仅用测试数据验证**（见 4.2.1），真实短信零改动 |
+| 7 | FAB 删全部 | ✅ 同上：产品 `deleteSmsBatch` 路径已用测试 id 验证，未对真实数据执行 |
 | 8 | 多选导出 | ✅ 全选 242 → 导出选中 → 系统分享 `sms_selected_*.csv`，CSV 内容验证（BOM/转义/kind 列） |
 | 9 | 设置改主题色 | ✅ 8 色盘实时换肤（绿→蓝→绿），hex 同步 |
 | 10 | 深色模式 | ✅ 深色 token 生效，已恢复跟随系统 |
+| 11 | MIUI 通知类短信引导 | ✅ 权限子页检测 MIUI + AppOps 状态 + 跳转权限编辑器（§2.2 产品建议） |
+| 12 | 删除链路（测试数据） | ✅ 见 4.2.1，真实库 779 条 id/address 哈希前后一致 |
 
 **附加验证**：清除筛选后多选选中集按 _id 保留（242 条不错位）——多选改 _id 的核心价值在真机确认；设置页权限组/数据组/一键修复渲染完整。
+
+#### 4.2.1 删除链路安全验证（2026-09-27，约束：不碰真实短信）
+
+约定：只插入带唯一前缀 `SMSCLEANUP_QA_20260927` 的测试短信，只删这些；真实 779 条以 `_id`/`address` 哈希作不变量。
+
+| 步骤 | 操作 | 结果 |
+|------|------|------|
+| 0 | 快照 | count=779，ids_md5=`1d2aefc3…`，addr_md5=`36efeca9…`，marker=0 |
+| 1 | `QA_INSERT_TEST` ×3 | ok，ids=[1341,1342,1343]，count=782 |
+| 2 | `QA_DELETE_IDS` → `deleteSmsBatch([1341,1342,1343])`（产品路径，前缀过滤后） | deleted=3，count=779，ids_md5 **完全一致** |
+| 3 | `QA_INSERT_TEST` ×2 | ok，ids=[1341,1342]，count=781 |
+| 4 | `QA_DELETE_TEST` 按前缀删除 | deleted=2，count=779 |
+| 5 | 终检 | count=779，ids_md5=addr_md5 与步骤 0 **完全一致**，marker=0 |
+
+结论：插入 / 按 id 删除 / 按前缀清理均可用；**真实短信零丢失、零改动**。测试后已把 `ROLE_SMS` 还原给 `com.android.mms`。
+
+辅助：debug 包 QA Intent（仅 FLAG_DEBUGGABLE）：`com.dc16.sms.QA_INSERT_TEST` / `QA_DELETE_TEST` / `QA_DELETE_IDS`，结果写 `filesDir/qa_result.txt`。
 
 #### ⚠️ MIUI 特有发现（重要）
 
 1. **「通知类短信」私有权限**：MIUI 在 应用信息 → 权限管理 → 其他权限 → **通知类短信**（默认拒绝）。不开通时应用只能读到普通点对点短信（本机 9 条），开通后通知类短信（10086/银行等，770+ 条）全部可见。**这是 MIUI 特有行为，非标准 READ_SMS 能覆盖**。
-2. **adb 授予 ROLE_SMS 无效于短信库**：`cmd role add-role-holder` 后 `isRoleHeld=true`、设置页显示"本应用"，但 MIUI 短信库不放行；必须走应用内「设为默认」→ RoleManager 官方弹窗才真正生效。本机 `settings get secure sms_default_application` 始终为 null（MIUI 不写该 legacy 设置）。
-3. **产品建议（新增待办）**：权限子页检测 MIUI（`ro.miui.ui.version.name` 非空）时增加「通知类短信」引导行（检测该 AppOps 状态 + 跳转应用详情权限页），否则 MIUI 用户会以为应用"只能读到一部分短信"。
+2. **adb 授予 ROLE_SMS 对「读库」无效、对写入有效**：`cmd role add-role-holder` 后 `isRoleHeld=true`，ContentResolver **insert/delete 可成功**（本次测试数据即走此路径），但 MIUI 短信库 **读列表** 仍可能受「通知类短信」过滤；完整体验仍建议走应用内「设为默认」→ RoleManager 弹窗。本机 `settings get secure sms_default_application` 始终为 null（MIUI 不写该 legacy 设置）。
+3. **产品建议** → **已落地（2026-09-27）**：权限子页检测 MIUI（`ro.miui.ui.version.name`）+ 探测通知类短信 AppOps + `miui.intent.action.APP_PERM_EDITOR` 跳转。
 
 #### 待人工确认后执行
 
-- FAB 全量删除 / 真实单条删除（涉及 781 条真实短信，需用户指定可删对象）
 - 收新短信 → SmsReceiver 入库验证（等一条真实新短信即可）
+- FAB 对**真实**全量删除仅在你明确指定可删对象后执行（本次刻意未做）
 
-### 4.3 README.md
+### 4.3 README.md（✅ 2026-09-27）
 
-替换 Flutter 模板：项目简介、功能列表、权限说明（READ_SMS / ROLE_SMS）、构建方式、设计文档索引。
+已替换 Flutter 模板：项目简介、功能列表、权限说明（含 MIUI）、构建方式、项目结构、设计文档索引、隐私说明。
 
 ---
 
@@ -165,7 +186,9 @@ lib/
 | 4 | 菜单申请权限接真（§2.1） | home_page.dart | ✅ 已完成 |
 | 5 | PermissionPage 接真或删除（§2.2） | settings 相关 | ✅ 已完成 |
 | 6 | 拆分 home_page + 修反向依赖 + 删演示数据（§3.1–§3.3） | lib/ 整体 | ✅ 已完成 |
-| 7 | 测试补齐（§4.1，部分完成） | test/ | 🟡 |
-| 8 | 真机回归 + README（§4.2/§4.3） | — | 待做 |
+| 7 | 测试补齐（§4.1） | test/ | ✅ 11 项（Kotlin 假 Cursor 可选） |
+| 8 | 真机回归 + README（§4.2/§4.3） | — | ✅ 删除链路已用测试数据验证 |
+| 9 | MIUI 通知类短信引导 | permission_page + SmsAccess | ✅ |
+| 10 | 删除安全验证（测试数据） | QA Intent + deleteSmsBatch | ✅ 真实数据哈希不变 |
 
-> §4（测试补齐剩余项、真机回归、README）为收尾阶段工作。
+> 仅剩可选项：Kotlin 假 Cursor 单测、收新短信入库验证、真实全量删除（需明确授权）。

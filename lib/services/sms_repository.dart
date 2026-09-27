@@ -80,6 +80,56 @@ class SmsRepository {
     }
   }
 
+  Future<bool> isMiui() async {
+    try {
+      return await _ch.invokeMethod<bool>('isMiui') ?? false;
+    } catch (e) {
+      debugPrint('isMiui: $e');
+      return false;
+    }
+  }
+
+  /// allow / deny / ignore / unknown
+  Future<String> miuiNotificationSmsState() async {
+    try {
+      return await _ch.invokeMethod<String>('miuiNotificationSmsState') ??
+          'unknown';
+    } catch (e) {
+      debugPrint('miuiNotificationSmsState: $e');
+      return 'unknown';
+    }
+  }
+
+  Future<bool> openMiuiPermissionEditor() async {
+    try {
+      return await _ch.invokeMethod<bool>('openMiuiPermissionEditor') ?? false;
+    } catch (e) {
+      debugPrint('openMiuiPermissionEditor: $e');
+      return false;
+    }
+  }
+
+  /// QA：插入带前缀的测试短信（仅 debug 包 + 当前为默认短信时有效）。
+  Future<List<int>?> insertTestSms({
+    int count = 3,
+    String bodyPrefix = 'SMSCLEANUP_TEST',
+  }) async {
+    try {
+      final raw = await _ch.invokeMethod<dynamic>('insertTestSms', {
+        'count': count,
+        'bodyPrefix': bodyPrefix,
+      });
+      if (raw is! Map || raw['ok'] != true) return null;
+      return [
+        for (final x in (raw['ids'] as List? ?? const []))
+          (x as num).toInt(),
+      ];
+    } catch (e) {
+      debugPrint('insertTestSms: $e');
+      return null;
+    }
+  }
+
   Future<List<SmsItem>> queryAll() => _query(null);
 
   Future<List<SmsItem>> queryByAddress(String address) => _query(address);

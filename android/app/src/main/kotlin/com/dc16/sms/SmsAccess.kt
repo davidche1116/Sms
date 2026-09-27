@@ -78,6 +78,141 @@ class SmsAccess(private val context: Context) {
     false
   }
 
+  /** 是否 MIUI（ro.miui.ui.version.name 非空）。 */
+  fun isMiui(): Boolean = try {
+    val cl = Class.forName("android.os.SystemProperties")
+    val get = cl.getMethod("get", String::class.java)
+    (get.invoke(null, "ro.miui.ui.version.name") as? String)?.isNotEmpty() == true
+  } catch (_: Exception) {
+    false
+  }
+
+  /**
+   * MIUI「通知类短信」AppOps 状态。
+   * @return "allow" / "deny" / "ignore" / "unknown"
+   *
+   * MIUI 在 READ_SMS 之外还有私有「通知类短信」开关：关闭时第三方只能读到
+   * 点对点短信，10086/银行等通知类会全部不可见。op 名各版本略有差异，逐个试探。
+   */
+  fun miuiNotificationSmsState(): String {
+    if (!isMiui()) return "unknown"
+    val candidates = listOf(
+      "RECEIVE_NOTIFICATION_SMS",
+      "READ_NOTIFICATION_SMS",
+      "RECEIVE_SMS_NOTIFICATION",
+      "GET_RECEIVE_NOTIFICATION_SMS",
+    )
+    for (op in candidates) {
+      try {
+        val mode = appOps.unsafeCheckOpNoThrow(op, Process.myUid(), context.packageName)
+        val name = when (mode) {
+          AppOpsManager.MODE_ALLOWED -> "allow"
+          AppOpsManager.MODE_IGNORED -> "ignore"
+          AppOpsManager.MODE_ERRORED -> "deny"
+          else -> null
+        }
+        if (name != null) return name
+      } catch (_: Exception) {
+        // op 名不存在，继续试下一个
+      }
+    }
+    return "unknown"
+  }
+
+  /**
+   * 打开 MIUI 权限编辑页（权限管理 · 其他权限 · 通知类短信）。
+   * 失败则回落到系统应用详情页。
+   */
+  fun openMiuiPermissionEditor(activity: Activity): Boolean {
+    val miui = Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+      setPackage("com.miui.securitycenter")
+      putExtra("extra_pkgname", context.packageName)
+    }
+    return try {
+      activity.startActivity(miui)
+      true
+    } catch (_: Exception) {
+      openAppSettings(activity)
+    }
+  }
+
+  /**
+   * QA 专用：插入带唯一前缀的测试短信，只新增、不改旧数据。
+   * 仅 debuggable 包可用，避免 release 留写库入口。
+   * @return 插入成功的 _id 列表；null=非默认/非 debug/失败
+   */
+  fun insertTestSms(count: Int, bodyPrefix: String): List<Int>? {
+    if (isDefaultSms() != true) return null
+    val flags = context.applicationInfo.flags
+    if ((flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) == 0) return null
+    return try {
+      val ids = mutableListOf<Int>()
+      val now = System.currentTimeMillis()
+      repeat(count.coerceIn(1, 20)) { i ->
+        val v = android.content.ContentValues().apply {
+          put(Telephony.Sms.ADDRESS, "10086")
+          put(Telephony.Sms.BODY, "$bodyPrefix #${i + 1}")
+          put(Telephony.Sms.DATE, now + i)
+          put(Telephony.Sms.DATE_SENT, now + i)
+          put(Telephony.Sms.READ, 1)
+          put(Telephony.Sms.SEEN, 1)
+          put(Telephony.Sms.TYPE, Telephony.Sms.MESSAGE_TYPE_INBOX)
+        }
+        val uri = context.contentResolver.insert(Telephony.Sms.Inbox.CONTENT_URI, v)
+        val id = uri?.lastPathSegment?.toIntOrNull()
+        if (id != null) ids.add(id)
+      }
+      ids
+    } catch (e: Exception) {
+      Log.e(TAG, "insertTestSms", e)
+      null
+    }
+  }
+
+  /**
+   * QA 专用：只删除 body 以前缀开头的短信（绝不匹配真实短信）。
+   * @return 删除条数；null=非默认/失败
+   */
+  fun deleteTestSmsByPrefix(bodyPrefix: String): Int? {
+    if (bodyPrefix.isBlank()) return null
+    if (isDefaultSms() != true) return null
+    val flags = context.applicationInfo.flags
+    if ((flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) == 0) return null
+    return try {
+      context.contentResolver.delete(
+        Telephony.Sms.CONTENT_URI,
+        "${Telephony.Sms.BODY} LIKE ?",
+        arrayOf("$bodyPrefix%"),
+      )
+    } catch (e: Exception) {
+      Log.e(TAG, "deleteTestSmsByPrefix", e)
+      null
+    }
+  }
+
+  /** 只保留 body 以前缀开头的 id，用于 QA 删除前的安全过滤。 */
+  fun filterTestIds(ids: List<Int>, bodyPrefix: String): List<Int> {
+    if (ids.isEmpty() || bodyPrefix.isBlank()) return emptyList()
+    return try {
+      val keep = mutableSetOf<Int>()
+      context.contentResolver.query(
+        Telephony.Sms.CONTENT_URI,
+        arrayOf(BaseColumns._ID, Telephony.Sms.BODY),
+        "${Telephony.Sms.BODY} LIKE ?",
+        arrayOf("$bodyPrefix%"),
+        null,
+      )?.use { c ->
+        while (c.moveToNext()) {
+          keep.add(c.getInt(0))
+        }
+      }
+      ids.filter { it in keep }
+    } catch (e: Exception) {
+      Log.e(TAG, "filterTestIds", e)
+      emptyList()
+    }
+  }
+
   /**
    * 还原为系统默认短信。
    * Q+ 起 ACTION_CHANGE_DEFAULT 对第三方已失效，无法代用户释放 ROLE_SMS，
