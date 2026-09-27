@@ -263,11 +263,13 @@ class SmsAccess(private val context: Context) {
   }
 
   /**
-   * @return messages + error(null|permission|unknown)
+   * @param limit null=全量（兼容旧调用）；非空时按 date 降序切页
+   * @param offset 跳过条数，仅在 limit 非空时生效
+   * @return messages + total + error(null|permission|unknown)
    */
-  fun querySms(address: String?): Map<String, Any?> {
+  fun querySms(address: String?, limit: Int? = null, offset: Int = 0): Map<String, Any?> {
     if (!hasReadSms() && isDefaultSms() != true) {
-      return mapOf("messages" to emptyList<Any>(), "error" to "permission")
+      return mapOf("messages" to emptyList<Any>(), "total" to 0, "error" to "permission")
     }
     val sel = if (address.isNullOrEmpty()) null else "${Telephony.Sms.ADDRESS}=?"
     val args = if (address.isNullOrEmpty()) null else arrayOf(address)
@@ -290,12 +292,24 @@ class SmsAccess(private val context: Context) {
         Log.e(TAG, "query $uri", e)
       }
     }
-    return when {
-      byId.isNotEmpty() -> mapOf("messages" to byId.values.toList(), "error" to null)
-      security -> mapOf("messages" to emptyList<Any>(), "error" to "permission")
-      other -> mapOf("messages" to emptyList<Any>(), "error" to "unknown")
-      else -> mapOf("messages" to emptyList<Any>(), "error" to null)
+    // 切页前必须全局定序：date 降序（null 最早），_id 降序作稳定次键，避免同 date 跨页抖动。
+    val all = byId.values.sortedWith(
+      compareByDescending<Map<String, Any?>> { (it["date"] as? Number)?.toLong() ?: Long.MIN_VALUE }
+        .thenByDescending { (it["_id"] as? Number)?.toInt() ?: 0 },
+    )
+    val total = all.size
+    val page = if (limit == null) {
+      all
+    } else {
+      all.drop(offset.coerceAtLeast(0)).take(limit.coerceAtLeast(0))
     }
+    val error = when {
+      byId.isNotEmpty() -> null
+      security -> "permission"
+      other -> "unknown"
+      else -> null
+    }
+    return mapOf("messages" to page, "total" to total, "error" to error)
   }
 
   /** @return 行数；null=非默认/失败 */

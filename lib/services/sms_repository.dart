@@ -7,6 +7,18 @@ class SmsQueryPermissionException implements Exception {
   const SmsQueryPermissionException();
 }
 
+/// `queryPage` 结果：本页 items + 库内去重总数。
+class SmsQueryPage {
+  const SmsQueryPage({required this.items, this.total});
+
+  final List<SmsItem> items;
+  final int? total;
+
+  /// 是否还有下一页。`total` 未知（旧原生）时用「本页是否写满」估算。
+  bool hasMore(int loadedCount, int pageSize) =>
+      total != null ? loadedCount < total! : items.length >= pageSize;
+}
+
 /// 薄封装原生通道 `com.dc16.sms/smsApp`。
 class SmsRepository {
   static const _ch = MethodChannel('com.dc16.sms/smsApp');
@@ -134,13 +146,22 @@ class SmsRepository {
 
   Future<List<SmsItem>> queryByAddress(String address) => _query(address);
 
-  Future<List<SmsItem>> _query(String? address) async {
+  /// 分页查询：`limit`/`offset` 与原生契约一致。
+  /// 都不传则等价全量（兼容旧调用）；`total` 为去重后的库内总数。
+  Future<SmsQueryPage> queryPage({
+    String? address,
+    int? limit,
+    int? offset,
+  }) async {
     List<SmsItem> list;
+    int? total;
     try {
       final raw = await _ch.invokeMethod<dynamic>('querySms', {
         if (address != null && address.isNotEmpty) 'address': address,
+        'limit': ?limit,
+        'offset': ?offset,
       });
-      if (raw is! Map) return const [];
+      if (raw is! Map) return const SmsQueryPage(items: []);
       if (raw['error'] == 'permission') {
         throw const SmsQueryPermissionException();
       }
@@ -148,25 +169,39 @@ class SmsRepository {
         throw Exception('querySms: ${raw['error']}');
       }
       final rows = (raw['messages'] as List?) ?? const [];
-      list = rows.map((e) {
-        final m = Map<String, dynamic>.from(e as Map);
-        return SmsItem(
-          body: m['body']?.toString() ?? '',
-          address: m['address']?.toString() ?? '',
-          dateMs: (m['date'] as num?)?.toInt(),
-          type: (m['type'] as num?)?.toInt() ?? 1,
-          sim: (m['sub_id'] as num?)?.toInt() ?? 1,
-          read: (m['read'] as num?)?.toInt() == 1,
-          id: (m['_id'] as num?)?.toInt(),
-          threadId: (m['thread_id'] as num?)?.toInt(),
-        );
-      }).toList();
+      total = (raw['total'] as num?)?.toInt();
+      list = rows.map(_mapRow).toList();
     } on MissingPluginException {
-      return const [];
+      return const SmsQueryPage(items: []);
     }
-    // 设计 §5.6：Kotlin 合并不排序，Dart 按 date 降序；null 视为最早。
-    list.sort((a, b) => (b.dateMs ?? 0).compareTo(a.dateMs ?? 0));
-    return list;
+    // 与 Kotlin 同序：date 降序（null 最早），_id 降序作稳定次键。
+    list.sort(_dateDesc);
+    return SmsQueryPage(items: list, total: total);
+  }
+
+  Future<List<SmsItem>> _query(String? address) async {
+    final page = await queryPage(address: address);
+    return page.items;
+  }
+
+  static SmsItem _mapRow(Object? e) {
+    final m = Map<String, dynamic>.from(e as Map);
+    return SmsItem(
+      body: m['body']?.toString() ?? '',
+      address: m['address']?.toString() ?? '',
+      dateMs: (m['date'] as num?)?.toInt(),
+      type: (m['type'] as num?)?.toInt() ?? 1,
+      sim: (m['sub_id'] as num?)?.toInt() ?? 1,
+      read: (m['read'] as num?)?.toInt() == 1,
+      id: (m['_id'] as num?)?.toInt(),
+      threadId: (m['thread_id'] as num?)?.toInt(),
+    );
+  }
+
+  static int _dateDesc(SmsItem a, SmsItem b) {
+    final d = (b.dateMs ?? 0).compareTo(a.dateMs ?? 0);
+    if (d != 0) return d;
+    return (b.id ?? 0).compareTo(a.id ?? 0);
   }
 
   Future<int?> deleteSmsBatch(List<int> ids) async {

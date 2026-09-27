@@ -42,6 +42,17 @@ class _HomePageState extends State<HomePage> {
   bool _miuiNotifHint = false;
   bool _miuiHintDismissed = false;
 
+  /// 分页：启动/刷新先拉一页，滚动触底再追加（见 QUERY_DELETE_DESIGN §5.1）。
+  static const _pageSize = 200;
+  static const _loadMoreThreshold = 400.0;
+  final _scrollController = ScrollController();
+  bool _loadingMore = false;
+  bool _hasMore = false;
+  int? _total;
+
+  /// 递增代际：刷新/重载后丢弃仍在途的下一页结果，避免旧页污染新列表。
+  int _loadGen = 0;
+
   /// 本地移出列表的 id：不再展示，且 FAB 批量删除不会带上它们。
   final _hiddenIds = <int>{};
   final _repo = SmsRepository();
@@ -50,7 +61,14 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _init();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _init() async {
@@ -59,42 +77,133 @@ class _HomePageState extends State<HomePage> {
     await _load();
   }
 
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    if (_scrollController.position.extentAfter < _loadMoreThreshold) {
+      _loadMore();
+    }
+  }
+
+  /// 首屏/追加后主动检查一次：内容不足一屏时不会产生滚动事件。
+  void _scheduleLoadMoreCheck() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _onScroll();
+    });
+  }
+
   Future<void> _load() async {
+    final gen = ++_loadGen;
     setState(() {
       _loading = true;
       _needPermission = false;
+      _loadingMore = false;
     });
     try {
-      final list = await _repo.queryAll();
-      if (!mounted) return;
+      // 筛选是客户端过滤：激活时必须全量，否则结果只覆盖已加载页。
+      final page = _filter.active
+          ? await _allAsPage()
+          : await _repo.queryPage(limit: _pageSize, offset: 0);
+      if (!mounted || gen != _loadGen) return;
       // MIUI 通知类短信未开通时的软提示（申请流程里也会弹，这里是兜底）
       var hint = false;
       if (await _repo.isMiui()) {
         final st = await _repo.miuiNotificationSmsState();
         hint = st == 'likely_off' || st == 'ignore' || st == 'deny';
       }
-      if (!mounted) return;
+      if (!mounted || gen != _loadGen) return;
       setState(() {
-        items = list;
+        items = _dedupById(page.items);
+        _total = page.total;
+        _hasMore = !_filter.active && page.hasMore(items.length, _pageSize);
         _loading = false;
         _miuiNotifHint = hint;
         _pruneSelection();
       });
+      _scheduleLoadMoreCheck();
     } on SmsQueryPermissionException {
-      if (!mounted) return;
+      if (!mounted || gen != _loadGen) return;
       setState(() {
         items = const [];
+        _total = null;
+        _hasMore = false;
         _needPermission = true;
         _loading = false;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || gen != _loadGen) return;
       setState(() {
         items = const [];
+        _total = null;
+        _hasMore = false;
         _loading = false;
       });
       _toast('查询失败，下拉或点重试');
     }
+  }
+
+  /// 触底加载下一页，按 `_id` 去重后追加。
+  Future<void> _loadMore() async {
+    if (_loading || _loadingMore || !_hasMore) return;
+    final gen = _loadGen;
+    setState(() => _loadingMore = true);
+    try {
+      final page = await _repo.queryPage(limit: _pageSize, offset: items.length);
+      if (!mounted || gen != _loadGen) return;
+      setState(() {
+        final before = items.length;
+        items = _dedupById([...items, ...page.items]);
+        _total = page.total ?? _total;
+        // 没有新条目时强制停止，避免异常通道下反复空转
+        _hasMore =
+            items.length > before && page.hasMore(items.length, _pageSize);
+      });
+      _scheduleLoadMoreCheck();
+    } catch (_) {
+      // 加载更多失败保持现状，下次触底再试
+    } finally {
+      _loadingMore = false;
+      if (mounted && gen == _loadGen) setState(() {});
+    }
+  }
+
+  /// 按 `_id` 去重，保留首次出现的顺序（分页追加时防重复行）。
+  static List<SmsItem> _dedupById(List<SmsItem> source) {
+    final seen = <int>{};
+    return [
+      for (final e in source)
+        if (e.id == null || seen.add(e.id!)) e,
+    ];
+  }
+
+  Future<SmsQueryPage> _allAsPage() async {
+    final list = _dedupById(await _repo.queryAll());
+    return SmsQueryPage(items: list, total: list.length);
+  }
+
+  /// 筛选激活后补齐全量，保证客户端过滤结果完整；失败则退化为「基于已加载数据」。
+  Future<void> _ensureFullForFilter() async {
+    if (!_filter.active || !_hasMore) return;
+    final gen = _loadGen;
+    try {
+      final page = await _allAsPage();
+      if (!mounted || gen != _loadGen) return;
+      setState(() {
+        items = page.items;
+        _total = page.total;
+        _hasMore = false;
+        _pruneSelection();
+      });
+    } catch (_) {
+      // 保留已加载数据，筛选只作用于已加载部分
+    }
+  }
+
+  /// 筛选条件变化后的统一入口（弹层 / 同号 / 同卡）。
+  Future<void> _onFilterChangedWith(void Function() apply) async {
+    if (!mounted) return;
+    setState(apply);
+    await _ensureFullForFilter();
   }
 
   /// 刷新后把选中集裁剪到仍存在的 id，避免残留失效项。
@@ -172,7 +281,11 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   const Text('短信'),
                   Text(
-                    '${visible.length} 条',
+                    _hasMore
+                        ? (_total != null
+                              ? '已加载 ${visible.length} / $_total 条'
+                              : '已加载 ${visible.length} 条')
+                        : '${visible.length} 条',
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w400,
@@ -262,6 +375,7 @@ class _HomePageState extends State<HomePage> {
         child: _loading
             ? const Center(child: CircularProgressIndicator())
             : CustomScrollView(
+                controller: _scrollController,
                 slivers: [
                   if (_showMiuiHint || _filter.active)
                     SliverToBoxAdapter(
@@ -323,6 +437,19 @@ class _HomePageState extends State<HomePage> {
                             ),
                           };
                         },
+                      ),
+                    ),
+                  if (_loadingMore)
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(12, 8, 12, 88),
+                        child: Center(
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
                       ),
                     ),
                 ],
@@ -481,8 +608,12 @@ class _HomePageState extends State<HomePage> {
     showSmsActionSheet(
       context,
       e,
-      onSameAddress: (addr) => setState(() => _filter.sameAddress = addr),
-      onSameSim: (sim) => setState(() => _filter.sameSim = sim),
+      onSameAddress: (addr) => _onFilterChangedWith(() {
+        _filter.sameAddress = addr;
+      }),
+      onSameSim: (sim) => _onFilterChangedWith(() {
+        _filter.sameSim = sim;
+      }),
       onDelete: () => _confirmAndDelete([e]),
       onHide: () => _hideItem(e),
     );
@@ -582,6 +713,8 @@ class _HomePageState extends State<HomePage> {
     if (_exporting) return;
     setState(() => _exporting = true);
     try {
+      // 导出必须覆盖全库，不能只用已加载分页（与 settings_page 一致走 queryAll）。
+      final items = await _repo.queryAll();
       if (items.isEmpty) {
         _toast('没有可导出的短信');
         return;
@@ -627,7 +760,7 @@ class _HomePageState extends State<HomePage> {
     final f = await showFilterSheet(context, _filter);
     if (f != null && mounted) {
       // 完整应用返回值：弹层「重置」会清掉 sameAddress/sameSim，必须一并同步。
-      setState(() => _filter.applyFrom(f));
+      await _onFilterChangedWith(() => _filter.applyFrom(f));
     }
   }
 

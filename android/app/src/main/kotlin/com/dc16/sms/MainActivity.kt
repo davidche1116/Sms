@@ -77,8 +77,11 @@ class MainActivity : FlutterFragmentActivity() {
               result.success(mapOf("ok" to (n != null), "deleted" to (n ?: 0)))
             }
             "querySms" -> {
-              val addr = (call.arguments as? Map<*, *>)?.get("address") as? String
-              result.success(access.querySms(addr))
+              val args = call.arguments as? Map<*, *>
+              val addr = args?.get("address") as? String
+              val limit = (args?.get("limit") as? Number)?.toInt()
+              val offset = (args?.get("offset") as? Number)?.toInt() ?: 0
+              result.success(access.querySms(addr, limit, offset))
             }
             "deleteSmsBatch" -> {
               val ids = (call.arguments as? List<*>)?.mapNotNull { (it as? Number)?.toInt() }

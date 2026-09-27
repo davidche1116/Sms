@@ -66,8 +66,16 @@ MainActivity  ──►  SmsAccess
 ### 5.1 入参
 
 ```json
-{ "address": "10086" }   // 可选；空/缺省 = 全部号码
+{ "address": "10086", "limit": 200, "offset": 0 }
 ```
+
+| 键 | 类型 | 说明 |
+|----|------|------|
+| `address` | String? | 可选；空/缺省 = 全部号码 |
+| `limit` | Int? | 可选；**缺省 = 全量**（兼容旧调用）。非空时按 date 降序切一页 |
+| `offset` | Int? | 可选；缺省 0。仅在 `limit` 非空时生效，跳过前 N 条 |
+
+推荐 UI 使用 `limit+offset`（与 date 降序一致）；不推荐 `beforeDateMs` 游标（同 date 边界易漏/重）。
 
 ### 5.2 权限门闩
 
@@ -119,10 +127,12 @@ _id, thread_id, address, body, date, date_sent, read, type, sub_id
 | 层 | 规则 |
 |----|------|
 | Provider | 不强制 `ORDER BY`（整表默认 `date DESC`；分箱可不带） |
-| Kotlin 合并 | 不排序 |
-| Dart | `sortByDateDesc`，null date 视为最早 |
+| Kotlin 合并 | **date 降序**（null 最早）+ `_id` 降序稳定次键；再 `drop(offset).take(limit)` |
+| Dart | 页内再排同序兜底（避免个别 ROM 列序不稳） |
 
 按 `address` 过滤：`selection = "address = ?"`（与插件「查后内存过滤」一致，SQL 更省）。
+
+**分页切片必须在合并去重 + 全局排序之后**，否则跨页会漏/重。`total` 始终是去重后的库内总数，与是否分页无关。
 
 ### 5.7 返回契约
 
@@ -136,9 +146,16 @@ _id, thread_id, address, body, date, date_sent, read, type, sub_id
       "read": 1, "type": 1, "sub_id": 0
     }
   ],
+  "total": 12345,
   "error": null
 }
 ```
+
+| 字段 | 含义 |
+|------|------|
+| `messages` | 本页（或全量）行，date 降序 |
+| `total` | 去重后总数；便于 UI「已加载 X / total 条」 |
+| `error` | 见下表 |
 
 | error | 含义 | Dart |
 |-------|------|------|
@@ -207,13 +224,18 @@ ids.chunked(900)     // SQLITE_MAX_VARIABLE_NUMBER 默认 999
 
 | Method | 参数 | 返回 |
 |--------|------|------|
-| `querySms` | `{address?}` 或 null | 见 §5.7 |
+| `querySms` | `{address?, limit?, offset?}` 或 null | 见 §5.7（含 `total`） |
 | `deleteSmsBatch` | `List<Int>` | `Int?` |
 | `hasReadSmsPermission` | — | `bool` |
 | `isDefaultSms` | — | `bool?` |
 | （已有）`setDefaultSms` 等 | — | 见 PERMISSION_DESIGN v3 |
 
 所有 handler **try/catch** → `result.error("error", …)`，禁止裸抛。
+
+**UI 增量加载约定（P1-6）**：
+- 启动/下拉刷新拉第一页（`limit=200, offset=0`）；滚动触底按 `offset=已加载条数` 追加，按 `_id` 去重。
+- **筛选仍是客户端过滤**：筛选条件激活时一次性 `queryAll()` 补齐全量，保证结果完整；补全失败则退化为「筛选基于已加载数据」。
+- **导出「全部」必须 `queryAll()` 全量**，不得用已加载分页当全库。
 
 ---
 
