@@ -89,6 +89,9 @@ object ChannelCodes {
   /** 单行插入失败（insert 回 null 或抛异常）。 */
   const val INSERT_ERROR_FAILED = "failed"
 
+  /** 入参行形态非法（非 Map）：按原下标记失败，不丢弃、不打乱 index。 */
+  const val INSERT_ERROR_INVALID = "invalid"
+
   /** 保留值：形态异常/未知 code 的安全默认（Dart 解析兜底）。 */
   const val INSERT_ERROR_UNKNOWN = "unknown"
 

@@ -317,4 +317,31 @@ class SmsAccessWriteTest {
     assertEquals(1, errors[0][ChannelCodes.KEY_INDEX])
     assertEquals(ChannelCodes.INSERT_ERROR_FAILED, errors[0][ChannelCodes.KEY_CODE])
   }
+
+  @Test
+  fun `insertSmsBatch keeps original indices for non-map rows`() {
+    val resolver = mock<ContentResolver>()
+    whenever(resolver.insert(anyOrNull(), anyOrNull())).thenReturn(mock<Uri>())
+    val access = SmsAccess(mockSmsContext(resolver, defaultSms = true))
+    // 混入 String / null：不得丢行，否则 errors[].index 相对 Dart 载荷错位。
+    val rows = listOf<Any?>(
+      mapOf<String, Any?>("address" to "1", "body" to "ok", "type" to 1),
+      "not-a-map",
+      mapOf<String, Any?>("address" to "1", "body" to "ok2", "type" to 1),
+      null,
+    )
+    val r = access.insertSmsBatch(rows)
+    assertEquals(true, r[ChannelCodes.KEY_OK])
+    assertEquals(2, r[ChannelCodes.KEY_INSERTED])
+    assertEquals(2, r[ChannelCodes.KEY_FAILED])
+    @Suppress("UNCHECKED_CAST")
+    val errors = r[ChannelCodes.KEY_ERRORS] as List<Map<String, Any?>>
+    assertEquals(2, errors.size)
+    assertEquals(1, errors[0][ChannelCodes.KEY_INDEX])
+    assertEquals(ChannelCodes.INSERT_ERROR_INVALID, errors[0][ChannelCodes.KEY_CODE])
+    assertEquals(3, errors[1][ChannelCodes.KEY_INDEX])
+    assertEquals(ChannelCodes.INSERT_ERROR_INVALID, errors[1][ChannelCodes.KEY_CODE])
+    // 仅两行合法 Map 真正落库
+    verify(resolver, times(2)).insert(anyOrNull(), anyOrNull())
+  }
 }

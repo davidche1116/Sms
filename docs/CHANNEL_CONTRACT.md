@@ -40,7 +40,7 @@
 | `hasReadSmsPermission` | `checkSelfPermission(READ_SMS)` **且** AppOps `OPSTR_READ_SMS == MODE_ALLOWED` | `bool`；异常当 false |
 | `requestReadSms` | 拉起系统 READ_SMS 弹窗；已有读权限直接 true；已有弹窗在途直接 false（Dart 会再查） | `bool` |
 | `isDefaultSms` | `RoleManager.isRoleHeld(ROLE_SMS)`（不可用时退回 `getDefaultSmsPackage`） | `true` / `false` / `null` |
-| `setDefaultSms` | 已是默认直接回 `had`；否则 `createRequestRoleIntent`，失败/不可用则打开默认应用页 | 见下表 |
+| `setDefaultSms` | **唯一路径** `SmsAccess.setDefaultSms`（MainActivity 只挂 pending / 拉起角色页）：已是默认直接回 `had`；否则 `createRequestRoleIntent` for-result，失败/不可用则打开默认应用页 | 见下表 |
 | `restoreDefaultSms` | 还原为系统默认（Q+ 只能打开「默认应用」页） | 见下表 |
 | `openDefaultSmsSettings` | `ACTION_MANAGE_DEFAULT_APPS_SETTINGS` | `bool` 是否成功拉起 |
 | `openAppSettings` | 本应用系统设置页 | `bool` |
@@ -224,6 +224,8 @@ Dart：`QueryError.permission` → `SmsQueryPermissionException`；`unknown` →
 | `type` | `Int?` | 1 inbox / 2 sent / 3 draft（2/4/5/6 → Sent URI）；缺省 1 |
 | `sub_id` | `Int?` | 可空则不写 SUBSCRIPTION_ID |
 
+**下标对齐（P1-6）**：Kotlin 解析**不得**丢弃非 Map 行（避免 `mapNotNull` 与 Dart `errors[].index` 错位）。非 Map 行按**原下标**记 `errors[{index, code: "invalid"}]` 并计入 `failed`；其余行继续插入。`inserted + failed`（已受理时）恒等于入参长度。
+
 ### 返回 Map（新契约）
 
 ```json
@@ -252,6 +254,7 @@ Dart：`QueryError.permission` → `SmsQueryPermissionException`；`unknown` →
 |-------------|----------------|------|
 | `not_default` | `insertErrorNotDefault` / `INSERT_ERROR_NOT_DEFAULT` | 非默认短信应用，整批未执行 |
 | `failed` | `insertErrorFailed` / `INSERT_ERROR_FAILED` | 单行插入失败（insert 回 null 或抛异常） |
+| `invalid` | `insertErrorInvalid` / `INSERT_ERROR_INVALID` | 入参行形态非法（非 Map）：按原下标记失败，**不丢弃、不打乱 index** |
 | `unknown` | `insertErrorUnknown` / `INSERT_ERROR_UNKNOWN` | 保留值：形态异常/未知 code 的安全默认（Dart 解析兜底） |
 
 **兼容**：旧调用方可能读 `Int?`（null=失败、int=全成条数）。Dart `InsertBatchResult.fromWire` 同时接受 Map / int / null；新代码一律按 Map 解析。
@@ -337,6 +340,7 @@ adb QA Intent（action 前缀 `com.davidche1116.sms.QA_*`）用法见 [CONTRIBUT
 | `message` | `keyMessage` | `KEY_MESSAGE` | errors[] |
 | `not_default` | `insertErrorNotDefault` | `INSERT_ERROR_NOT_DEFAULT` | errors[].code |
 | `failed` | `insertErrorFailed` | `INSERT_ERROR_FAILED` | errors[].code |
+| `invalid` | `insertErrorInvalid` | `INSERT_ERROR_INVALID` | errors[].code（非 Map 行） |
 | `unknown` | `insertErrorUnknown` | `INSERT_ERROR_UNKNOWN` | errors[].code |
 | `not_default` | `deleteErrorNotDefault` | `DELETE_ERROR_NOT_DEFAULT` | deleteSmsBatch error / errors[].code |
 | `failed` | `deleteErrorFailed` | `DELETE_ERROR_FAILED` | deleteSmsBatch error / errors[].code |

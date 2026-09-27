@@ -752,6 +752,7 @@ void main() {
       expect(ChannelCodes.keyMessage, 'message');
       expect(ChannelCodes.insertErrorNotDefault, 'not_default');
       expect(ChannelCodes.insertErrorFailed, 'failed');
+      expect(ChannelCodes.insertErrorInvalid, 'invalid');
       expect(ChannelCodes.insertErrorUnknown, 'unknown');
       expect(ChannelCodes.deleteErrorNotDefault, 'not_default');
       expect(ChannelCodes.deleteErrorFailed, 'failed');

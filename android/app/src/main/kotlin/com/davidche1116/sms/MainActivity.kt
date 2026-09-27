@@ -1,15 +1,14 @@
 package com.davidche1116.sms
 
 import android.Manifest
-import android.app.role.RoleManager
 import android.content.Intent
 import android.content.pm.ApplicationInfo
-import android.os.Build
 import android.util.Log
 import androidx.activity.result.contract.ActivityResultContracts
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * MethodChannel.Result 一次性包装：success/error/notImplemented 只会发出一次。
@@ -18,12 +17,10 @@ import io.flutter.plugin.common.MethodChannel
  * 对同一个 Result 二次回包（Flutter 会抛 IllegalStateException）。
  */
 internal class OnceResult(private val raw: MethodChannel.Result) : MethodChannel.Result {
-  @Volatile
-  private var done = false
+  private val done = AtomicBoolean(false)
 
   override fun success(result: Any?) {
-    if (done) return
-    done = true
+    if (!done.compareAndSet(false, true)) return
     try {
       raw.success(result)
     } catch (e: Exception) {
@@ -32,8 +29,7 @@ internal class OnceResult(private val raw: MethodChannel.Result) : MethodChannel
   }
 
   override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) {
-    if (done) return
-    done = true
+    if (!done.compareAndSet(false, true)) return
     try {
       raw.error(errorCode, errorMessage, errorDetails)
     } catch (e: Exception) {
@@ -42,8 +38,7 @@ internal class OnceResult(private val raw: MethodChannel.Result) : MethodChannel
   }
 
   override fun notImplemented() {
-    if (done) return
-    done = true
+    if (!done.compareAndSet(false, true)) return
     try {
       raw.notImplemented()
     } catch (e: Exception) {
@@ -141,7 +136,25 @@ class MainActivity : FlutterFragmentActivity() {
               }
             }
             "isDefaultSms" -> result.success(access.isDefaultSms())
-            "setDefaultSms" -> launchRoleRequest(result)
+            "setDefaultSms" -> {
+              // 唯一设默认路径在 SmsAccess.setDefaultSms；此处只挂 pending / 拉起角色页。
+              val settled = access.setDefaultSms(this) { intent ->
+                if (pendingRole != null) {
+                  false
+                } else {
+                  pendingRole = result
+                  try {
+                    requestRole.launch(intent)
+                    true
+                  } catch (e: Exception) {
+                    // launch 失败：收回 pending，交回 SmsAccess 走设置页 fallback
+                    takePendingRole()
+                    false
+                  }
+                }
+              }
+              if (settled != null) result.success(settled)
+            }
             "restoreDefaultSms" -> result.success(access.restoreDefaultSms(this))
             "openDefaultSmsSettings" ->
               result.success(access.openDefaultSmsSettings(this))
@@ -184,18 +197,8 @@ class MainActivity : FlutterFragmentActivity() {
               result.success(access.deleteSmsBatch(targets))
             }
             "insertSmsBatch" -> {
-              val raw = (call.arguments as? List<*>) ?: emptyList<Any>()
-              val rows = raw.mapNotNull { item ->
-                (item as? Map<*, *>)?.let { m ->
-                  mapOf<String, Any?>(
-                    "address" to m["address"] as? String,
-                    "body" to m["body"] as? String,
-                    "date" to (m["date"] as? Number)?.toLong(),
-                    "type" to (m["type"] as? Number)?.toInt(),
-                    "sub_id" to (m["sub_id"] as? Number)?.toInt(),
-                  )
-                }
-              }
+              // 原样透传（含非 Map 行）：SmsAccess 按入参下标 1:1 记 errors，避免 mapNotNull 错位。
+              val rows = (call.arguments as? List<*>) ?: emptyList<Any?>()
               result.success(access.insertSmsBatch(rows))
             }
             else -> result.notImplemented()
@@ -287,42 +290,6 @@ class MainActivity : FlutterFragmentActivity() {
       Log.i("QaIntent", line)
     } catch (e: Exception) {
       Log.e("QaIntent", "writeQaResult", e)
-    }
-  }
-
-  /** 优先 RoleManager 申请；失败则打开系统默认应用设置页。 */
-  private fun launchRoleRequest(result: MethodChannel.Result) {
-    if (access.isDefaultSms() == true) {
-      result.success(ChannelCodes.SET_DEFAULT_HAD)
-      return
-    }
-    try {
-      val rm = getSystemService(RoleManager::class.java)
-      val intent =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && rm != null && rm.isRoleAvailable(RoleManager.ROLE_SMS)
-        ) {
-          rm.createRequestRoleIntent(RoleManager.ROLE_SMS)
-        } else {
-          null
-        }
-      if (intent != null && pendingRole == null) {
-        pendingRole = result
-        try {
-          requestRole.launch(intent)
-        } catch (e: Exception) {
-          // launch 失败：收回 pending，走下方 fallback 回包
-          takePendingRole()
-          access.openDefaultSmsSettings(this)
-          result.success(ChannelCodes.SET_DEFAULT_NO)
-        }
-      } else {
-        // 角色申请不可用 / 正在请求中 → 直接打开系统默认应用页
-        access.openDefaultSmsSettings(this)
-        result.success(ChannelCodes.SET_DEFAULT_NO)
-      }
-    } catch (e: Exception) {
-      access.openDefaultSmsSettings(this)
-      result.success(ChannelCodes.SET_DEFAULT_NO)
     }
   }
 }

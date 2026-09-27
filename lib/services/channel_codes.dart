@@ -86,6 +86,9 @@ abstract final class ChannelCodes {
   /// 单行插入失败（insert 回 null 或抛异常）。
   static const String insertErrorFailed = 'failed';
 
+  /// 入参行形态非法（非 Map）：按原下标记失败，不丢弃、不打乱 index。
+  static const String insertErrorInvalid = 'invalid';
+
   /// 保留值：形态异常/未知 code 的安全默认（解析兜底）。
   static const String insertErrorUnknown = 'unknown';
 
@@ -259,7 +262,7 @@ class InsertRowError {
   final int index;
 
   /// [ChannelCodes.insertErrorNotDefault] / [ChannelCodes.insertErrorFailed] /
-  /// [ChannelCodes.insertErrorUnknown]。
+  /// [ChannelCodes.insertErrorInvalid] / [ChannelCodes.insertErrorUnknown]。
   final String code;
 
   /// 原生补充说明，可能为 null。

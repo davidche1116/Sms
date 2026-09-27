@@ -27,7 +27,8 @@ class SmsAccess(private val context: Context) {
       != android.content.pm.PackageManager.PERMISSION_GRANTED
     ) return false
     return try {
-      appOps.unsafeCheckOpNoThrow(
+      // checkOpNoThrow：API 36+ 仍可用且未废弃；unsafeCheckOpNoThrow 已废弃。
+      appOps.checkOpNoThrow(
         AppOpsManager.OPSTR_READ_SMS, Process.myUid(), context.packageName,
       ) == AppOpsManager.MODE_ALLOWED
     } catch (_: Exception) {
@@ -46,18 +47,39 @@ class SmsAccess(private val context: Context) {
     null
   }
 
-  /** had | no | error（见 [ChannelCodes]） */
-  fun setDefaultSms(activity: Activity): String = try {
-    val rm = context.getSystemService(RoleManager::class.java)
+  /**
+   * 统一「设为默认短信」唯一路径（MainActivity 只负责 launcher / pending 收尾）。
+   *
+   * 已是默认 → `had`；否则交给 [requestRole] 发起角色申请。挂起成功返回 `null`，
+   * 最终 `had`/`no` 由系统回调补完；未能挂起 / 不可用 → 打开系统默认应用页并回 `no`。
+   *
+   * @param requestRole 发起角色申请（for-result）。`true`=已挂起；`false`=未能挂起。
+   * @return `null`=已挂起等系统回调，调用方勿再回包；非 null=立即完成的线值（见 [ChannelCodes]）。
+   */
+  fun setDefaultSms(
+    activity: Activity,
+    requestRole: (Intent) -> Boolean,
+  ): String? {
     if (isDefaultSms() == true) return ChannelCodes.SET_DEFAULT_HAD
-    val intent = rm?.createRequestRoleIntent(RoleManager.ROLE_SMS)
-    if (intent != null) {
-      activity.startActivity(intent)
+    return try {
+      val rm = context.getSystemService(RoleManager::class.java)
+      val intent =
+        if (rm != null && rm.isRoleAvailable(RoleManager.ROLE_SMS)) {
+          rm.createRequestRoleIntent(RoleManager.ROLE_SMS)
+        } else {
+          null
+        }
+      if (intent != null && requestRole(intent)) {
+        null
+      } else {
+        openDefaultSmsSettings(activity)
+        ChannelCodes.SET_DEFAULT_NO
+      }
+    } catch (e: Exception) {
+      Log.e(TAG, "setDefaultSms", e)
+      openDefaultSmsSettings(activity)
       ChannelCodes.SET_DEFAULT_NO
-    } else ChannelCodes.ERROR
-  } catch (e: Exception) {
-    Log.e(TAG, "setDefaultSms", e)
-    ChannelCodes.ERROR
+    }
   }
 
   fun openDefaultSmsSettings(activity: Activity): Boolean = try {
@@ -109,7 +131,8 @@ class SmsAccess(private val context: Context) {
     )
     for (op in candidates) {
       try {
-        val mode = appOps.unsafeCheckOpNoThrow(op, Process.myUid(), context.packageName)
+        // checkOpNoThrow：API 36+ 仍可用且未废弃；unsafeCheckOpNoThrow 已废弃。
+        val mode = appOps.checkOpNoThrow(op, Process.myUid(), context.packageName)
         when (mode) {
           AppOpsManager.MODE_ALLOWED -> return ChannelCodes.MIUI_ALLOW
           AppOpsManager.MODE_IGNORED, AppOpsManager.MODE_ERRORED -> return ChannelCodes.MIUI_LIKELY_OFF
@@ -757,13 +780,17 @@ class SmsAccess(private val context: Context) {
    * 因此选择可精确回溯的逐行路径：每行独立 insert，失败只影响该行并记录
    * `index/code/message`，其余行继续，保证 inserted 计数准确、错误可对应 CSV 行。
    *
+   * 入参保持与 Dart 载荷 **1:1 下标**：非 Map 行不丢弃，按原下标记 failed，
+   * 避免 `mapNotNull` 过滤导致 `errors[].index` 相对 Dart `rows` 错位。
+   *
+   * @param rows 通道原始列表，每项应为 Map；非 Map 记 `failed`/`invalid` 明细。
    * @return Map:
    *   ok       Boolean  是否非失败态（false=非默认/整批未执行）
    *   inserted Int      成功条数
    *   failed   Int      失败条数
    *   errors   List     [{index, code, message}]，index 为入参 rows 下标；-1=整批级
    */
-  fun insertSmsBatch(rows: List<Map<String, Any?>>): Map<String, Any?> {
+  fun insertSmsBatch(rows: List<Any?>): Map<String, Any?> {
     if (rows.isEmpty()) {
       return insertResult(ok = true, inserted = 0, failed = 0, errors = emptyList())
     }
@@ -780,7 +807,13 @@ class SmsAccess(private val context: Context) {
     val errors = mutableListOf<Map<String, Any?>>()
     var inserted = 0
     var failed = 0
-    rows.forEachIndexed { i, row ->
+    rows.forEachIndexed { i, item ->
+      val row = item as? Map<*, *>
+      if (row == null) {
+        failed++
+        errors.add(insertError(i, ChannelCodes.INSERT_ERROR_INVALID, "invalid row: expected map"))
+        return@forEachIndexed
+      }
       try {
         val (uri, values) = buildInsert(row)
         if (context.contentResolver.insert(uri, values) != null) inserted++
@@ -797,7 +830,7 @@ class SmsAccess(private val context: Context) {
     return insertResult(ok = true, inserted = inserted, failed = failed, errors = errors)
   }
 
-  private fun buildInsert(row: Map<String, Any?>): Pair<Uri, ContentValues> {
+  private fun buildInsert(row: Map<*, *>): Pair<Uri, ContentValues> {
     val type = (row["type"] as? Number)?.toInt() ?: Telephony.Sms.MESSAGE_TYPE_INBOX
     val date = (row["date"] as? Number)?.toLong() ?: System.currentTimeMillis()
     val uri = when (type) {

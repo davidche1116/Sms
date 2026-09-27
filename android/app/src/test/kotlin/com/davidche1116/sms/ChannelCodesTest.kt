@@ -78,6 +78,7 @@ class ChannelCodesTest {
   fun `insertSmsBatch error codes`() {
     assertEquals("not_default", ChannelCodes.INSERT_ERROR_NOT_DEFAULT)
     assertEquals("failed", ChannelCodes.INSERT_ERROR_FAILED)
+    assertEquals("invalid", ChannelCodes.INSERT_ERROR_INVALID)
     assertEquals("unknown", ChannelCodes.INSERT_ERROR_UNKNOWN)
   }
 
