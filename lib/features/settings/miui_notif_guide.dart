@@ -2,12 +2,18 @@ import 'package:flutter/material.dart';
 
 import '../../services/sms_repository.dart';
 
-/// MIUI「通知类短信」引导弹层。返回 `'open_miui'` 或 null（稍后）。
+/// MIUI 通知类短信引导弹层的选择（null = 稍后再说 / 关闭）。
+enum MiuiGuideAction {
+  /// 去开启通知类短信（打开 MIUI 权限编辑页）。
+  openMiui,
+}
+
+/// MIUI「通知类短信」引导弹层。返回 [MiuiGuideAction.openMiui] 或 null（稍后）。
 ///
 /// 该权限是 MIUI 私有项，**无法**用系统 API 代为授权，只能跳转
 /// 应用信息 → 权限管理 → 其他权限。申请 READ_SMS 成功后自动跟上这一步。
-Future<String?> showMiuiNotificationSmsSheet(BuildContext context) {
-  return showModalBottomSheet<String>(
+Future<MiuiGuideAction?> showMiuiNotificationSmsSheet(BuildContext context) {
+  return showModalBottomSheet<MiuiGuideAction>(
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
@@ -51,7 +57,7 @@ Future<String?> showMiuiNotificationSmsSheet(BuildContext context) {
             ),
             const SizedBox(height: 16),
             FilledButton(
-              onPressed: () => Navigator.pop(ctx, 'open_miui'),
+              onPressed: () => Navigator.pop(ctx, MiuiGuideAction.openMiui),
               child: const Text('去开启通知类短信'),
             ),
             const SizedBox(height: 4),
@@ -103,9 +109,9 @@ Future<bool> requestReadSmsWithMiuiGuide(
   if (context.mounted && await repo.isMiui()) {
     final state = await repo.miuiNotificationSmsState();
     // allow=已开通；deny/ignore=未开通；unknown=探测不到也提示路径
-    if (context.mounted && state != 'allow') {
+    if (context.mounted && state != MiuiNotifState.allow) {
       final action = await showMiuiNotificationSmsSheet(context);
-      if (action == 'open_miui' && context.mounted) {
+      if (action == MiuiGuideAction.openMiui && context.mounted) {
         await repo.openMiuiPermissionEditor();
       }
     }

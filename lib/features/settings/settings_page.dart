@@ -120,13 +120,12 @@ class _SettingsPageState extends State<SettingsPage> {
         ..clearSnackBars()
         ..showSnackBar(
           SnackBar(
-            content: Text(
-              r == 'settings'
-                  ? '已打开系统默认应用设置，请选择其他短信应用'
-                  : r == 'not_default'
-                  ? '当前不是默认短信应用'
-                  : '打开设置失败',
-            ),
+            content: Text(switch (r) {
+              RestoreDefaultResult.openedSettings =>
+                '已打开系统默认应用设置，请选择其他短信应用',
+              RestoreDefaultResult.notDefault => '当前不是默认短信应用',
+              RestoreDefaultResult.error => '打开设置失败',
+            }),
           ),
         );
     } else {
@@ -135,16 +134,14 @@ class _SettingsPageState extends State<SettingsPage> {
         ..clearSnackBars()
         ..showSnackBar(
           SnackBar(
-            content: Text(
-              r == 'had'
-                  ? '已是默认短信应用'
-                  : r == 'no'
-                  ? '请在系统弹窗中点「设为默认应用」'
-                  : '已打开系统默认应用设置',
-            ),
+            content: Text(switch (r) {
+              DefaultSmsResult.alreadyDefault => '已是默认短信应用',
+              DefaultSmsResult.requested => '请在系统弹窗中点「设为默认应用」',
+              DefaultSmsResult.error => '已打开系统默认应用设置',
+            }),
           ),
         );
-      if (r == 'error') await widget.repo.openDefaultSmsSettings();
+      if (r == DefaultSmsResult.error) await widget.repo.openDefaultSmsSettings();
     }
     await _refreshStatus();
     await widget.onDataChanged?.call();
@@ -157,9 +154,11 @@ class _SettingsPageState extends State<SettingsPage> {
       await requestReadSmsWithMiuiGuide(context, widget.repo);
     } else if (await widget.repo.isMiui()) {
       final st = await widget.repo.miuiNotificationSmsState();
-      if (st != 'allow' && mounted) {
+      if (st != MiuiNotifState.allow && mounted) {
         final action = await showMiuiNotificationSmsSheet(context);
-        if (action == 'open_miui') await widget.repo.openMiuiPermissionEditor();
+        if (action == MiuiGuideAction.openMiui) {
+          await widget.repo.openMiuiPermissionEditor();
+        }
       }
     }
     if (await widget.repo.isDefaultSms() != true) {
@@ -204,7 +203,7 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       final r = await CsvImporter.importViaPicker(widget.repo);
       if (!mounted) return;
-      if (r.error == 'cancelled') {
+      if (r.error == CsvImportError.cancelled) {
         _toast('已取消导入');
         return;
       }
@@ -213,7 +212,7 @@ class _SettingsPageState extends State<SettingsPage> {
         return;
       }
       if (!r.ok) {
-        _toast('导入失败：${r.error ?? '未知错误'}');
+        _toast('导入失败：${r.error?.message ?? '未知错误'}');
         return;
       }
       _toast('已导入 ${r.inserted} / ${r.parsed} 条');

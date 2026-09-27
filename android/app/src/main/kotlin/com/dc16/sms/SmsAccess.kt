@@ -44,18 +44,18 @@ class SmsAccess(private val context: Context) {
     null
   }
 
-  /** had | no | error */
+  /** had | no | error（见 [ChannelCodes]） */
   fun setDefaultSms(activity: Activity): String = try {
     val rm = context.getSystemService(RoleManager::class.java)
-    if (isDefaultSms() == true) return "had"
+    if (isDefaultSms() == true) return ChannelCodes.SET_DEFAULT_HAD
     val intent = rm?.createRequestRoleIntent(RoleManager.ROLE_SMS)
     if (intent != null) {
       activity.startActivity(intent)
-      "no"
-    } else "error"
+      ChannelCodes.SET_DEFAULT_NO
+    } else ChannelCodes.ERROR
   } catch (e: Exception) {
     Log.e(TAG, "setDefaultSms", e)
-    "error"
+    ChannelCodes.ERROR
   }
 
   fun openDefaultSmsSettings(activity: Activity): Boolean = try {
@@ -89,7 +89,7 @@ class SmsAccess(private val context: Context) {
 
   /**
    * MIUI「通知类短信」状态。
-   * @return "allow" / "likely_off" / "unknown"
+   * @return "allow" / "likely_off" / "unknown"（见 [ChannelCodes]）
    *
    * MIUI 私有开关，标准 AppOps 字符串多半不存在；结合两路信号：
    *  1) 已知 op 名 / 数值 MIUIOP；
@@ -97,7 +97,7 @@ class SmsAccess(private val context: Context) {
    *     若只有点对点手机号且条数很少，大概率未开通（未开通时常见只有个位数）。
    */
   fun miuiNotificationSmsState(): String {
-    if (!isMiui()) return "unknown"
+    if (!isMiui()) return ChannelCodes.MIUI_UNKNOWN
 
     val candidates = listOf(
       "RECEIVE_NOTIFICATION_SMS",
@@ -109,8 +109,8 @@ class SmsAccess(private val context: Context) {
       try {
         val mode = appOps.unsafeCheckOpNoThrow(op, Process.myUid(), context.packageName)
         when (mode) {
-          AppOpsManager.MODE_ALLOWED -> return "allow"
-          AppOpsManager.MODE_IGNORED, AppOpsManager.MODE_ERRORED -> return "likely_off"
+          AppOpsManager.MODE_ALLOWED -> return ChannelCodes.MIUI_ALLOW
+          AppOpsManager.MODE_IGNORED, AppOpsManager.MODE_ERRORED -> return ChannelCodes.MIUI_LIKELY_OFF
         }
       } catch (_: Exception) {
         // op 名不存在
@@ -135,12 +135,12 @@ class SmsAccess(private val context: Context) {
         }
       }
       when {
-        service > 0 -> "allow"
-        total in 1..20 -> "likely_off"
-        else -> "unknown"
+        service > 0 -> ChannelCodes.MIUI_ALLOW
+        total in 1..20 -> ChannelCodes.MIUI_LIKELY_OFF
+        else -> ChannelCodes.MIUI_UNKNOWN
       }
     } catch (_: Exception) {
-      "unknown"
+      ChannelCodes.MIUI_UNKNOWN
     }
   }
 
@@ -251,25 +251,29 @@ class SmsAccess(private val context: Context) {
    * 还原为系统默认短信。
    * Q+ 起 ACTION_CHANGE_DEFAULT 对第三方已失效，无法代用户释放 ROLE_SMS，
    * 只能打开系统「默认应用」页让用户手动改。
-   * @return "settings" 已打开设置 / "not_default" 本就不是默认 / "error"
+   * @return "settings" 已打开设置 / "not_default" 本就不是默认 / "error"（见 [ChannelCodes]）
    */
   fun restoreDefaultSms(activity: Activity): String = try {
-    if (isDefaultSms() != true) return "not_default"
+    if (isDefaultSms() != true) return ChannelCodes.RESTORE_NOT_DEFAULT
     activity.startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
-    "settings"
+    ChannelCodes.RESTORE_SETTINGS
   } catch (e: Exception) {
     Log.e(TAG, "restoreDefaultSms", e)
-    "error"
+    ChannelCodes.ERROR
   }
 
   /**
    * @param limit null=全量（兼容旧调用）；非空时按 date 降序切页
    * @param offset 跳过条数，仅在 limit 非空时生效
-   * @return messages + total + error(null|permission|unknown)
+   * @return messages + total + error(null|permission|unknown)，键与错误值见 [ChannelCodes]
    */
   fun querySms(address: String?, limit: Int? = null, offset: Int = 0): Map<String, Any?> {
     if (!hasReadSms() && isDefaultSms() != true) {
-      return mapOf("messages" to emptyList<Any>(), "total" to 0, "error" to "permission")
+      return mapOf(
+        ChannelCodes.KEY_MESSAGES to emptyList<Any>(),
+        ChannelCodes.KEY_TOTAL to 0,
+        ChannelCodes.KEY_ERROR to ChannelCodes.QUERY_ERROR_PERMISSION,
+      )
     }
     val sel = if (address.isNullOrEmpty()) null else "${Telephony.Sms.ADDRESS}=?"
     val args = if (address.isNullOrEmpty()) null else arrayOf(address)
@@ -305,11 +309,15 @@ class SmsAccess(private val context: Context) {
     }
     val error = when {
       byId.isNotEmpty() -> null
-      security -> "permission"
-      other -> "unknown"
+      security -> ChannelCodes.QUERY_ERROR_PERMISSION
+      other -> ChannelCodes.QUERY_ERROR_UNKNOWN
       else -> null
     }
-    return mapOf("messages" to page, "total" to total, "error" to error)
+    return mapOf(
+      ChannelCodes.KEY_MESSAGES to page,
+      ChannelCodes.KEY_TOTAL to total,
+      ChannelCodes.KEY_ERROR to error,
+    )
   }
 
   /** @return 行数；null=非默认/失败 */

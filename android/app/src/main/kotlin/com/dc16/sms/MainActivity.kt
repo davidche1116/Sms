@@ -31,7 +31,10 @@ class MainActivity : FlutterFragmentActivity() {
       val r = pendingRole
       pendingRole = null
       // 用户从角色页返回后无论结果如何都回包，让 Dart 刷新
-      r?.success(if (access.isDefaultSms() == true) "had" else "no")
+      r?.success(
+        if (access.isDefaultSms() == true) ChannelCodes.SET_DEFAULT_HAD
+        else ChannelCodes.SET_DEFAULT_NO,
+      )
     }
 
   override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -67,14 +70,21 @@ class MainActivity : FlutterFragmentActivity() {
               val count = (args?.get("count") as? Number)?.toInt() ?: 3
               val prefix = args?.get("bodyPrefix") as? String ?: "SMSCLEANUP_TEST"
               val ids = access.insertTestSms(count, prefix)
-              if (ids == null) result.success(mapOf("ok" to false, "ids" to emptyList<Int>()))
-              else result.success(mapOf("ok" to true, "ids" to ids))
+              if (ids == null) {
+                result.success(
+                  mapOf(ChannelCodes.KEY_OK to false, ChannelCodes.KEY_IDS to emptyList<Int>()),
+                )
+              } else {
+                result.success(mapOf(ChannelCodes.KEY_OK to true, ChannelCodes.KEY_IDS to ids))
+              }
             }
             "deleteTestSmsByPrefix" -> {
               val prefix = (call.arguments as? Map<*, *>)?.get("bodyPrefix") as? String
                 ?: "SMSCLEANUP_TEST"
               val n = access.deleteTestSmsByPrefix(prefix)
-              result.success(mapOf("ok" to (n != null), "deleted" to (n ?: 0)))
+              result.success(
+                mapOf(ChannelCodes.KEY_OK to (n != null), ChannelCodes.KEY_DELETED to (n ?: 0)),
+              )
             }
             "querySms" -> {
               val args = call.arguments as? Map<*, *>
@@ -187,7 +197,7 @@ class MainActivity : FlutterFragmentActivity() {
   /** 优先 RoleManager 申请；失败则打开系统默认应用设置页。 */
   private fun launchRoleRequest(result: MethodChannel.Result) {
     if (access.isDefaultSms() == true) {
-      result.success("had")
+      result.success(ChannelCodes.SET_DEFAULT_HAD)
       return
     }
     try {
@@ -205,11 +215,11 @@ class MainActivity : FlutterFragmentActivity() {
       } else {
         // 角色申请不可用 / 正在请求中 → 直接打开系统默认应用页
         access.openDefaultSmsSettings(this)
-        result.success("no")
+        result.success(ChannelCodes.SET_DEFAULT_NO)
       }
     } catch (e: Exception) {
       access.openDefaultSmsSettings(this)
-      result.success("no")
+      result.success(ChannelCodes.SET_DEFAULT_NO)
     }
   }
 }

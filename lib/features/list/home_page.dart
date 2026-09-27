@@ -109,7 +109,12 @@ class _HomePageState extends State<HomePage> {
       var hint = false;
       if (await _repo.isMiui()) {
         final st = await _repo.miuiNotificationSmsState();
-        hint = st == 'likely_off' || st == 'ignore' || st == 'deny';
+        hint = switch (st) {
+          MiuiNotifState.likelyOff ||
+          MiuiNotifState.ignore ||
+          MiuiNotifState.deny => true,
+          _ => false,
+        };
       }
       if (!mounted || gen != _loadGen) return;
       setState(() {
@@ -219,9 +224,9 @@ class _HomePageState extends State<HomePage> {
         if (e.id != null) e.id!,
     ];
     if (ids.isEmpty) return false;
-    final n = await _repo.deleteSmsBatch(ids);
+    final r = await _repo.deleteSmsBatch(ids);
     if (!mounted) return false;
-    if (n == null) {
+    if (!r.ok) {
       // 失败不改 UI，列表保持原样
       _toast('删除失败：请先设为默认短信应用');
       return false;
@@ -235,7 +240,7 @@ class _HomePageState extends State<HomePage> {
       _selectMode = false;
     });
     _hiddenStore.save(_hiddenIds);
-    _toast('已删除 $n 条');
+    _toast('已删除 ${r.deleted} 条');
     _load();
     return true;
   }
@@ -584,12 +589,13 @@ class _HomePageState extends State<HomePage> {
         // 引导设为默认，便于删除
         final r = await _repo.setDefaultSms();
         if (!mounted) return;
-        if (r == 'had') {
-          _toast('已是默认短信应用');
-        } else if (r == 'no') {
-          _toast('请在系统弹窗中确认');
-        } else {
-          await _repo.openDefaultSmsSettings();
+        switch (r) {
+          case DefaultSmsResult.alreadyDefault:
+            _toast('已是默认短信应用');
+          case DefaultSmsResult.requested:
+            _toast('请在系统弹窗中确认');
+          case DefaultSmsResult.error:
+            await _repo.openDefaultSmsSettings();
         }
         await _load();
       },
@@ -735,7 +741,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final r = await CsvImporter.importViaPicker(_repo);
       if (!mounted) return;
-      if (r.error == 'cancelled') {
+      if (r.error == CsvImportError.cancelled) {
         _toast('已取消导入');
         return;
       }
@@ -744,7 +750,7 @@ class _HomePageState extends State<HomePage> {
         return;
       }
       if (!r.ok) {
-        _toast('导入失败：${r.error ?? '未知错误'}');
+        _toast('导入失败：${r.error?.message ?? '未知错误'}');
         return;
       }
       _toast('已导入 ${r.inserted} / ${r.parsed} 条');

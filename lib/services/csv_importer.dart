@@ -34,6 +34,28 @@ class SmsImportRow {
   };
 }
 
+/// 导入失败原因（非通道协议，本地状态）。
+enum CsvImportError {
+  /// 用户取消选文件。
+  cancelled,
+
+  /// 文件读取 / 解码失败。
+  readFailed,
+
+  /// 解析后无有效行。
+  empty,
+
+  /// 其他未知失败。
+  unknown;
+
+  String get message => switch (this) {
+    CsvImportError.cancelled => '已取消导入',
+    CsvImportError.readFailed => '读取文件失败',
+    CsvImportError.empty => '文件中没有可导入的短信',
+    CsvImportError.unknown => '未知错误',
+  };
+}
+
 class CsvImportResult {
   const CsvImportResult({
     required this.parsed,
@@ -44,7 +66,7 @@ class CsvImportResult {
 
   final int parsed;
   final int inserted;
-  final String? error;
+  final CsvImportError? error;
   final bool notDefault;
 
   bool get ok => error == null && !notDefault;
@@ -87,14 +109,22 @@ class CsvImporter {
       allowedExtensions: ['csv'],
     );
     if (file == null) {
-      return const CsvImportResult(parsed: 0, inserted: 0, error: 'cancelled');
+      return const CsvImportResult(
+        parsed: 0,
+        inserted: 0,
+        error: CsvImportError.cancelled,
+      );
     }
     String text;
     try {
       final bytes = await file.readAsBytes();
       text = utf8.decode(bytes, allowMalformed: true);
     } catch (_) {
-      return const CsvImportResult(parsed: 0, inserted: 0, error: 'read_failed');
+      return const CsvImportResult(
+        parsed: 0,
+        inserted: 0,
+        error: CsvImportError.readFailed,
+      );
     }
     return importText(repo, text);
   }
@@ -105,19 +135,24 @@ class CsvImporter {
   ) async {
     final rows = parse(text);
     if (rows.isEmpty) {
-      return const CsvImportResult(parsed: 0, inserted: 0, error: 'empty');
+      return const CsvImportResult(
+        parsed: 0,
+        inserted: 0,
+        error: CsvImportError.empty,
+      );
     }
     final r = await repo.insertSmsBatch([
       for (final e in rows) e.toChannel(),
     ]);
-    if (r == null) {
+    if (!r.ok) {
+      // 线协议上 null=非默认/失败不可区分；UI 以「先设默认」为主要引导。
       return CsvImportResult(
         parsed: rows.length,
         inserted: 0,
         notDefault: true,
       );
     }
-    return CsvImportResult(parsed: rows.length, inserted: r);
+    return CsvImportResult(parsed: rows.length, inserted: r.inserted);
   }
 
   static SmsKind _parseKind(String raw) {

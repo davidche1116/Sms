@@ -18,7 +18,7 @@ class _PermissionPageState extends State<PermissionPage> {
   bool? _hasRead;
   bool? _isDefault;
   bool _isMiui = false;
-  String _miuiNotif = 'unknown';
+  MiuiNotifState _miuiNotif = MiuiNotifState.unknown;
   bool _busy = false;
 
   @override
@@ -33,7 +33,7 @@ class _PermissionPageState extends State<PermissionPage> {
     final miui = await widget.repo.isMiui();
     final notif = miui
         ? await widget.repo.miuiNotificationSmsState()
-        : 'unknown';
+        : MiuiNotifState.unknown;
     if (!mounted) return;
     setState(() {
       _hasRead = r;
@@ -73,12 +73,13 @@ class _PermissionPageState extends State<PermissionPage> {
     final r = await widget.repo.setDefaultSms();
     await _refresh();
     if (!mounted) return;
-    if (r == 'had') {
-      _toast('已是默认短信应用');
-    } else if (r == 'no') {
-      _toast('请在系统弹窗中点「设为默认应用」');
-    } else {
-      await widget.repo.openDefaultSmsSettings();
+    switch (r) {
+      case DefaultSmsResult.alreadyDefault:
+        _toast('已是默认短信应用');
+      case DefaultSmsResult.requested:
+        _toast('请在系统弹窗中点「设为默认应用」');
+      case DefaultSmsResult.error:
+        await widget.repo.openDefaultSmsSettings();
     }
   });
 
@@ -144,20 +145,21 @@ class _PermissionPageState extends State<PermissionPage> {
                   const Divider(height: 1),
                   ListTile(
                     leading: Icon(
-                      _miuiNotif == 'allow'
+                      _miuiNotif == MiuiNotifState.allow
                           ? Icons.check_circle
                           : Icons.warning_amber_outlined,
-                      color: _miuiNotif == 'allow'
+                      color: _miuiNotif == MiuiNotifState.allow
                           ? scheme.primary
                           : const Color(0xFFE6A23C),
                     ),
                     title: const Text('MIUI 通知类短信'),
                     subtitle: Text(
                       switch (_miuiNotif) {
-                        'allow' => '已允许 · 通知类短信可见',
-                        'likely_off' => '可能未开通 · 10086 等可能读不到',
-                        'deny' || 'ignore' => '未开通 · 只能读到点对点短信',
-                        _ => 'MIUI 附加权限 · 建议开通',
+                        MiuiNotifState.allow => '已允许 · 通知类短信可见',
+                        MiuiNotifState.likelyOff => '可能未开通 · 10086 等可能读不到',
+                        MiuiNotifState.deny ||
+                        MiuiNotifState.ignore => '未开通 · 只能读到点对点短信',
+                        MiuiNotifState.unknown => 'MIUI 附加权限 · 建议开通',
                       },
                     ),
                   ),
@@ -197,7 +199,7 @@ class _PermissionPageState extends State<PermissionPage> {
                   ? null
                   : () => _run(() async {
                       final action = await showMiuiNotificationSmsSheet(context);
-                      if (action == 'open_miui') {
+                      if (action == MiuiGuideAction.openMiui) {
                         final ok = await widget.repo.openMiuiPermissionEditor();
                         if (!ok && mounted) _toast('打开 MIUI 权限页失败');
                       }
