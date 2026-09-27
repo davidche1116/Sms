@@ -165,14 +165,12 @@ class SmsAccessMmsTest {
   @Test
   fun `querySms merges sms and mms with same _id without collision`() {
     val resolver = mock<ContentResolver>()
-    // 4 次 SMS URI + 4 次 MMS URI；SMS _id=1 与 MMS _id=1 必须都保留
-    whenever(resolver.query(anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull()))
-      .thenReturn(
-        smsCursor(smsRow(id = 1, body = "sms-1", date = 200L)),
-        null, null, null,
-        mmsCursor(mmsRow(id = 1, dateSec = 1L)), // date 秒=1 → ms=1000
-        null, null, null,
-      )
+    val stub = SmsProviderStub().apply {
+      // SMS _id=1 与 MMS _id=1 必须都保留（身份 = _id + is_mms）
+      sms = listOf(smsRow(id = 1, body = "sms-1", date = 200L))
+      mms = listOf(mmsRow(id = 1, dateSec = 1L)) // date 秒=1 → ms=1000
+    }
+    stub.install(resolver)
     val access = accessWith(resolver)
     val r = access.querySms(null)
     @Suppress("UNCHECKED_CAST")
@@ -192,19 +190,11 @@ class SmsAccessMmsTest {
   @Test
   fun `querySms sorts mixed rows by date desc then is_mms desc then id desc`() {
     val resolver = mock<ContentResolver>()
-    whenever(resolver.query(anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull()))
-      .thenReturn(
-        smsCursor(
-          smsRow(id = 1, date = 100L),
-          smsRow(id = 2, date = 300L),
-        ),
-        null, null, null,
-        mmsCursor(
-          mmsRow(id = 5, dateSec = 0L), // date=0
-          mmsRow(id = 3, dateSec = 0L), // date=0，同 date 按 id 降序
-        ),
-        null, null, null,
-      )
+    val stub = SmsProviderStub().apply {
+      sms = listOf(smsRow(id = 2, date = 300L), smsRow(id = 1, date = 100L))
+      mms = listOf(mmsRow(id = 5, dateSec = 0L), mmsRow(id = 3, dateSec = 0L))
+    }
+    stub.install(resolver)
     val access = accessWith(resolver)
     @Suppress("UNCHECKED_CAST")
     val messages = access.querySms(null)[ChannelCodes.KEY_MESSAGES] as List<Map<String, Any?>>
@@ -215,47 +205,33 @@ class SmsAccessMmsTest {
   @Test
   fun `querySms total includes mms and paging covers both`() {
     val resolver = mock<ContentResolver>()
-    whenever(resolver.query(anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull()))
-      .thenAnswer { inv ->
-        // 用 projection 列名区分 SMS / MMS 查询
-        val proj = inv.getArgument<Array<String>?>(1)
-        if (proj != null && proj.contains("msg_box")) {
-          mmsCursor(mmsRow(id = 1, dateSec = 1L))
-        } else {
-          smsCursor(smsRow(id = 1, date = 500L))
-        }
-      }
+    val stub = SmsProviderStub().apply {
+      sms = listOf(smsRow(id = 1, date = 500L))
+      mms = listOf(mmsRow(id = 1, dateSec = 1L)) // 1000ms
+    }
+    stub.install(resolver)
     val access = accessWith(resolver)
     val r = access.querySms(null, limit = 1, offset = 0)
     @Suppress("UNCHECKED_CAST")
     val page = r[ChannelCodes.KEY_MESSAGES] as List<Map<String, Any?>>
     assertEquals(2, r[ChannelCodes.KEY_TOTAL])
     assertEquals(1, page.size)
-    // date 500 > 1000? 500ms vs 1000ms → MMS 先
+    // date 1000ms > 500ms → MMS 先
     assertEquals(1, page[0]["is_mms"])
   }
 
   @Test
   fun `querySms enriches mms body and address from part and addr tables`() {
     val resolver = mock<ContentResolver>()
-    var call = 0
-    whenever(resolver.query(anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull()))
-      .thenAnswer { inv ->
-        call++
-        val proj = inv.getArgument<Array<String>?>(1)
-        when {
-          proj != null && proj.contains("msg_box") ->
-            mmsCursor(mmsRow(id = 42, dateSec = 1L))
-          proj != null && proj.contains("msg_id") && proj.contains("address") ->
-            mmsAddrCursor(listOf(42, "10086", 137))
-          proj != null && proj.contains("mid") ->
-            mmsPartCursor(
-              listOf(42, "text/plain", "你好呀", null),
-              listOf(42, "image/png", null, "/data/x.png"),
-            )
-          else -> null
-        }
-      }
+    val stub = SmsProviderStub().apply {
+      mms = listOf(mmsRow(id = 42, dateSec = 1L))
+      mmsAddr = listOf(listOf(42, "10086", 137))
+      mmsPart = listOf(
+        listOf(42, "text/plain", "你好呀", null),
+        listOf(42, "image/png", null, "/data/x.png"),
+      )
+    }
+    stub.install(resolver)
     val access = accessWith(resolver)
     @Suppress("UNCHECKED_CAST")
     val messages = access.querySms(null)[ChannelCodes.KEY_MESSAGES] as List<Map<String, Any?>>
@@ -270,19 +246,12 @@ class SmsAccessMmsTest {
   @Test
   fun `querySms mms without text parts falls back to empty body and media flag`() {
     val resolver = mock<ContentResolver>()
-    whenever(resolver.query(anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull()))
-      .thenAnswer { inv ->
-        val proj = inv.getArgument<Array<String>?>(1)
-        when {
-          proj != null && proj.contains("msg_box") ->
-            mmsCursor(mmsRow(id = 9, dateSec = 1L))
-          proj != null && proj.contains("msg_id") && proj.contains("address") ->
-            mmsAddrCursor(listOf(9, "139", 151))
-          proj != null && proj.contains("mid") ->
-            mmsPartCursor(listOf(9, "application/smil", "<smil/>", null))
-          else -> null
-        }
-      }
+    val stub = SmsProviderStub().apply {
+      mms = listOf(mmsRow(id = 9, dateSec = 1L))
+      mmsAddr = listOf(listOf(9, "139", 151))
+      mmsPart = listOf(listOf(9, "application/smil", "<smil/>", null))
+    }
+    stub.install(resolver)
     val access = accessWith(resolver)
     @Suppress("UNCHECKED_CAST")
     val messages = access.querySms(null)[ChannelCodes.KEY_MESSAGES] as List<Map<String, Any?>>
@@ -295,22 +264,15 @@ class SmsAccessMmsTest {
   @Test
   fun `querySms concatenates multiple text parts`() {
     val resolver = mock<ContentResolver>()
-    whenever(resolver.query(anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull()))
-      .thenAnswer { inv ->
-        val proj = inv.getArgument<Array<String>?>(1)
-        when {
-          proj != null && proj.contains("msg_box") ->
-            mmsCursor(mmsRow(id = 1, dateSec = 1L))
-          proj != null && proj.contains("msg_id") && proj.contains("address") -> null
-          proj != null && proj.contains("mid") ->
-            mmsPartCursor(
-              listOf(1, "text/plain", "第一段", null),
-              listOf(1, "text/plain", "第二段", null),
-              listOf(1, "text/x-vcard", "BEGIN:VCARD", null),
-            )
-          else -> null
-        }
-      }
+    val stub = SmsProviderStub().apply {
+      mms = listOf(mmsRow(id = 1, dateSec = 1L))
+      mmsPart = listOf(
+        listOf(1, "text/plain", "第一段", null),
+        listOf(1, "text/plain", "第二段", null),
+        listOf(1, "text/x-vcard", "BEGIN:VCARD", null),
+      )
+    }
+    stub.install(resolver)
     val access = accessWith(resolver)
     @Suppress("UNCHECKED_CAST")
     val messages = access.querySms(null)[ChannelCodes.KEY_MESSAGES] as List<Map<String, Any?>>
@@ -320,25 +282,14 @@ class SmsAccessMmsTest {
   @Test
   fun `querySms address filter matches mms via addr table`() {
     val resolver = mock<ContentResolver>()
-    whenever(resolver.query(anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull()))
-      .thenAnswer { inv ->
-        val proj = inv.getArgument<Array<String>?>(1)
-        val sel = inv.getArgument<String?>(2)
-        when {
-          // addr 表按 address=? 查 msg_id（预过滤，只回命中行）
-          proj != null && proj.size == 1 && proj[0] == "msg_id" ->
-            mmsAddrCursor(listOf(42, "10086", 137))
-          proj != null && proj.contains("msg_box") ->
-            mmsCursor(mmsRow(id = 42, dateSec = 1L), mmsRow(id = 99, dateSec = 2L))
-          proj != null && proj.contains("mid") ->
-            mmsPartCursor(listOf(42, "text/plain", "命中", null))
-          // enrich 阶段再查 addr 拿号码
-          proj != null && proj.contains("msg_id") && proj.contains("address") ->
-            mmsAddrCursor(listOf(42, "10086", 137))
-          // SMS 带 address=? 过滤，本用例不返回 SMS 行
-          else -> null
-        }
-      }
+    val stub = SmsProviderStub().apply {
+      // SQL `_id IN` 已由 Provider 过滤，这里只回命中行
+      mms = listOf(mmsRow(id = 42, dateSec = 1L))
+      mmsAddrIds = listOf(listOf(42, "10086", 137))
+      mmsAddr = listOf(listOf(42, "10086", 137))
+      mmsPart = listOf(listOf(42, "text/plain", "命中", null))
+    }
+    stub.install(resolver)
     val access = accessWith(resolver)
     val r = access.querySms("10086")
     @Suppress("UNCHECKED_CAST")
@@ -346,18 +297,26 @@ class SmsAccessMmsTest {
     assertEquals(1, r[ChannelCodes.KEY_TOTAL])
     assertEquals(42, messages.single()["_id"])
     assertEquals("10086", messages.single()["address"])
+    // addr 预取必须按 address=? 查 msg_id
+    assertTrue(stub.queryLog.any { it.kind == "addrIds" && it.selection == "address=?" })
+    // 主表用 `_id IN` 下推过滤
+    assertTrue(stub.queryLog.filter { it.kind == "mms" }.all { it.selection!!.startsWith("_id IN") })
   }
 
   @Test
   fun `querySms mms address filter empty result skips mms scan`() {
     val resolver = mock<ContentResolver>()
+    var mmsTableQueries = 0
     whenever(resolver.query(anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull()))
       .thenAnswer { inv ->
-        val proj = inv.getArgument<Array<String>?>(1)
+        val proj = inv.getArgument<Array<String>?>(1)?.toList()
         when {
-          proj != null && proj.size == 1 && proj[0] == "msg_id" -> null // 无匹配
-          proj != null && proj.contains("msg_box") ->
+          proj != null && proj.size == 1 && proj[0] == "msg_id" -> null // addr 无匹配
+          proj != null && proj.contains("msg_box") -> {
+            mmsTableQueries++
             mmsCursor(mmsRow(id = 1, dateSec = 1L)) // 不应被读到
+          }
+          proj != null && proj.contains("body") -> smsCursor()
           else -> null
         }
       }
@@ -365,6 +324,48 @@ class SmsAccessMmsTest {
     val r = access.querySms("999999")
     assertEquals(0, r[ChannelCodes.KEY_TOTAL])
     // MMS 主表不应再被扫（addr 过滤为空）
-    verify(resolver, org.mockito.kotlin.atLeastOnce()).query(anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull())
+    assertEquals(0, mmsTableQueries)
+  }
+
+  @Test
+  fun `querySms pushes _id IN selection for small mms addr filter`() {
+    val resolver = mock<ContentResolver>()
+    val stub = SmsProviderStub().apply {
+      mms = listOf(mmsRow(id = 42, dateSec = 1L))
+      mmsAddrIds = listOf(listOf(42, "10086", 137))
+      mmsAddr = listOf(listOf(42, "10086", 137))
+      mmsPart = listOf(listOf(42, "text/plain", "命中", null))
+    }
+    stub.install(resolver)
+    val access = accessWith(resolver)
+    access.querySms("10086")
+    val mmsQ = stub.queryLog.filter { it.kind == "mms" }
+    assertTrue(mmsQ.isNotEmpty())
+    assertTrue(mmsQ.all { it.selection != null && it.selection!!.startsWith("_id IN") })
+  }
+
+  @Test
+  fun `querySms enriches only current page mms not full library`() {
+    val resolver = mock<ContentResolver>()
+    // 2 条彩信，只取第 1 页 1 条：addr/part 只应查本页那 1 个 id
+    val stub = SmsProviderStub().apply {
+      mms = listOf(mmsRow(id = 1, dateSec = 2L), mmsRow(id = 2, dateSec = 1L))
+      mmsAddr = listOf(listOf(1, "a", 137), listOf(2, "b", 137))
+      mmsPart = listOf(listOf(1, "text/plain", "p1", null), listOf(2, "text/plain", "p2", null))
+    }
+    stub.install(resolver)
+    val access = accessWith(resolver)
+    val r = access.querySms(null, limit = 1, offset = 0)
+    @Suppress("UNCHECKED_CAST")
+    val page = r[ChannelCodes.KEY_MESSAGES] as List<Map<String, Any?>>
+    assertEquals(1, page.size)
+    assertEquals(1, page[0]["_id"])
+    assertEquals("p1", page[0]["body"])
+    // 本页 enrich：addr/part 的 selectionArgs 只含 id=1，不含 id=2
+    val enrich = stub.queryLog.filter { it.kind == "addr" || it.kind == "part" }
+    assertTrue(enrich.isNotEmpty())
+    val ids = enrich.flatMap { it.args.orEmpty() }.toSet()
+    assertEquals(setOf("1"), ids)
+    assertFalse("2" in ids)
   }
 }

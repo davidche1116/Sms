@@ -99,3 +99,136 @@ internal fun stubDeleteCounting(resolver: ContentResolver): MutableList<List<Str
   }
   return chunks
 }
+
+/**
+ * SMS/MMS Provider 替身（整表有数据的主路径）。
+ *
+ * JVM 桩里 `Telephony.*.CONTENT_URI == null`，无法靠 URI 区分整表/子箱。
+ * **主路径**（整表非空）下 `scanStream` 只会查整表：count（sort=null）与 rows（带 ORDER BY）
+ * 都回同一张表的 Cursor——`.count` 即 total，短路读取即分页。
+ *
+ * 行数据请按 **Provider 顺序**（date DESC, _id DESC）放入；全量路径会再定序兜底。
+ * 子箱回落请用 [stubEmptyPrimaryThenBoxes]。
+ */
+internal class SmsProviderStub {
+  var sms: List<List<Any?>> = emptyList()
+  var mms: List<List<Any?>> = emptyList()
+  var mmsAddrIds: List<List<Any?>> = emptyList()
+  var mmsAddr: List<List<Any?>> = emptyList()
+  var mmsPart: List<List<Any?>> = emptyList()
+
+  data class QueryCall(
+    val kind: String, // sms | mms | addr | addrIds | part
+    val isCount: Boolean,
+    val sort: String?,
+    val selection: String?,
+    val args: List<String?>? = null,
+  )
+
+  val queryLog = mutableListOf<QueryCall>()
+
+  fun install(resolver: ContentResolver) {
+    whenever(resolver.query(anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull()))
+      .thenAnswer { inv ->
+        val proj = inv.getArgument<Array<String>?>(1)?.toList()
+        val selection = inv.getArgument<String?>(2)
+        val args = inv.getArgument<Array<String>?>(3)?.toList()
+        val sort = inv.getArgument<String?>(4)
+        when {
+          proj != null && proj.size == 1 && proj[0] == "msg_id" -> {
+            queryLog += QueryCall("addrIds", false, sort, selection, args)
+            rowsCursor(MMS_ADDR_COLUMNS, mmsAddrIds)
+          }
+          proj != null && proj.contains("msg_id") && proj.contains("address") -> {
+            // enrich：msg_id, address, type
+            queryLog += QueryCall("addr", false, sort, selection, args)
+            rowsCursor(MMS_ADDR_COLUMNS, mmsAddr)
+          }
+          proj != null && proj.contains("mid") -> {
+            queryLog += QueryCall("part", false, sort, selection, args)
+            rowsCursor(MMS_PART_COLUMNS, mmsPart)
+          }
+          proj != null && proj.contains("msg_box") -> {
+            queryLog += QueryCall("mms", sort == null, sort, selection, args)
+            rowsCursor(MMS_CURSOR_COLUMNS, mms)
+          }
+          proj != null && proj.contains("body") -> {
+            queryLog += QueryCall("sms", sort == null, sort, selection, args)
+            rowsCursor(SMS_CURSOR_COLUMNS, sms)
+          }
+          else -> null
+        }
+      }
+  }
+}
+
+/**
+ * 整表为空、数据落在 inbox/sent/draft 的回落场景。
+ *
+ * 调用序（每条流）：`count(整表)=0` → `(count box → rows box)*`；
+ * 全量时则是 `rows(整表)=空` → `(count box → rows box)*`。
+ * 用计数器区分第 1 次（整表）与后续（子箱，按 inbox→sent→draft）。
+ */
+internal fun stubEmptyPrimaryThenBoxes(
+  resolver: ContentResolver,
+  smsInbox: List<List<Any?>> = emptyList(),
+  smsSent: List<List<Any?>> = emptyList(),
+  smsDraft: List<List<Any?>> = emptyList(),
+  mmsInbox: List<List<Any?>> = emptyList(),
+  mmsSent: List<List<Any?>> = emptyList(),
+  mmsDraft: List<List<Any?>> = emptyList(),
+  smsProjectionHasBody: Boolean = true,
+) {
+  val smsBoxes = listOf(smsInbox, smsSent, smsDraft)
+  val mmsBoxes = listOf(mmsInbox, mmsSent, mmsDraft)
+  var smsIdx = 0 // 下一子箱下标（rows 取走后 +1；count 与 rows 共用当前箱）
+  var mmsIdx = 0
+  var smsSawPrimary = false
+  var mmsSawPrimary = false
+
+  fun next(
+    boxes: List<List<List<Any?>>>,
+    columns: List<String>,
+    isCount: Boolean,
+    sawPrimary: () -> Boolean,
+    markPrimary: () -> Unit,
+    idx: () -> Int,
+    bump: () -> Unit,
+  ): FakeCursor {
+    if (!sawPrimary()) {
+      markPrimary()
+      // 整表：count 回 0 行 / rows 回空游标
+      return rowsCursor(columns, emptyList())
+    }
+    val rows: List<List<Any?>> = boxes.getOrElse(idx()) { emptyList() }
+    if (isCount) {
+      // 子箱 count：与下一次 rows 同一箱。不 bump（rows 时再 bump）。
+      return rowsCursor(columns, rows)
+    }
+    bump()
+    return rowsCursor(columns, rows)
+  }
+
+  whenever(resolver.query(anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull()))
+    .thenAnswer { inv ->
+      val proj = inv.getArgument<Array<String>?>(1)?.toList()
+      val sort = inv.getArgument<String?>(4)
+      val isCount = sort == null
+      when {
+        proj != null && proj.contains("body") -> next(
+          smsBoxes, SMS_CURSOR_COLUMNS, isCount,
+          { smsSawPrimary }, { smsSawPrimary = true },
+          { smsIdx }, { smsIdx++ },
+        )
+        proj != null && proj.contains("msg_box") -> next(
+          mmsBoxes, MMS_CURSOR_COLUMNS, isCount,
+          { mmsSawPrimary }, { mmsSawPrimary = true },
+          { mmsIdx }, { mmsIdx++ },
+        )
+        else -> null
+      }
+    }
+}
+
+private fun rowsCursor(columns: List<String>, rows: List<List<Any?>>): FakeCursor =
+  FakeCursor(columns, rows)

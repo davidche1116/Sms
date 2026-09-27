@@ -266,7 +266,15 @@ class SmsAccess(private val context: Context) {
   }
 
   /**
-   * 查询短信 + 彩信，合并到同一列表。
+   * 查询短信 + 彩信，合并到同一列表（真分页，见 QUERY_DELETE_DESIGN §5）。
+   *
+   * 策略：
+   * 1. **单 URI 优先**：默认只查 `Telephony.Sms/Mms.CONTENT_URI`（AOSP 上已是
+   *    inbox/sent/draft 并集）；仅当整表结果为空才回落子箱 URI。
+   * 2. **真分页**：SMS/MMS 各自按 `(date DESC, _id DESC)` 从 Provider 取流，
+   *    尝试把 `LIMIT offset+limit` 下推到 sortOrder；读取侧无论 LIMIT 是否生效
+   *    都在 `offset+limit` 条处短路，归并后只物化本页，绝不全库 LinkedHashMap。
+   * 3. **total** 与切页解耦：分页时用轻量 count（投影仅 `_id`），全量时用可用行数。
    *
    * @param limit null=全量（兼容旧调用）；非空时按 date 降序切页
    * @param offset 跳过条数，仅在 limit 非空时生效
@@ -280,70 +288,100 @@ class SmsAccess(private val context: Context) {
         ChannelCodes.KEY_ERROR to ChannelCodes.QUERY_ERROR_PERMISSION,
       )
     }
+    val safeOffset = offset.coerceAtLeast(0)
+    val safeLimit = limit?.coerceAtLeast(0)
+    // 每条有序流最多物化 offset+limit 条即可保证归并后切页正确。
+    // `null` limit = 全量；分页即使用例把 offset+limit 加到 Int.MAX_VALUE 也不走全量物化。
+    val unlimited = safeLimit == null
+    val maxRows = when {
+      unlimited -> Int.MAX_VALUE
+      safeLimit == 0 -> 0
+      else -> (safeOffset.toLong() + safeLimit.toLong())
+        .coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+    }
+
     val sel = if (address.isNullOrEmpty()) null else "${Telephony.Sms.ADDRESS}=?"
     val args = if (address.isNullOrEmpty()) null else arrayOf(address)
-    // SMS / MMS 的 _id 互不相干，必须分表去重后再合并，否则同号 id 会互相吞掉。
-    val smsById = LinkedHashMap<Int, Map<String, Any?>>()
-    val mmsById = LinkedHashMap<Int, Map<String, Any?>>()
-    var security = false
-    var other = false
-    for (uri in SMS_URIS) {
-      try {
-        context.contentResolver.query(uri, PROJECTION, sel, args, null)?.use { c ->
-          while (c.moveToNext()) {
-            val row = readRow(c)
-            val id = row["_id"] as? Int ?: continue
-            smsById.putIfAbsent(id, row)
-          }
-        }
-      } catch (e: SecurityException) {
-        security = true
-      } catch (e: Exception) {
-        other = true
-        Log.e(TAG, "query $uri", e)
-      }
-    }
-    // 彩信 address 在 addr 表，无法用 SQL selection 过滤：先取匹配 msg_id 再在内存收窄。
+
+    // URI 以 lambda 透传平台类型（JVM 桩里 CONTENT_URI=null），避免非空 Kotlin 参数 NPE。
+    val sms = scanStream(
+      query = TableQuery { proj, s, a, sort ->
+        context.contentResolver.query(Telephony.Sms.CONTENT_URI, proj, s, a, sort)
+      },
+      fallbacks = listOf(
+        TableQuery { proj, s, a, sort ->
+          context.contentResolver.query(Telephony.Sms.Inbox.CONTENT_URI, proj, s, a, sort)
+        },
+        TableQuery { proj, s, a, sort ->
+          context.contentResolver.query(Telephony.Sms.Sent.CONTENT_URI, proj, s, a, sort)
+        },
+        TableQuery { proj, s, a, sort ->
+          context.contentResolver.query(Telephony.Sms.Draft.CONTENT_URI, proj, s, a, sort)
+        },
+      ),
+      projection = PROJECTION,
+      selection = sel,
+      args = args,
+      maxRows = maxRows,
+      unlimited = unlimited,
+      read = ::readRow,
+    )
+
+    // 彩信 address 在 addr 表：优先下推 `_id IN`，过大则内存收窄（见 scanStream.keepRow）。
     val mmsAddrFilter = if (address.isNullOrEmpty()) null else queryMmsIdsByAddress(address)
-    if (mmsAddrFilter == null || mmsAddrFilter.isNotEmpty()) {
-      for (uri in MMS_URIS) {
-        try {
-          context.contentResolver.query(uri, MMS_PROJECTION, null, null, null)?.use { c ->
-            while (c.moveToNext()) {
-              val row = readMmsRow(c) ?: continue
-              val id = row["_id"] as? Int ?: continue
-              if (mmsAddrFilter != null && id !in mmsAddrFilter) continue
-              mmsById.putIfAbsent(id, row)
-            }
-          }
-        } catch (e: SecurityException) {
-          security = true
-        } catch (e: Exception) {
-          other = true
-          Log.e(TAG, "query $uri", e)
-        }
-      }
+    val mms: StreamScan
+    if (mmsAddrFilter != null && mmsAddrFilter.isEmpty()) {
+      mms = StreamScan.EMPTY
+    } else {
+      val pushIn = mmsAddrFilter != null && mmsAddrFilter.size <= MMS_ID_IN_MAX
+      val mmsSel = if (pushIn && mmsAddrFilter != null) {
+        "_id IN (${mmsAddrFilter.joinToString(",") { "?" }})"
+      } else null
+      val mmsArgs = if (pushIn && mmsAddrFilter != null) {
+        mmsAddrFilter.map { it.toString() }.toTypedArray()
+      } else null
+      val memoryFilter = if (mmsAddrFilter != null && !pushIn) mmsAddrFilter else null
+      mms = scanStream(
+        query = TableQuery { proj, s, a, sort ->
+          context.contentResolver.query(Telephony.Mms.CONTENT_URI, proj, s, a, sort)
+        },
+        fallbacks = listOf(
+          TableQuery { proj, s, a, sort ->
+            context.contentResolver.query(Telephony.Mms.Inbox.CONTENT_URI, proj, s, a, sort)
+          },
+          TableQuery { proj, s, a, sort ->
+            context.contentResolver.query(Telephony.Mms.Sent.CONTENT_URI, proj, s, a, sort)
+          },
+          TableQuery { proj, s, a, sort ->
+            context.contentResolver.query(Telephony.Mms.Draft.CONTENT_URI, proj, s, a, sort)
+          },
+        ),
+        projection = MMS_PROJECTION,
+        selection = mmsSel,
+        args = mmsArgs,
+        maxRows = maxRows,
+        unlimited = unlimited,
+        read = ::readMmsRow,
+        keepRow = memoryFilter?.let { ids -> { row: Map<String, Any?> -> (row["_id"] as? Int) in ids } },
+      )
     }
+
     // 切页前必须全局定序：date 降序（null 最早）；同 date 时 is_mms 降序 + _id 降序作稳定次键，
     // 与 Dart `uid` 序一致，避免同 date 跨页抖动。
-    val all = (smsById.values + mmsById.values).sortedWith(
-      compareByDescending<Map<String, Any?>> { (it["date"] as? Number)?.toLong() ?: Long.MIN_VALUE }
-        .thenByDescending { (it["is_mms"] as? Number)?.toInt() ?: 0 }
-        .thenByDescending { (it["_id"] as? Number)?.toInt() ?: 0 },
-    )
-    val total = all.size
-    val page = if (limit == null) {
-      all
+    val merged = mergeByDateDesc(listOf(sms.rows, mms.rows), maxRows)
+    val page = if (safeLimit == null) {
+      merged
     } else {
-      all.drop(offset.coerceAtLeast(0)).take(limit.coerceAtLeast(0))
+      merged.drop(safeOffset).take(safeLimit)
     }
     // 正文/号码只对本页彩信补全（addr/part 批量查），避免对全库 N+1。
     val enriched = enrichMmsRows(page)
-    val anyRow = smsById.isNotEmpty() || mmsById.isNotEmpty()
+    val total = sms.total + mms.total
+    val anyRow = total > 0 || sms.rows.isNotEmpty() || mms.rows.isNotEmpty()
     val error = when {
       anyRow -> null
-      security -> ChannelCodes.QUERY_ERROR_PERMISSION
-      other -> ChannelCodes.QUERY_ERROR_UNKNOWN
+      sms.security || mms.security -> ChannelCodes.QUERY_ERROR_PERMISSION
+      sms.other || mms.other -> ChannelCodes.QUERY_ERROR_UNKNOWN
       else -> null
     }
     return mapOf(
@@ -351,6 +389,185 @@ class SmsAccess(private val context: Context) {
       ChannelCodes.KEY_TOTAL to total,
       ChannelCodes.KEY_ERROR to error,
     )
+  }
+
+  /** 一条有序流的扫描结果。 */
+  private class StreamScan(
+    val rows: List<Map<String, Any?>>,
+    val total: Int,
+    val security: Boolean = false,
+    val other: Boolean = false,
+  ) {
+    companion object {
+      val EMPTY = StreamScan(emptyList(), 0)
+    }
+  }
+
+  /** readRows 结果：可用行 + 游标是否出现过任意原始行（含无 _id 被丢弃的）。 */
+  private class StreamRows(
+    val rows: List<Map<String, Any?>>,
+    val sawRow: Boolean,
+  )
+
+  /** 单表查询入口：URI 在调用点以平台类型直传 ContentResolver（见 querySms）。 */
+  private fun interface TableQuery {
+    fun query(
+      projection: Array<String>,
+      selection: String?,
+      args: Array<String>?,
+      sort: String?,
+    ): Cursor?
+  }
+
+  /**
+   * 扫一条有序流（SMS 或 MMS）。
+   *
+   * - **全量**（[unlimited]，`limit == null`）：读完整流，`total` = 可用行数。
+   * - **分页**：先 count 拿 `total` 并判断整表是否为空；
+   *   行只读前 `maxRows = offset+limit` 条。`LIMIT` 下推 sortOrder（Telephony 的 SQLite
+   *   接受 `ORDER BY … LIMIT n`）；若 OEM 忽略 LIMIT，读取侧仍短路在 `maxRows`，
+   *   不会全量物化。
+   * - **多 URI**：仅当整表为空才回落 Inbox/Sent/Draft。见 [MMS_PROJECTION] 上方注释。
+   */
+  private fun scanStream(
+    query: TableQuery,
+    fallbacks: List<TableQuery>,
+    projection: Array<String>,
+    selection: String?,
+    args: Array<String>?,
+    maxRows: Int,
+    unlimited: Boolean,
+    read: (Cursor) -> Map<String, Any?>?,
+    keepRow: ((Map<String, Any?>) -> Boolean)? = null,
+  ): StreamScan {
+    var security = false
+    var other = false
+
+    fun readRows(table: TableQuery, limit: Int, pushLimit: Boolean): StreamRows {
+      val out = ArrayList<Map<String, Any?>>()
+      if (limit <= 0) return StreamRows(out, sawRow = false)
+      // keepRow 内存过滤时不能下推 LIMIT（会把命中行截断在过滤前），改纯短路扫描。
+      val sort = if (pushLimit && limit != Int.MAX_VALUE) {
+        "$DATE_ID_SORT LIMIT $limit"
+      } else {
+        DATE_ID_SORT
+      }
+      var sawRow = false
+      try {
+        table.query(projection, selection, args, sort)?.use { c ->
+          while (out.size < limit && c.moveToNext()) {
+            sawRow = true
+            val row = read(c) ?: continue
+            if (row["_id"] == null) continue
+            if (keepRow != null && !keepRow(row)) continue
+            out.add(row)
+          }
+        }
+      } catch (e: SecurityException) {
+        security = true
+      } catch (e: Exception) {
+        other = true
+        Log.e(TAG, "query stream", e)
+      }
+      // Provider 理论上按 sortOrder 返回；个别 ROM/测试游标不保证序，归并前再定序兜底。
+      return StreamRows(out.sortedWith(ROW_ORDER), sawRow)
+    }
+
+    fun countRows(table: TableQuery): Int = try {
+      // 用与行查询相同的投影，只取 `.count`：一来个别 Provider 对窄投影支持差，
+      // 二来单测可按列名区分 SMS/MMS（count 与 rows 同 schema）。
+      val c = table.query(projection, selection, args, null)
+      // null 游标视作空表（0），不触发「未知 → 回落」；空表才会走子箱回落。
+      if (c == null) 0 else c.use { it.count }
+    } catch (e: SecurityException) {
+      security = true
+      -1
+    } catch (e: Exception) {
+      other = true
+      Log.e(TAG, "count stream", e)
+      -1
+    }
+
+    /** 仅当整表为空时回落子箱；子箱有序流归并去重（同 _id 只保留先到者）。 */
+    fun fallback(): StreamScan {
+      val streams = ArrayList<List<Map<String, Any?>>>(fallbacks.size)
+      var total = 0
+      for (table in fallbacks) {
+        val n = countRows(table)
+        if (n == 0) continue
+        if (n > 0) total += n
+        streams.add(readRows(table, maxRows, pushLimit = keepRow == null).rows)
+      }
+      val merged = LinkedHashMap<Int, Map<String, Any?>>()
+      for (row in mergeByDateDesc(streams, maxRows)) {
+        val id = row["_id"] as? Int ?: continue
+        merged.putIfAbsent(id, row)
+      }
+      return StreamScan(merged.values.toList(), total, security, other)
+    }
+
+    if (unlimited) {
+      val scanned = readRows(query, Int.MAX_VALUE, pushLimit = false)
+      // 有原始行即止（含无 _id 被丢弃的——那不是「整表空」）；空才回落。
+      if (scanned.sawRow || security) {
+        return StreamScan(scanned.rows, scanned.rows.size, security, other)
+      }
+      return fallback()
+    }
+
+    val primaryCount = countRows(query)
+    if (primaryCount > 0) {
+      return StreamScan(
+        readRows(query, maxRows, pushLimit = keepRow == null).rows,
+        primaryCount,
+        security,
+        other,
+      )
+    }
+    if (primaryCount == 0) {
+      // 整表空：回落子箱（历史 OEM 坑，见 FALLBACK_URIS 注释）。
+      return fallback()
+    }
+    // count 失败（-1）：先试读本表，有行则用行数当 total；否则回落。
+    val scanned = readRows(query, maxRows, pushLimit = keepRow == null)
+    if (scanned.sawRow) {
+      return StreamScan(scanned.rows, scanned.rows.size, security, other)
+    }
+    return fallback()
+  }
+
+  /**
+   * 有序流归并（date 降序，null 最早；同 date 时 is_mms 降序 + _id 降序）。
+   * 每个入参流必须已按同序排好；只产出前 [maxRows] 条。
+   */
+  private fun mergeByDateDesc(
+    streams: List<List<Map<String, Any?>>>,
+    maxRows: Int,
+  ): List<Map<String, Any?>> {
+    if (maxRows <= 0) return emptyList()
+    val live = streams.filter { it.isNotEmpty() }
+    if (live.isEmpty()) return emptyList()
+    if (live.size == 1) return live[0].take(maxRows)
+    val out = ArrayList<Map<String, Any?>>()
+    val idx = IntArray(live.size)
+    while (out.size < maxRows) {
+      var bestStream = -1
+      for (s in live.indices) {
+        val i = idx[s]
+        if (i >= live[s].size) continue
+        if (bestStream < 0) {
+          bestStream = s
+          continue
+        }
+        if (ROW_ORDER.compare(live[s][i], live[bestStream][idx[bestStream]]) < 0) {
+          bestStream = s
+        }
+      }
+      if (bestStream < 0) break
+      out.add(live[bestStream][idx[bestStream]])
+      idx[bestStream]++
+    }
+    return out
   }
 
   /**
@@ -730,12 +947,15 @@ class SmsAccess(private val context: Context) {
       Telephony.Sms.TYPE,
       Telephony.Sms.SUBSCRIPTION_ID,
     )
-    private val SMS_URIS = listOf(
-      Telephony.Sms.CONTENT_URI,
-      Telephony.Sms.Inbox.CONTENT_URI,
-      Telephony.Sms.Sent.CONTENT_URI,
-      Telephony.Sms.Draft.CONTENT_URI,
-    )
+    /**
+     * 多 URI 回落策略（历史原因，git `8aa3f62` 修「掉默认后空列表」）：
+     * 部分 OEM（HyperOS/MIUI）在**非默认短信应用**下对 `content://sms` 整表返回空游标，
+     * 而 `content://sms/inbox|sent|draft` 在仅有 READ_SMS 时仍可读。
+     * AOSP 上整表已是并集，同批数据再查 4 个 URI 纯属重复扫描，因此：
+     * **先查整表，仅当结果为空才回落子箱**（子箱互斥，归并后按 `_id` 去重）。
+     * 回落不含 outbox/failed（那些只在整表可见；整表空时通常也读不到）。
+     * 彩信（`content://mms`）同策略，见 querySms 内 fallbacks lambda。
+     */
     private val MMS_PROJECTION = arrayOf(
       BaseColumns._ID,
       Telephony.Mms.THREAD_ID,
@@ -745,12 +965,18 @@ class SmsAccess(private val context: Context) {
       Telephony.Mms.MESSAGE_BOX,
       Telephony.Mms.SUBSCRIPTION_ID,
     )
-    private val MMS_URIS = listOf(
-      Telephony.Mms.CONTENT_URI,
-      Telephony.Mms.Inbox.CONTENT_URI,
-      Telephony.Mms.Sent.CONTENT_URI,
-      Telephony.Mms.Draft.CONTENT_URI,
-    )
+
+    /** Provider 排序：date 降序（null 最早由归并比较器兜底）+ _id 降序稳定次键。 */
+    private val DATE_ID_SORT = "${Telephony.Sms.DATE} DESC, ${BaseColumns._ID} DESC"
+
+    /** `_id IN (...)` 下推上限，与删除分片一致（SQLite 变量数留余量）。 */
+    private const val MMS_ID_IN_MAX = 900
+
+    /** 全局定序：date 降序（null 最早）→ is_mms 降序 → _id 降序，与 Dart `uid` 序一致。 */
+    private val ROW_ORDER =
+      compareByDescending<Map<String, Any?>> { (it["date"] as? Number)?.toLong() ?: Long.MIN_VALUE }
+        .thenByDescending { (it["is_mms"] as? Number)?.toInt() ?: 0 }
+        .thenByDescending { (it["_id"] as? Number)?.toInt() ?: 0 }
 
     /** part 表文本列：公开 API 无常量，provider 列名就是 `text`。 */
     private const val PART_TEXT_COLUMN = "text"

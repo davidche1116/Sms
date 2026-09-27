@@ -20,6 +20,10 @@ class FakeCursor(
   private var position = -1
   private var closed = false
 
+  /** 累计 `moveToNext` 成功次数：性能自证里断言短路扫描没有把全库读完。 */
+  var rowsConsumed: Int = 0
+    private set
+
   override fun getCount(): Int = rows.size
 
   override fun getPosition(): Int = position
@@ -29,6 +33,7 @@ class FakeCursor(
   override fun moveToNext(): Boolean {
     if (position + 1 >= rows.size) return false
     position++
+    rowsConsumed++
     return true
   }
 

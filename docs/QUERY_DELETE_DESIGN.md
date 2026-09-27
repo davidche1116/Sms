@@ -89,17 +89,25 @@ if (!hasReadSms() && !isDefaultSms())
 - `hasReadSms` = `checkSelfPermission(READ_SMS) && AppOps==MODE_ALLOWED`
 - 仅默认短信时无 READ_SMS 也可读（角色特权）；掉默认后特权可能被收回
 
-### 5.3 URI 策略（合并去重）
+### 5.3 URI 策略（单 URI 优先 + 空表回落）
 
 | 顺序 | URI | 作用 |
 |------|-----|------|
-| 1 | `Telephony.Sms.CONTENT_URI` | 整表（含 outbox/failed 等） |
-| 2 | `Telephony.Sms.Inbox.CONTENT_URI` | 收件箱 |
-| 3 | `Telephony.Sms.Sent.CONTENT_URI` | 已发送 |
-| 4 | `Telephony.Sms.Draft.CONTENT_URI` | 草稿 |
+| 1 | `Telephony.Sms.CONTENT_URI` | **默认唯一**：整表（含 inbox/sent/draft/outbox/failed） |
+| 2* | `Telephony.Sms.Inbox.CONTENT_URI` | 仅当整表结果为空 |
+| 3* | `Telephony.Sms.Sent.CONTENT_URI` | 同上 |
+| 4* | `Telephony.Sms.Draft.CONTENT_URI` | 同上 |
 
-- 同一条在整表与分箱会重复 → **按 `_id` 去重**（`LinkedHashMap`）。
-- 单 URI 失败（Security/其他）不中断其余 URI；最后汇总 error。
+**为何不无条件查 4 个 URI**：AOSP 上 `content://sms` 已是 inbox/sent/draft/outbox 并集，
+同批数据查 4 遍再去重是纯重复扫描（触底 `_loadMore` 会放大成本）。
+
+**为何仍保留回落**（git `8aa3f62`，修「掉默认后空列表」）：部分 OEM（HyperOS/MIUI）
+在**非默认短信应用**下对整表 URI 返回空游标，而 `inbox|sent|draft` 在仅有 READ_SMS 时仍可读。
+因此：**先查整表，仅当结果为空才回落子箱**（子箱互斥，归并后按 `_id` 去重）。
+回落不含 outbox/failed（那些只在整表可见；整表空时通常也读不到）。
+
+- 单 URI 失败（Security/其他）不中断其余；最后汇总 error。
+- 「整表空」以**游标是否出现过原始行**为准（无 `_id` 被丢弃的行不算空表，不触发回落）。
 
 ### 5.4 投影（白名单，禁止 null=全列）
 
@@ -124,17 +132,33 @@ _id, thread_id, address, body, date, date_sent, read, type, sub_id
 
 **禁止**对未在表中声明的列调用 `getInt`/`getString`。
 
-### 5.6 排序与过滤
+### 5.6 排序、真分页与过滤
 
 | 层 | 规则 |
 |----|------|
-| Provider | 不强制 `ORDER BY`（整表默认 `date DESC`；分箱可不带） |
-| Kotlin 合并 | **date 降序**（null 最早）+ `_id` 降序稳定次键；再 `drop(offset).take(limit)` |
+| Provider | `sortOrder = "date DESC, _id DESC"`；分页时追加 `" LIMIT offset+limit"` 下推 |
+| Kotlin 归并 | SMS + MMS 两条有序流归并：date 降序（null 最早）+ `is_mms` 降序 + `_id` 降序 |
+| 读取短路 | 无论 LIMIT 是否被 OEM 接受，每条流最多物化 `offset+limit` 条即停 |
 | Dart | 页内再排同序兜底（避免个别 ROM 列序不稳） |
 
-按 `address` 过滤：`selection = "address = ?"`（与插件「查后内存过滤」一致，SQL 更省）。
+按 `address` 过滤：`selection = "address = ?"`（SMS/MMS 主表可下推 SQL）。
+彩信 address 在 addr 表：先取匹配 `msg_id` 集合；集合 ≤900 时下推 `_id IN (?)`，
+过大则内存收窄（此时**不**下推 LIMIT，短路按命中数计）。
 
-**分页切片必须在合并去重 + 全局排序之后**，否则跨页会漏/重。`total` 始终是去重后的库内总数，与是否分页无关。
+**真分页（P0-1）**：
+
+```
+每流:  count(整表) → rows(LIMIT offset+limit, 短路)
+归并:  各流前 offset+limit 条做有序归并 → drop(offset).take(limit)
+total: 分页 = 两流 count 之和；全量 = 可用行数
+```
+
+- `offset+limit` 取前缀即可保证归并后切页正确（全局前 N 条里任一条流贡献不超过 N 条）。
+- **绝不**再全量读进 `LinkedHashMap` 再 drop/take。
+- LIMIT 下推失败（OEM 忽略）由读取短路兜底，成本 O(offset+limit) 而非 O(全库)。
+- 边界：`limit=0` 只 count 不扫行；`offset` 越界回空页 + 真 `total`；负 `offset` 按 0。
+
+**分页切片必须在归并之后**，否则跨页会漏/重。`total` 始终是去重后的库内总数，与是否分页无关。
 
 ### 5.7 返回契约
 
@@ -187,14 +211,10 @@ _id, thread_id, address, body, date, date_sent, read, type, sub_id
 
 ### 5M.2 URI 策略
 
-| 顺序 | URI | 作用 |
-|------|-----|------|
-| 1 | `Telephony.Mms.CONTENT_URI` | 整表 |
-| 2 | `Telephony.Mms.Inbox.CONTENT_URI` | 收件箱 |
-| 3 | `Telephony.Mms.Sent.CONTENT_URI` | 已发送 |
-| 4 | `Telephony.Mms.Draft.CONTENT_URI` | 草稿（URI 路径是 `drafts`） |
-
-与 SMS 同样按 `_id` 去重后并入总列表。`readMmsRow` 需有 `msg_box` 列，否则跳过（防误喂 SMS Cursor）。
+与 SMS 同构：**默认只查 `Telephony.Mms.CONTENT_URI`**，仅当整表为空才回落
+`Inbox` / `Sent` / `Draft`（路径是 `drafts`），归并后按 `_id` 去重。
+地址过滤经 `content://mms/addr` 预取 `msg_id`，小集合下推 `_id IN`（见 §5.6）。
+`readMmsRow` 需有 `msg_box` 列，否则跳过（防误喂 SMS Cursor）。
 
 ### 5M.3 列与换算
 
@@ -402,6 +422,9 @@ SmsItem { id, threadId, address, body, dateMs, read, type, subId, kind, isMms, h
 7. insertSmsBatch：mock 新 Map 形状 → Dart 解析 inserted/failed/errors；旧 int/null 兼容。  
 8. CsvImporter 端到端：全成 / 部分失败 / 非默认 / 原生失败 → toast 文案与错误摘要。  
 9. 真机：QA_IMPORT_TEST 走同一通道，核对 IMPORT_BATCH 的 inserted/failed/errors。
+10. **真分页（P0-1）**：5k 假数据 `limit=20, offset=30` → 行消费 ≤50（短路）；
+    sortOrder 带 `LIMIT 50`；整表有数据时**不**查子箱 URI；整表空时回落子箱并去重。
+11. 边界：`limit=0` 只 count、`offset` 越界空页 + total、负 offset 归零。
 
 ---
 

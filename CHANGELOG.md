@@ -5,6 +5,16 @@
 
 ## [Unreleased]
 
+### Performance
+
+- **`querySms` 真分页（P0-1）**：SMS/MMS 各自按 `date DESC, _id DESC` 从 Provider 取流，
+  `LIMIT offset+limit` 下推 sortOrder，读取短路 + 两流归并，只物化本页；
+  5k 假数据 `limit=20, offset=30` 行消费 ≤50（旧路径全量 LinkedHashMap）
+- **去掉 4 重 URI 重复扫描**：默认只查 `content://sms` / `content://mms` 整表；
+  仅当整表为空才回落 inbox/sent/draft（保留掉默认后空列表的 OEM 兼容，git `8aa3f62`）
+- `total` 改用 count 与切页解耦；`limit=0` 不扫行；地址过滤小集合下推 `_id IN`
+- MMS 富化仍只对本页 addr/part，不做全库 N+1
+
 ### Added
 
 - **彩信（MMS）纳入统一数据面**（P3-17）：浏览 / 筛选 / 删除 / 导出；wire 身份为 `_id` + `is_mms` 二元组，删除按 `is_mms` 路由到 `content://sms` / `content://mms`，绝不跨表

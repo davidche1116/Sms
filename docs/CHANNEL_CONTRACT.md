@@ -120,6 +120,11 @@ Dart 侧另有 `SmsItem.uid`（`is_mms=1` 时 `id + 2^30`）用于多选/隐藏/
 
 分页约定（UI）：启动/刷新 `limit=200, offset=0`，触底按 `offset=已加载条数` 追加并按 `_id` 去重；筛选激活时补齐全量；导出「全部」必须 `queryAll()`。
 
+**真分页（P0-1）**：原生对 SMS/MMS 各自 `ORDER BY date DESC, _id DESC` 并下推 `LIMIT offset+limit`，
+归并后只物化本页；`total` 用 count 与切页解耦。默认只查 `content://sms` / `content://mms` 整表，
+**仅当整表为空**才回落 inbox/sent/draft（历史 OEM 坑，见 [QUERY_DELETE_DESIGN §5.3](QUERY_DELETE_DESIGN.md)）。
+分页不因触底 `_loadMore` 放大总扫描量。
+
 ### type → 业务 kind
 
 | Telephony `type` | 含义 | `SmsKind` |
