@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../models/sms_item.dart';
-import '../../services/csv_exporter.dart';
-import '../../services/csv_importer.dart';
 import '../../services/hidden_store.dart';
+import '../../services/sms_data_service.dart';
 import '../../services/sms_repository.dart';
 import '../delete/confirm_sheet.dart';
 import '../filter/filter_sheet.dart';
@@ -11,6 +10,9 @@ import '../settings/miui_notif_guide.dart';
 import '../settings/settings_page.dart';
 import '../widgets/empty_view.dart';
 import 'action_sheet.dart';
+import 'home_banners.dart';
+import 'list_rows.dart';
+import 'more_menu_sheet.dart';
 import 'sms_card.dart';
 
 class HomePage extends StatefulWidget {
@@ -204,7 +206,7 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  /// 筛选条件变化后的统一入口（弹层 / 同号 / 同卡）。
+  /// 筛选条件变化后的统一入口（弹层 / 同号 / 同卡 / Chips）。
   Future<void> _onFilterChangedWith(void Function() apply) async {
     if (!mounted) return;
     setState(apply);
@@ -264,7 +266,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final visible = _visible;
-    final rows = _buildListRows(visible);
+    final rows = buildListRows(visible);
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -389,8 +391,20 @@ class _HomePageState extends State<HomePage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            if (_showMiuiHint) _buildMiuiHint(),
-                            if (_filter.active) _buildFilterChips(),
+                            if (_showMiuiHint)
+                              MiuiNotifBanner(
+                                onOpenGuide: () async {
+                                  await showMiuiNotificationSmsSheet(context);
+                                  await _load();
+                                },
+                                onDismiss: () =>
+                                    setState(() => _miuiHintDismissed = true),
+                              ),
+                            if (_filter.active)
+                              FilterChipsBar(
+                                filter: _filter,
+                                onChanged: () => setState(() {}),
+                              ),
                           ],
                         ),
                       ),
@@ -423,14 +437,14 @@ class _HomePageState extends State<HomePage> {
                         itemBuilder: (context, index) {
                           final row = rows[index];
                           return switch (row) {
-                            _DayRow(:final dayLabel) => Padding(
+                            DayRow(:final dayLabel) => Padding(
                               padding: const EdgeInsets.fromLTRB(4, 12, 4, 8),
                               child: Text(
                                 dayLabel,
                                 style: Theme.of(context).textTheme.labelLarge,
                               ),
                             ),
-                            _SmsRow(:final item) => SmsCard(
+                            SmsRow(:final item) => SmsCard(
                               item: item,
                               selectMode: _selectMode,
                               selected:
@@ -465,112 +479,6 @@ class _HomePageState extends State<HomePage> {
 
   bool get _showMiuiHint =>
       _miuiNotifHint && !_miuiHintDismissed && !_needPermission;
-
-  /// 扁平行：日头 + 卡片。构建前一次扫完，避免 builder 内 indexOf 的 O(n²)。
-  List<_ListRow> _buildListRows(List<SmsItem> visible) {
-    final rows = <_ListRow>[];
-    String? prevDay;
-    for (final e in visible) {
-      if (prevDay != e.dayLabel) {
-        rows.add(_DayRow(e.dayLabel));
-        prevDay = e.dayLabel;
-      }
-      rows.add(_SmsRow(e));
-    }
-    return rows;
-  }
-
-  Widget _buildMiuiHint() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: const Color(0xFFE6A23C).withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () async {
-            await showMiuiNotificationSmsSheet(context);
-            await _load();
-          },
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.info_outline,
-                  color: Color(0xFFE6A23C),
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text(
-                    '可能还看不到 10086 等通知短信，点此开启 MIUI「通知类短信」',
-                    style: TextStyle(fontSize: 13),
-                  ),
-                ),
-                IconButton(
-                  tooltip: '不再提示',
-                  icon: const Icon(Icons.close, size: 18),
-                  onPressed: () => setState(() => _miuiHintDismissed = true),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilterChips() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          if (_filter.sameAddress != null)
-            Chip(
-              label: Text('同号 ${_filter.sameAddress}'),
-              onDeleted: () => setState(() => _filter.sameAddress = null),
-              deleteIcon: const Icon(Icons.close, size: 18),
-            ),
-          if (_filter.sameSim != null)
-            Chip(
-              label: Text('同卡 ${_filter.sameSim}'),
-              onDeleted: () => setState(() => _filter.sameSim = null),
-              deleteIcon: const Icon(Icons.close, size: 18),
-            ),
-          if (_filter.keyword.isNotEmpty)
-            Chip(
-              label: Text('“${_filter.keyword}”'),
-              onDeleted: () => setState(() => _filter.keyword = ''),
-              deleteIcon: const Icon(Icons.close, size: 18),
-            ),
-          if (_filter.start != null || _filter.end != null)
-            Chip(
-              label: Text(
-                '${SmsFilter.fmtDate(_filter.start)} – ${SmsFilter.fmtDate(_filter.end)}',
-              ),
-              onDeleted: () => setState(() {
-                _filter.start = null;
-                _filter.end = null;
-              }),
-              deleteIcon: const Icon(Icons.close, size: 18),
-            ),
-          if (_filter.type != 0)
-            Chip(
-              label: Text(_filter.type == 1 ? '仅收件箱' : '仅已发送'),
-              onDeleted: () => setState(() => _filter.type = 0),
-              deleteIcon: const Icon(Icons.close, size: 18),
-            ),
-          ActionChip(
-            label: const Text('清除全部'),
-            onPressed: () => setState(_filter.reset),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildEmptyView() {
     return EmptyView(
@@ -655,65 +563,20 @@ class _HomePageState extends State<HomePage> {
   Future<void> _exportSelected() async {
     setState(() => _exporting = true);
     try {
-      final targets = _selectedItems();
-      if (targets.isEmpty) {
-        _toast('没有可导出的短信');
-        return;
-      }
-      final r = await CsvExporter.export(targets, tag: 'selected');
-      await CsvExporter.share(r);
-    } catch (_) {
-      _toast('导出失败，请重试');
+      final msg = await exportItems(_selectedItems(), tag: 'selected');
+      if (mounted && msg != null) _toast(msg);
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
   }
 
   void _openMenu() {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.ios_share),
-              title: const Text('导出全部 CSV'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _exportAll();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.upload_file_outlined),
-              title: const Text('导入 CSV'),
-              subtitle: const Text('写入系统短信库（需设为默认）'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _importCsv();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.checklist_outlined),
-              title: const Text('多选'),
-              onTap: () {
-                Navigator.pop(ctx);
-                setState(() => _selectMode = true);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.lock_outline),
-              title: const Text('申请短信权限'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _requestPermission();
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
+    showMoreMenuSheet(
+      context,
+      onExportAll: _exportAll,
+      onImportCsv: _importCsv,
+      onSelectMode: () => setState(() => _selectMode = true),
+      onRequestPermission: _requestPermission,
     );
   }
 
@@ -721,16 +584,8 @@ class _HomePageState extends State<HomePage> {
     if (_exporting) return;
     setState(() => _exporting = true);
     try {
-      // 导出必须覆盖全库，不能只用已加载分页（与 settings_page 一致走 queryAll）。
-      final items = await _repo.queryAll();
-      if (items.isEmpty) {
-        _toast('没有可导出的短信');
-        return;
-      }
-      final r = await CsvExporter.export(items);
-      await CsvExporter.share(r);
-    } catch (_) {
-      _toast('导出失败，请重试');
+      final msg = await exportAll(_repo);
+      if (mounted && msg != null) _toast(msg);
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -741,24 +596,10 @@ class _HomePageState extends State<HomePage> {
     if (_exporting) return;
     setState(() => _exporting = true);
     try {
-      final r = await CsvImporter.importViaPicker(_repo);
+      final r = await importCsv(_repo);
       if (!mounted) return;
-      if (r.error == CsvImportError.cancelled) {
-        _toast('已取消导入');
-        return;
-      }
-      if (r.notDefault) {
-        _toast('导入需先设为默认短信应用');
-        return;
-      }
-      if (!r.ok) {
-        _toast('导入失败：${r.error?.message ?? '未知错误'}');
-        return;
-      }
-      _toast('已导入 ${r.inserted} / ${r.parsed} 条');
-      await _load();
-    } catch (_) {
-      _toast('导入失败，请重试');
+      _toast(importMessage(r));
+      if (r.ok) await _load();
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -811,19 +652,4 @@ class _HomePageState extends State<HomePage> {
       await _load();
     }
   }
-}
-
-/// 列表扁平行：日分组头或短信卡片（`SliverList.builder` 懒加载）。
-sealed class _ListRow {
-  const _ListRow();
-}
-
-final class _DayRow extends _ListRow {
-  const _DayRow(this.dayLabel);
-  final String dayLabel;
-}
-
-final class _SmsRow extends _ListRow {
-  const _SmsRow(this.item);
-  final SmsItem item;
 }

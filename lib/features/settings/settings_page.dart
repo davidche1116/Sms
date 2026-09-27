@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-import '../../services/csv_exporter.dart';
-import '../../services/csv_importer.dart';
 import '../../services/hidden_store.dart';
+import '../../services/sms_data_service.dart';
 import '../../services/sms_repository.dart';
 import '../../theme/tokens.dart';
 import 'miui_notif_guide.dart';
@@ -183,15 +182,8 @@ class _SettingsPageState extends State<SettingsPage> {
     if (_exporting) return;
     setState(() => _exporting = true);
     try {
-      final items = await widget.repo.queryAll();
-      if (items.isEmpty) {
-        _toast('没有可导出的短信');
-        return;
-      }
-      final r = await CsvExporter.export(items);
-      await CsvExporter.share(r);
-    } catch (e) {
-      _toast('导出失败：$e');
+      final msg = await exportAll(widget.repo);
+      if (mounted && msg != null) _toast(msg);
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -202,24 +194,10 @@ class _SettingsPageState extends State<SettingsPage> {
     if (_exporting) return;
     setState(() => _exporting = true);
     try {
-      final r = await CsvImporter.importViaPicker(widget.repo);
+      final r = await importCsv(widget.repo);
       if (!mounted) return;
-      if (r.error == CsvImportError.cancelled) {
-        _toast('已取消导入');
-        return;
-      }
-      if (r.notDefault) {
-        _toast('导入需先设为默认短信应用');
-        return;
-      }
-      if (!r.ok) {
-        _toast('导入失败：${r.error?.message ?? '未知错误'}');
-        return;
-      }
-      _toast('已导入 ${r.inserted} / ${r.parsed} 条');
-      await widget.onDataChanged?.call();
-    } catch (_) {
-      _toast('导入失败，请重试');
+      _toast(importMessage(r));
+      if (r.ok) await widget.onDataChanged?.call();
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
