@@ -182,6 +182,12 @@ abstract class AppLocalizations {
   /// **'删除失败：请先设为默认短信应用'**
   String get deleteFailedNeedDefault;
 
+  /// No description provided for @deleteFailedRetry.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除失败，请重试'**
+  String get deleteFailedRetry;
+
   /// No description provided for @deletedCount.
   ///
   /// In zh, this message translates to:

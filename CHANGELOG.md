@@ -25,6 +25,12 @@
 
 ### Changed
 
+- **`deleteSmsBatch` 线协议改为 Map 明细**（P1-1）：返回 `{ok, deleted, failed, error, errors}`，
+  与 `insertSmsBatch` 对齐。区分 `not_default`（整批未执行）与 `failed`（原生异常）；
+  部分成功 `ok=true, deleted=N, failed=M, errors[]`（逐 chunk 计入，index 对齐 `{id,is_mms}` 载荷）。
+  Dart `DeleteBatchResult.fromWire` 仍兼容旧 `int?`。UI 失败文案精确分支：
+  非默认 → 「请先设为默认短信应用」，原生异常 → 「删除失败，请重试」（不再一律误报设为默认），
+  部分成功 → 「已删除 X / N 条后失败」
 - `deleteSmsBatch` 入参支持 `List<{id, is_mms}>` 混合目标（旧 `List<Int>` 仍兼容，按纯 SMS 处理）；Dart `SmsRepository.deleteSmsBatch` 改为接收 `List<SmsItem>`
 - 查询 `querySms` 合并彩信元数据（`content://mms` + inbox/sent/drafts），`date` 秒→毫秒换算；地址过滤经 `content://mms/addr` 预取 msg_id；正文/号码只对**本页**彩信批量补全
 - 多选 / 隐藏列表 / 去重改用 `uid`（避免 SMS/MMS 同号 `_id` 互撞）

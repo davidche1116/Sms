@@ -159,6 +159,125 @@ void main() {
     expect(find.textContaining('条后失败'), findsNothing);
   });
 
+  testWidgets('零删除且非默认：toast 提示设为默认', (tester) async {
+    mockHomeChannel(
+      queryResult: {'messages': bulkRows(450), 'error': null},
+      onDelete: (_) {
+        return {
+          'ok': false,
+          'deleted': 0,
+          'failed': 450,
+          'error': 'not_default',
+          'errors': [
+            {'index': -1, 'code': 'not_default', 'message': 'not default sms app'},
+          ],
+        };
+      },
+    );
+    await pumpHome(tester);
+
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确认删除'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('删除失败：请先设为默认短信应用'), findsOneWidget);
+    expect(find.textContaining('bulk-1'), findsOneWidget);
+  });
+
+  testWidgets('零删除且原生异常：toast 不误报设为默认', (tester) async {
+    mockHomeChannel(
+      queryResult: {'messages': bulkRows(450), 'error': null},
+      onDelete: (_) {
+        return {
+          'ok': false,
+          'deleted': 0,
+          'failed': 450,
+          'error': 'failed',
+          'errors': [
+            {'index': 0, 'code': 'failed', 'message': 'boom'},
+          ],
+        };
+      },
+    );
+    await pumpHome(tester);
+
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确认删除'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('删除失败，请重试'), findsOneWidget);
+    expect(find.textContaining('设为默认'), findsNothing);
+    expect(find.textContaining('bulk-1'), findsOneWidget);
+  });
+
+  testWidgets('中途原生异常：部分文案，不提示设为默认', (tester) async {
+    var calls = 0;
+    mockHomeChannel(
+      queryResult: {'messages': bulkRows(450), 'error': null},
+      onDelete: (ids) {
+        calls++;
+        if (calls == 1) return ids.length;
+        return {
+          'ok': false,
+          'deleted': 0,
+          'failed': ids.length,
+          'error': 'failed',
+          'errors': [
+            {'index': 0, 'code': 'failed', 'message': 'boom'},
+          ],
+        };
+      },
+    );
+    await pumpHome(tester);
+
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确认删除'));
+    await tester.pumpAndSettle();
+
+    expect(calls, 2);
+    expect(find.text('已删除 200 / 450 条后失败'), findsOneWidget);
+    expect(find.textContaining('设为默认'), findsNothing);
+  });
+
+  testWidgets('块内部分失败：停止后续块，按前缀报部分文案', (tester) async {
+    var calls = 0;
+    mockHomeChannel(
+      queryResult: {'messages': bulkRows(450), 'error': null},
+      onDelete: (ids) {
+        calls++;
+        if (calls == 1) return ids.length;
+        return {
+          'ok': true,
+          'deleted': 1,
+          'failed': ids.length - 1,
+          'error': null,
+          'errors': [
+            for (var i = 1; i < ids.length; i++)
+              {'index': i, 'code': 'failed', 'message': 'boom'},
+          ],
+        };
+      },
+    );
+    await pumpHome(tester);
+
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确认删除'));
+    await tester.pumpAndSettle();
+
+    expect(calls, 2); // 第 3 块不再发出
+    // 部分失败块不计入已删前缀：只报第 1 块的 200
+    expect(find.text('已删除 200 / 450 条后失败'), findsOneWidget);
+    expect(find.textContaining('设为默认'), findsNothing);
+    // 已删前缀（bulk-1..200）移除；部分失败块的行仍在（保守不删）
+    expect(find.textContaining('bulk-1'), findsNothing);
+    expect(find.textContaining('bulk-200'), findsNothing);
+    expect(find.textContaining('bulk-201'), findsOneWidget);
+  });
+
   testWidgets('单条滑删成功语义不回退', (tester) async {
     await pumpHome(tester);
     await tester.fling(

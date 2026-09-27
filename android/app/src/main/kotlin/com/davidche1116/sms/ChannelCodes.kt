@@ -62,4 +62,16 @@ object ChannelCodes {
 
   /** 保留值：形态异常/未知 code 的安全默认（Dart 解析兜底）。 */
   const val INSERT_ERROR_UNKNOWN = "unknown"
+
+  // ---- deleteSmsBatch error 字段 / errors[].code ----
+  // 返回 Map：{ok, deleted, failed, error, errors:[{index, code, message}]}。
+  // error 为整批级：null|not_default|failed|unknown；index 为入参 targets 下标。
+  /** 非默认短信应用，整批未执行。 */
+  const val DELETE_ERROR_NOT_DEFAULT = "not_default"
+
+  /** 原生异常（delete 抛出），该目标/该批失败。 */
+  const val DELETE_ERROR_FAILED = "failed"
+
+  /** 保留值：形态异常/未知 code 的安全默认（Dart 解析兜底）。 */
+  const val DELETE_ERROR_UNKNOWN = "unknown"
 }

@@ -61,6 +61,9 @@ class AppLocalizationsEn extends AppLocalizations {
       'Delete failed: set this app as default SMS app first';
 
   @override
+  String get deleteFailedRetry => 'Delete failed, please try again';
+
+  @override
   String deletedCount(int count) {
     return 'Deleted $count';
   }

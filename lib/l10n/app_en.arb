@@ -14,6 +14,7 @@
   "deleteSelected": "Delete selected",
   "queryFailedRetry": "Query failed. Pull to refresh or tap retry.",
   "deleteFailedNeedDefault": "Delete failed: set this app as default SMS app first",
+  "deleteFailedRetry": "Delete failed, please try again",
   "deletedCount": "Deleted {count}",
   "alreadyDefaultSms": "Already the default SMS app",
   "confirmInSystemDialog": "Confirm in the system dialog",

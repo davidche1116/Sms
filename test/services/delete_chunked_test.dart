@@ -4,7 +4,7 @@ import 'package:sms/services/sms_repository.dart';
 
 import '../helpers/app_channel.dart';
 
-/// 分块删除：进度步进、失败中断、取消停发、MMS 混合线协议。
+/// 分块删除：进度步进、失败中断、取消停发、MMS 混合线协议、部分失败与原因。
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   tearDown(clearAppChannelHandler);
@@ -28,6 +28,15 @@ void main() {
     });
   }
 
+  /// 新线协议 Map：全成。
+  Map<String, Object?> okMap(int n) => {
+        ChannelCodes.keyOk: true,
+        ChannelCodes.keyDeleted: n,
+        ChannelCodes.keyFailed: 0,
+        ChannelCodes.keyError: null,
+        ChannelCodes.keyErrors: <Map<String, Object?>>[],
+      };
+
   test('全成：进度按块步进，完整删完', () async {
     final progress = <(int, int)>[];
     mockDelete(respond: (_, wire) => wire.length);
@@ -40,6 +49,7 @@ void main() {
     expect(r.deleted, 5);
     expect(r.total, 5);
     expect(r.reason, DeleteStopReason.none);
+    expect(r.failure, isNull);
     expect(progress, [(0, 5), (2, 5), (4, 5), (5, 5)]);
   });
 
@@ -57,6 +67,7 @@ void main() {
     expect(r.deleted, 2);
     expect(r.total, 5);
     expect(r.reason, DeleteStopReason.failed);
+    expect(r.failure, BatchFailure.notDefaultOrError);
     // 第 2 块失败后，第 3 块不再发出
     expect(calls.length, 2);
   });
@@ -70,6 +81,108 @@ void main() {
     );
     expect(r.deleted, 0);
     expect(r.reason, DeleteStopReason.failed);
+    expect(calls.length, 1);
+  });
+
+  test('首块非默认：failure 精确为 notDefault', () async {
+    mockDelete(respond: (_, _) {
+      return {
+        ChannelCodes.keyOk: false,
+        ChannelCodes.keyDeleted: 0,
+        ChannelCodes.keyFailed: 2,
+        ChannelCodes.keyError: ChannelCodes.deleteErrorNotDefault,
+        ChannelCodes.keyErrors: [
+          {
+            ChannelCodes.keyIndex: -1,
+            ChannelCodes.keyCode: ChannelCodes.deleteErrorNotDefault,
+            ChannelCodes.keyMessage: 'not default sms app',
+          },
+        ],
+      };
+    });
+    final r = await SmsRepository().deleteSmsBatchChunked(items(5), chunkSize: 2);
+    expect(r.reason, DeleteStopReason.failed);
+    expect(r.failure, BatchFailure.notDefault);
+    expect(r.deleted, 0);
+  });
+
+  test('首块原生异常：failure 精确为 native', () async {
+    mockDelete(respond: (_, _) {
+      return {
+        ChannelCodes.keyOk: false,
+        ChannelCodes.keyDeleted: 0,
+        ChannelCodes.keyFailed: 2,
+        ChannelCodes.keyError: ChannelCodes.deleteErrorFailed,
+        ChannelCodes.keyErrors: [
+          {
+            ChannelCodes.keyIndex: 0,
+            ChannelCodes.keyCode: ChannelCodes.deleteErrorFailed,
+            ChannelCodes.keyMessage: 'boom',
+          },
+        ],
+      };
+    });
+    final r = await SmsRepository().deleteSmsBatchChunked(items(5), chunkSize: 2);
+    expect(r.reason, DeleteStopReason.failed);
+    expect(r.failure, BatchFailure.native);
+    expect(r.deleted, 0);
+  });
+
+  test('块内部分失败：停止后续块，已删前缀保留，failure=native', () async {
+    final calls = <List<Object?>>[];
+    mockDelete(
+      captured: calls,
+      respond: (i, wire) {
+        if (i == 0) return okMap(wire.length);
+        // 第 2 块：ok=true 但块内 1 成 1 败
+        return {
+          ChannelCodes.keyOk: true,
+          ChannelCodes.keyDeleted: 1,
+          ChannelCodes.keyFailed: 1,
+          ChannelCodes.keyError: null,
+          ChannelCodes.keyErrors: [
+            {
+              ChannelCodes.keyIndex: 1,
+              ChannelCodes.keyCode: ChannelCodes.deleteErrorFailed,
+              ChannelCodes.keyMessage: 'boom',
+            },
+          ],
+        };
+      },
+    );
+    final r = await SmsRepository().deleteSmsBatchChunked(items(5), chunkSize: 2);
+    expect(r.complete, isFalse);
+    expect(r.deleted, 2); // 只有整块成功的第 1 块计入前缀
+    expect(r.total, 5);
+    expect(r.reason, DeleteStopReason.failed);
+    expect(r.failure, BatchFailure.native);
+    expect(calls.length, 2); // 第 3 块不再发出
+  });
+
+  test('首块即部分失败：deleted=0 仍中断', () async {
+    final calls = <List<Object?>>[];
+    mockDelete(
+      captured: calls,
+      respond: (_, wire) {
+        return {
+          ChannelCodes.keyOk: true,
+          ChannelCodes.keyDeleted: 1,
+          ChannelCodes.keyFailed: 1,
+          ChannelCodes.keyError: null,
+          ChannelCodes.keyErrors: [
+            {
+              ChannelCodes.keyIndex: 0,
+              ChannelCodes.keyCode: ChannelCodes.deleteErrorFailed,
+              ChannelCodes.keyMessage: 'boom',
+            },
+          ],
+        };
+      },
+    );
+    final r = await SmsRepository().deleteSmsBatchChunked(items(5), chunkSize: 2);
+    expect(r.deleted, 0);
+    expect(r.reason, DeleteStopReason.failed);
+    expect(r.failure, BatchFailure.native);
     expect(calls.length, 1);
   });
 

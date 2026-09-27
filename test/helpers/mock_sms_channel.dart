@@ -63,12 +63,15 @@ List<Map<String, dynamic>> sampleRows() => [
 ///
 /// - [queryResult]：整包覆盖 `querySms` 返回（如 `{messages, error}`）；
 ///   其 `messages` 同样按已删 id 过滤，保证删后 `_load()` 列表一致。
-/// - [onDelete]：`deleteSmsBatch` 钩子，入参为原生 id 列表；返回 null 表示删除失败；默认全成功。
-///   可为 async（测试里用 Completer 悬住某块，观察进度/取消）。
+/// - [onDelete]：`deleteSmsBatch` 钩子，入参为原生 id 列表；返回值可以是：
+///   - `null` / `0` 以下：旧协议失败；
+///   - `int`：旧协议全成条数；
+///   - `Map`：新协议 `{ok, deleted, failed, error, errors}`。
+///   默认全成功。可为 async（测试里用 Completer 悬住某块，观察进度/取消）。
 /// - [handlers]：按方法名追加/覆盖返回（如 MIUI 相关方法）。
 void mockHomeChannel({
   Object? queryResult,
-  FutureOr<int?> Function(List<int> ids)? onDelete,
+  FutureOr<Object?> Function(List<int> ids)? onDelete,
   Map<String, Future<Object?> Function(MethodCall call)>? handlers,
 }) {
   final deleted = <int>{};
@@ -109,9 +112,13 @@ void mockHomeChannel({
           }
         }
         if (onDelete != null) {
-          final n = await onDelete(ids);
-          if (n != null) deleted.addAll(ids);
-          return n;
+          final r = await onDelete(ids);
+          // 全成才把 id 记为已删（部分失败的不回传，保持保守）
+          final ok = r is Map
+              ? r['ok'] == true && (r['failed'] as num? ?? 0) == 0
+              : r is int && r >= 0;
+          if (ok) deleted.addAll(ids);
+          return r;
         }
         deleted.addAll(ids);
         return ids.length;

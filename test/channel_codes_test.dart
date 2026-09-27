@@ -219,8 +219,17 @@ void main() {
       }
     });
 
-    test('deleteSmsBatch：int → ok；null → failed', () async {
-      mockChannel('deleteSmsBatch', () => 3);
+    test('deleteSmsBatch：Map 新契约解析 + 旧 int/null 兼容', () async {
+      // 新契约：全成
+      mockChannel('deleteSmsBatch', () {
+        return {
+          ChannelCodes.keyOk: true,
+          ChannelCodes.keyDeleted: 3,
+          ChannelCodes.keyFailed: 0,
+          ChannelCodes.keyError: null,
+          ChannelCodes.keyErrors: <Map<String, Object?>>[],
+        };
+      });
       var r = await SmsRepository().deleteSmsBatch([
         const SmsItem(id: 1, body: '', address: ''),
         const SmsItem(id: 2, body: '', address: ''),
@@ -228,8 +237,123 @@ void main() {
       ]);
       expect(r.ok, isTrue);
       expect(r.deleted, 3);
+      expect(r.failed, 0);
+      expect(r.errors, isEmpty);
       expect(r.failure, isNull);
 
+      // 新契约：部分成功 + 逐条明细（index 对齐入参）
+      mockChannel('deleteSmsBatch', () {
+        return {
+          ChannelCodes.keyOk: true,
+          ChannelCodes.keyDeleted: 1,
+          ChannelCodes.keyFailed: 2,
+          ChannelCodes.keyError: null,
+          ChannelCodes.keyErrors: [
+            {
+              ChannelCodes.keyIndex: 1,
+              ChannelCodes.keyCode: ChannelCodes.deleteErrorFailed,
+              ChannelCodes.keyMessage: 'delete failed',
+            },
+            {
+              ChannelCodes.keyIndex: 2,
+              ChannelCodes.keyCode: ChannelCodes.deleteErrorFailed,
+              ChannelCodes.keyMessage: 'boom',
+            },
+          ],
+        };
+      });
+      r = await SmsRepository().deleteSmsBatch([
+        const SmsItem(id: 1, body: '', address: ''),
+        const SmsItem(id: 2, body: '', address: ''),
+        const SmsItem(id: 3, body: '', address: ''),
+      ]);
+      expect(r.ok, isTrue);
+      expect(r.deleted, 1);
+      expect(r.failed, 2);
+      expect(r.errors, hasLength(2));
+      expect(r.errors[0].index, 1);
+      expect(r.errors[0].code, ChannelCodes.deleteErrorFailed);
+      expect(r.errors[0].message, 'delete failed');
+      expect(r.errors[1].index, 2);
+      expect(r.failure, isNull);
+
+      // 新契约：非默认整批失败
+      mockChannel('deleteSmsBatch', () {
+        return {
+          ChannelCodes.keyOk: false,
+          ChannelCodes.keyDeleted: 0,
+          ChannelCodes.keyFailed: 2,
+          ChannelCodes.keyError: ChannelCodes.deleteErrorNotDefault,
+          ChannelCodes.keyErrors: [
+            {
+              ChannelCodes.keyIndex: -1,
+              ChannelCodes.keyCode: ChannelCodes.deleteErrorNotDefault,
+              ChannelCodes.keyMessage: 'not default sms app',
+            },
+          ],
+        };
+      });
+      r = await SmsRepository().deleteSmsBatch([
+        const SmsItem(id: 1, body: '', address: ''),
+        const SmsItem(id: 2, body: '', address: ''),
+      ]);
+      expect(r.ok, isFalse);
+      expect(r.deleted, 0);
+      expect(r.failed, 2);
+      expect(r.errors.single.index, -1);
+      expect(r.errors.single.code, ChannelCodes.deleteErrorNotDefault);
+      expect(r.failure, BatchFailure.notDefault);
+
+      // 新契约：ok=false 且 error=failed → native
+      mockChannel('deleteSmsBatch', () {
+        return {
+          ChannelCodes.keyOk: false,
+          ChannelCodes.keyDeleted: 0,
+          ChannelCodes.keyFailed: 1,
+          ChannelCodes.keyError: ChannelCodes.deleteErrorFailed,
+          ChannelCodes.keyErrors: [
+            {
+              ChannelCodes.keyIndex: 0,
+              ChannelCodes.keyCode: ChannelCodes.deleteErrorFailed,
+              ChannelCodes.keyMessage: 'boom',
+            },
+          ],
+        };
+      });
+      r = await SmsRepository().deleteSmsBatch([
+        const SmsItem(id: 1, body: '', address: ''),
+      ]);
+      expect(r.ok, isFalse);
+      expect(r.failure, BatchFailure.native);
+
+      // 新契约：ok=false 且 error=unknown → notDefaultOrError（不可区分）
+      mockChannel('deleteSmsBatch', () {
+        return {
+          ChannelCodes.keyOk: false,
+          ChannelCodes.keyDeleted: 0,
+          ChannelCodes.keyFailed: 1,
+          ChannelCodes.keyError: ChannelCodes.deleteErrorUnknown,
+          ChannelCodes.keyErrors: <Map<String, Object?>>[],
+        };
+      });
+      r = await SmsRepository().deleteSmsBatch([
+        const SmsItem(id: 1, body: '', address: ''),
+      ]);
+      expect(r.ok, isFalse);
+      expect(r.failure, BatchFailure.notDefaultOrError);
+
+      // 旧契约：int → 全成
+      mockChannel('deleteSmsBatch', () => 2);
+      r = await SmsRepository().deleteSmsBatch([
+        const SmsItem(id: 1, body: '', address: ''),
+        const SmsItem(id: 2, body: '', address: ''),
+      ]);
+      expect(r.ok, isTrue);
+      expect(r.deleted, 2);
+      expect(r.failed, 0);
+      expect(r.failure, isNull);
+
+      // 旧契约：null → failed（不可区分）
       mockChannel('deleteSmsBatch', () => null);
       r = await SmsRepository().deleteSmsBatch([
         const SmsItem(id: 1, body: '', address: ''),
@@ -509,6 +633,9 @@ void main() {
       expect(ChannelCodes.insertErrorNotDefault, 'not_default');
       expect(ChannelCodes.insertErrorFailed, 'failed');
       expect(ChannelCodes.insertErrorUnknown, 'unknown');
+      expect(ChannelCodes.deleteErrorNotDefault, 'not_default');
+      expect(ChannelCodes.deleteErrorFailed, 'failed');
+      expect(ChannelCodes.deleteErrorUnknown, 'unknown');
     });
   });
 }

@@ -60,6 +60,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get deleteFailedNeedDefault => '删除失败：请先设为默认短信应用';
 
   @override
+  String get deleteFailedRetry => '删除失败，请重试';
+
+  @override
   String deletedCount(int count) {
     return '已删除 $count 条';
   }

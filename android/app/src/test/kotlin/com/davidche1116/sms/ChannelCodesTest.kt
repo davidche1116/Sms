@@ -67,11 +67,21 @@ class ChannelCodesTest {
   }
 
   @Test
+  fun `deleteSmsBatch error codes`() {
+    assertEquals("not_default", ChannelCodes.DELETE_ERROR_NOT_DEFAULT)
+    assertEquals("failed", ChannelCodes.DELETE_ERROR_FAILED)
+    assertEquals("unknown", ChannelCodes.DELETE_ERROR_UNKNOWN)
+  }
+
+  @Test
   fun `wire constants stay unique per role even when strings collide`() {
     // 同字面量允许多语境复用，但每个常量必须解析为文档约定值。
     assertEquals(ChannelCodes.ERROR, ChannelCodes.KEY_ERROR)
     assertEquals(ChannelCodes.MIUI_UNKNOWN, ChannelCodes.QUERY_ERROR_UNKNOWN)
     assertEquals(ChannelCodes.RESTORE_NOT_DEFAULT, ChannelCodes.INSERT_ERROR_NOT_DEFAULT)
+    assertEquals(ChannelCodes.INSERT_ERROR_NOT_DEFAULT, ChannelCodes.DELETE_ERROR_NOT_DEFAULT)
+    assertEquals(ChannelCodes.INSERT_ERROR_FAILED, ChannelCodes.DELETE_ERROR_FAILED)
+    assertEquals(ChannelCodes.INSERT_ERROR_UNKNOWN, ChannelCodes.DELETE_ERROR_UNKNOWN)
     assertEquals(ChannelCodes.INSERT_ERROR_FAILED, "failed")
     assertEquals(ChannelCodes.INSERT_ERROR_UNKNOWN, "unknown")
   }

@@ -62,7 +62,7 @@ Manifest 仅声明上述组件 + `READ_SMS`；**不申请** `SEND_SMS`/`RECEIVE_
 | `setDefaultSms` | `had` / `no`（已拉起 `createRequestRoleIntent`） / `error` |
 | `openDefaultSmsSettings` | `ok` / `no`（`ACTION_MANAGE_DEFAULT_APPS_SETTINGS`） |
 | `querySms` `{address?, limit?, offset?}` | `{messages, total, error: null\|"permission"\|"unknown"}`（分页/明细见 [CHANNEL_CONTRACT.md](CHANNEL_CONTRACT.md)） |
-| `deleteSmsBatch` `[ids]` | 行数 / `null`（非默认或失败）；UI 删除入口均先确认 |
+| `deleteSmsBatch` `[ids]` | Map `{ok, deleted, failed, error, errors}`（非默认/失败可区分）；UI 删除入口均先确认 |
 
 ### querySms
 
@@ -73,8 +73,9 @@ Manifest 仅声明上述组件 + `READ_SMS`；**不申请** `SEND_SMS`/`RECEIVE_
 
 ### deleteSmsBatch
 
-- 非默认短信 → `null`。  
-- 默认：`ContentResolver.delete`，`id IN (...)`，chunk ≤ 900。
+- 非默认短信 → `error: "not_default"`（整批未执行）。  
+- 默认：`ContentResolver.delete`，`id IN (...)`，chunk ≤ 900；逐 chunk 计入 failed。
+- 返回 Map，「非默认」与「原生异常」可区分（见 [CHANNEL_CONTRACT.md](CHANNEL_CONTRACT.md) §4）。
 
 ## 4. Kotlin 落点
 
@@ -92,7 +93,7 @@ class SmsAccess(private val activity: Activity) {
   fun setDefaultSms(): String          // had | no | error
   fun openDefaultSmsSettings(): Boolean
   fun querySms(address: String?): Map<String, Any?>
-  fun deleteSmsBatch(ids: List<Int>): Int?
+  fun deleteSmsBatch(targets: List<Any?>): Map<String, Any?>
 }
 ```
 

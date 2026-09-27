@@ -312,28 +312,30 @@ class SmsRepository {
 
   /// 见 [DeleteBatchResult]。按 `is_mms` 路由删除，SMS / MMS 不会误删对方同号行。
   ///
-  /// 线协议：`[{id, is_mms}]`；原生兼容旧 `List<Int>`（纯 SMS）。
+  /// 线协议 Map `{ok, deleted, failed, error, errors}`（见 CHANNEL_CONTRACT）；
+  /// 兼容旧 `int?`（int=全成、null=失败）。入参载荷 `[{id, is_mms}]`，
+  /// 原生兼容旧 `List<Int>`（纯 SMS）。
   Future<DeleteBatchResult> deleteSmsBatch(List<SmsItem> items) async {
     final targets = [
       for (final e in items)
         if (e.id != null) {'id': e.id, 'is_mms': e.isMms ? 1 : 0},
     ];
-    if (targets.isEmpty) return DeleteBatchResult.ok(0);
+    if (targets.isEmpty) return const DeleteBatchResult.ok(0);
     try {
-      final n = await _ch.invokeMethod<int>('deleteSmsBatch', targets);
-      return n == null
-          ? const DeleteBatchResult.failed()
-          : DeleteBatchResult.ok(n);
+      final raw = await _ch.invokeMethod<Object?>('deleteSmsBatch', targets);
+      return DeleteBatchResult.fromWire(raw);
     } catch (e) {
       debugPrint('deleteSmsBatch: $e');
-      return const DeleteBatchResult.failed();
+      return const DeleteBatchResult.failed(BatchFailure.native);
     }
   }
 
   /// 分块删除：按 [deleteChunkSize] 循环调用 [deleteSmsBatch]，每块完成回调
   /// [onProgress]。混合 SMS/MMS 目标保持原序整块过通道，线协议不变。
   ///
-  /// - 某块失败：停止后续块，返回 [DeleteStopReason.failed]。
+  /// - 某块整批失败（非默认 / 原生异常）或块内部分失败：停止后续块，
+  ///   返回 [DeleteStopReason.failed]，[DeleteChunkResult.failure] 给出原因；
+  ///   该块目标不计入已删前缀（块内成功删除的行会在下次刷新时消失）。
   /// - [shouldCancel] 置真：停止后续块（已发出的不撤回），
   ///   返回 [DeleteStopReason.cancelled]。
   /// - [DeleteChunkResult.deleted] 是**顺序前缀**长度，调用方可直接
@@ -365,6 +367,16 @@ class SmsRepository {
           deleted: done,
           total: total,
           reason: DeleteStopReason.failed,
+          failure: r.failure ?? BatchFailure.notDefaultOrError,
+        );
+      }
+      if (r.failed > 0) {
+        // 块内部分失败：本块不计入已删前缀，其后块不再发出。
+        return DeleteChunkResult(
+          deleted: done,
+          total: total,
+          reason: DeleteStopReason.failed,
+          failure: BatchFailure.native,
         );
       }
       // 整块视为完成：已删或本就不在库中的行都应从列表消失。

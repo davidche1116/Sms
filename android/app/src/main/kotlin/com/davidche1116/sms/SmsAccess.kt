@@ -577,48 +577,109 @@ class SmsAccess(private val context: Context) {
    * - [Number]：纯 SMS `_id`（旧调用兼容）
    * - Map `{"id": Int, "is_mms": 0|1}`：混合目标
    *
-   * @return 行数；null=非默认/失败
+   * 逐 chunk 计入 failed：某 chunk 抛异常时该 chunk 内全部目标记失败并继续后续
+   * chunk（尽量全成，与 `insertSmsBatch` 策略一致）。
+   *
+   * @return Map:
+   *   ok       Boolean   false=整批未执行/整批失败；true=已受理（**可含部分失败**）
+   *   deleted  Int       实际删除行数（SMS+MMS，contentResolver 返回值之和）
+   *   failed   Int       失败条数
+   *   error    String?   整批级错误：null|not_default|failed|unknown
+   *   errors   List      [{index, code, message}]，index 为入参 targets 下标；-1=整批级
    */
-  fun deleteSmsBatch(targets: List<Any?>): Int? {
-    if (targets.isEmpty()) return 0
-    if (isDefaultSms() != true) return null
-    val (smsIds, mmsIds) = splitDeleteTargets(targets)
-    return try {
-      // 直接把 Telephony.*.CONTENT_URI（平台类型，桩里为 null）传给 delete，
-      // 不经过非空 Kotlin 参数，避免 JVM 单测 NPE。
-      var n = 0
-      for (chunk in smsIds.chunked(900)) {
-        n += context.contentResolver.delete(
+  fun deleteSmsBatch(targets: List<Any?>): Map<String, Any?> {
+    if (targets.isEmpty()) {
+      return deleteResult(ok = true, deleted = 0, failed = 0, error = null, errors = emptyList())
+    }
+    if (isDefaultSms() != true) {
+      return deleteResult(
+        ok = false,
+        deleted = 0,
+        failed = targets.size,
+        error = ChannelCodes.DELETE_ERROR_NOT_DEFAULT,
+        errors = listOf(
+          deleteError(-1, ChannelCodes.DELETE_ERROR_NOT_DEFAULT, "not default sms app"),
+        ),
+      )
+    }
+    val (sms, mms) = splitDeleteTargets(targets)
+    val errors = mutableListOf<Map<String, Any?>>()
+    var deleted = 0
+    var failed = 0
+
+    // 直接把 Telephony.*.CONTENT_URI（平台类型，桩里为 null）传给 delete，
+    // 不经过非空 Kotlin 参数，避免 JVM 单测 NPE。因此 SMS/MMS 两段循环内联展开。
+    for (chunk in sms.chunked(900)) {
+      try {
+        deleted += context.contentResolver.delete(
           Telephony.Sms.CONTENT_URI,
           "_id IN (${chunk.joinToString(",") { "?" }})",
-          chunk.map { it.toString() }.toTypedArray(),
+          chunk.map { it.id.toString() }.toTypedArray(),
         )
+      } catch (e: Exception) {
+        Log.e(TAG, "deleteSmsBatch sms", e)
+        failed += chunk.size
+        for (t in chunk) {
+          errors.add(
+            deleteError(t.index, ChannelCodes.DELETE_ERROR_FAILED, e.message ?: "delete failed"),
+          )
+        }
       }
-      for (chunk in mmsIds.chunked(900)) {
-        n += context.contentResolver.delete(
+    }
+    for (chunk in mms.chunked(900)) {
+      try {
+        deleted += context.contentResolver.delete(
           Telephony.Mms.CONTENT_URI,
           "_id IN (${chunk.joinToString(",") { "?" }})",
-          chunk.map { it.toString() }.toTypedArray(),
+          chunk.map { it.id.toString() }.toTypedArray(),
         )
+      } catch (e: Exception) {
+        Log.e(TAG, "deleteSmsBatch mms", e)
+        failed += chunk.size
+        for (t in chunk) {
+          errors.add(
+            deleteError(t.index, ChannelCodes.DELETE_ERROR_FAILED, e.message ?: "delete failed"),
+          )
+        }
       }
-      n
-    } catch (e: Exception) {
-      Log.e(TAG, "deleteSmsBatch", e)
-      null
     }
+
+    // 零删零失败 = 成功（含「本就不在库中」）；零删且有失败 = 整批失败。
+    if (deleted == 0 && failed > 0) {
+      return deleteResult(
+        ok = false,
+        deleted = 0,
+        failed = failed,
+        error = ChannelCodes.DELETE_ERROR_FAILED,
+        errors = errors,
+      )
+    }
+    return deleteResult(
+      ok = true,
+      deleted = deleted,
+      failed = failed,
+      error = null,
+      errors = errors,
+    )
   }
 
-  /** 把混合入参拆成 SMS / MMS 两组 id。未知形态直接丢弃，绝不猜测路由。 */
+  /** 删除目标：保留入参下标，便于 errors[].index 对齐 `{id,is_mms}` 载荷。 */
+  internal data class DeleteTarget(val index: Int, val id: Int, val isMms: Boolean)
+
+  /** 把混合入参拆成 SMS / MMS 两组目标（含入参下标）。未知形态直接丢弃，绝不猜测路由。 */
   @androidx.annotation.VisibleForTesting
-  internal fun splitDeleteTargets(targets: List<Any?>): Pair<List<Int>, List<Int>> {
-    val sms = mutableListOf<Int>()
-    val mms = mutableListOf<Int>()
-    for (t in targets) {
+  internal fun splitDeleteTargets(
+    targets: List<Any?>,
+  ): Pair<List<DeleteTarget>, List<DeleteTarget>> {
+    val sms = mutableListOf<DeleteTarget>()
+    val mms = mutableListOf<DeleteTarget>()
+    targets.forEachIndexed { i, t ->
       when (t) {
-        is Number -> sms.add(t.toInt())
+        is Number -> sms.add(DeleteTarget(i, t.toInt(), isMms = false))
         is Map<*, *> -> {
-          val id = (t["id"] as? Number)?.toInt() ?: continue
-          if (isMmsFlag(t["is_mms"])) mms.add(id) else sms.add(id)
+          val id = (t["id"] as? Number)?.toInt() ?: return@forEachIndexed
+          val isMms = isMmsFlag(t["is_mms"])
+          (if (isMms) mms else sms).add(DeleteTarget(i, id, isMms))
         }
       }
     }
@@ -723,6 +784,26 @@ class SmsAccess(private val context: Context) {
   )
 
   private fun insertError(index: Int, code: String, message: String): Map<String, Any?> = mapOf(
+    ChannelCodes.KEY_INDEX to index,
+    ChannelCodes.KEY_CODE to code,
+    ChannelCodes.KEY_MESSAGE to message,
+  )
+
+  private fun deleteResult(
+    ok: Boolean,
+    deleted: Int,
+    failed: Int,
+    error: String?,
+    errors: List<Map<String, Any?>>,
+  ): Map<String, Any?> = mapOf(
+    ChannelCodes.KEY_OK to ok,
+    ChannelCodes.KEY_DELETED to deleted,
+    ChannelCodes.KEY_FAILED to failed,
+    ChannelCodes.KEY_ERROR to error,
+    ChannelCodes.KEY_ERRORS to errors,
+  )
+
+  private fun deleteError(index: Int, code: String, message: String): Map<String, Any?> = mapOf(
     ChannelCodes.KEY_INDEX to index,
     ChannelCodes.KEY_CODE to code,
     ChannelCodes.KEY_MESSAGE to message,

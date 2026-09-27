@@ -76,7 +76,8 @@ class SmsAccessMmsTest {
   fun `splitDeleteTargets treats bare numbers as sms`() {
     val access = accessWith(mock())
     val (sms, mms) = access.splitDeleteTargets(listOf(1, 2, 3))
-    assertEquals(listOf(1, 2, 3), sms)
+    assertEquals(listOf(1, 2, 3), sms.map { it.id })
+    assertEquals(listOf(0, 1, 2), sms.map { it.index })
     assertTrue(mms.isEmpty())
   }
 
@@ -92,8 +93,8 @@ class SmsAccessMmsTest {
         mapOf("id" to 50), // 缺省 = SMS
       ),
     )
-    assertEquals(listOf(10, 40, 50), sms)
-    assertEquals(listOf(20, 30), mms)
+    assertEquals(listOf(10, 40, 50), sms.map { it.id })
+    assertEquals(listOf(20, 30), mms.map { it.id })
   }
 
   @Test
@@ -109,7 +110,9 @@ class SmsAccessMmsTest {
       ),
     )
     assertTrue(sms.isEmpty())
-    assertEquals(listOf(1), mms)
+    assertEquals(listOf(1), mms.map { it.id })
+    // 保留原入参下标（4），供 errors[].index 对齐
+    assertEquals(listOf(4), mms.map { it.index })
   }
 
   @Test
@@ -137,7 +140,9 @@ class SmsAccessMmsTest {
       // 500 个 MMS → 1 chunk
       for (i in 1..500) add(mapOf("id" to i, "is_mms" to 1))
     }
-    assertEquals(1401, access.deleteSmsBatch(targets))
+    val r = access.deleteSmsBatch(targets)
+    assertEquals(true, r[ChannelCodes.KEY_OK])
+    assertEquals(1401, r[ChannelCodes.KEY_DELETED])
     assertEquals(listOf(900, 1, 500), chunks.map { it.size })
   }
 
@@ -146,7 +151,8 @@ class SmsAccessMmsTest {
     val resolver = mock<ContentResolver>()
     val chunks = stubDeleteCounting(resolver)
     val access = accessWith(resolver)
-    assertEquals(3, access.deleteSmsBatch(listOf(1, 2, 3)))
+    val r = access.deleteSmsBatch(listOf(1, 2, 3))
+    assertEquals(3, r[ChannelCodes.KEY_DELETED])
     assertEquals(listOf(3), chunks.map { it.size })
   }
 
@@ -156,7 +162,7 @@ class SmsAccessMmsTest {
     val chunks = stubDeleteCounting(resolver)
     val access = accessWith(resolver)
     val r = access.deleteSmsBatch(listOf(mapOf("id" to 9, "is_mms" to 1)))
-    assertEquals(1, r)
+    assertEquals(1, r[ChannelCodes.KEY_DELETED])
     assertEquals(listOf(1), chunks.map { it.size })
   }
 

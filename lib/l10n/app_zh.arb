@@ -35,6 +35,7 @@
   "deleteSelected": "删除选中",
   "queryFailedRetry": "查询失败，下拉或点重试",
   "deleteFailedNeedDefault": "删除失败：请先设为默认短信应用",
+  "deleteFailedRetry": "删除失败，请重试",
   "deletedCount": "已删除 {count} 条",
   "@deletedCount": {
     "placeholders": {

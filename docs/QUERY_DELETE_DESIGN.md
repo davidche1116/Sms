@@ -282,8 +282,9 @@ splitDeleteTargets(targets) → (smsIds, mmsIds)
 
 | 返回 | 含义 |
 |------|------|
-| `Int` | 实际删除行数（SMS+MMS，≥0） |
-| `null` | 非默认 / 异常 / 参数非法 |
+| Map `{ok, deleted, failed, error, errors}` | 见 §7.2；`deleted` = 实际删除行数（SMS+MMS，≥0） |
+| （旧）`Int` | 兼容：全成条数 |
+| （旧）`null` | 兼容：非默认 / 异常（不可区分） |
 
 ### 6.4 单条删除
 
@@ -302,7 +303,7 @@ splitDeleteTargets(targets) → (smsIds, mmsIds)
 | Method | 参数 | 返回 |
 |--------|------|------|
 | `querySms` | `{address?, limit?, offset?}` 或 null | 见 §5.7（含 `total`、`is_mms`） |
-| `deleteSmsBatch` | `List<Int>` 或 `List<{id, is_mms}>` | `Int?` |
+| `deleteSmsBatch` | `List<Int>` 或 `List<{id, is_mms}>` | 见 §7.2 Map |
 | `insertSmsBatch` | `List<{address, body, date, type, sub_id}>` | 见 §7.1 Map |
 | `hasReadSmsPermission` | — | `bool` |
 | `isDefaultSms` | — | `bool?` |
@@ -341,8 +342,41 @@ splitDeleteTargets(targets) → (smsIds, mmsIds)
 | `unknown` | 保留值：形态异常/未知 code 的安全默认（Dart 解析兜底） | 同上 |
 
 **兼容**：旧调用方读 `Int?`（null=失败、int=成功条数）。新契约返回 Map，
-Dart `InsertBatchResult.fromWire` 同时接受 Map / int / null；**旧 int 解析路径仅作
-兼容保留**，新代码一律按 Map 解析。`deleteSmsBatch` 仍回 `Int?`（另项任务）。
+Dart `InsertBatchResult.fromWire` / `DeleteBatchResult.fromWire` 同时接受
+Map / int / null；**旧 int 解析路径仅作兼容保留**，新代码一律按 Map 解析。
+
+### 7.2 deleteSmsBatch 返回契约（P1-1）
+
+```json
+{
+  "ok": true,
+  "deleted": 12,
+  "failed": 2,
+  "error": null,
+  "errors": [
+    { "index": 3, "code": "failed", "message": "…" }
+  ]
+}
+```
+
+| 字段 | 含义 |
+|------|------|
+| `ok` | false=整批未执行/整批失败；true=已受理（**可含部分失败**） |
+| `deleted` | 实际删除行数（SMS+MMS，contentResolver 返回值之和） |
+| `failed` | 失败条数（逐 chunk 计入） |
+| `error` | `null` \| `not_default` \| `failed` \| `unknown`（整批级） |
+| `errors[]` | 逐条失败明细；`index` 对齐入参 `{id,is_mms}` 载荷下标（-1=整批级） |
+
+| error | 含义 | Dart / UI |
+|-------|------|-----------|
+| `null` | 成功或部分成功 | 部分时 toast「已删除 X / N 条后失败」 |
+| `not_default` | 非默认，整批未执行 | toast「删除失败：请先设为默认短信应用」 |
+| `failed` | 原生异常导致整批失败 | toast「删除失败，请重试」（**不**误报设为默认） |
+| `unknown` | 解析兜底 | 同 notDefaultOrError（不可区分） |
+
+**逐 chunk 失败隔离**：SMS / MMS 各自 `chunked(900)` 独立 try/catch；一侧抛异常
+不影响另一侧已删计数，`errors[].index` 精确到入参下标。零删且零失败（全是
+「本就不在库中」）也算成功。
 
 **事务策略与系统限制（必读）**：
 

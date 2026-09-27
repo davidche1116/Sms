@@ -60,6 +60,18 @@ abstract final class ChannelCodes {
 
   /// 保留值：形态异常/未知 code 的安全默认（解析兜底）。
   static const String insertErrorUnknown = 'unknown';
+
+  // ---- deleteSmsBatch error 字段 / errors[].code ----
+  // Map：{ok, deleted, failed, error, errors:[{index, code, message}]}。
+  // error 为整批级：null|not_default|failed|unknown；index 为入参 targets 下标。
+  /// 非默认短信应用，整批未执行。
+  static const String deleteErrorNotDefault = 'not_default';
+
+  /// 原生异常（delete 抛出），该目标/该批失败。
+  static const String deleteErrorFailed = 'failed';
+
+  /// 保留值：形态异常/未知 code 的安全默认（解析兜底）。
+  static const String deleteErrorUnknown = 'unknown';
 }
 
 /// `setDefaultSms` 返回。
@@ -157,21 +169,20 @@ enum QueryError {
 
 /// 批量写（删除 / 插入）失败原因。
 ///
-/// `deleteSmsBatch` 线协议仍只回 `int?`（null=失败），「非默认」与「原生异常」
-/// 不可区分，只见 [notDefaultOrError]。
-/// `insertSmsBatch` 新线协议可区分，见 [InsertBatchResult]。
+/// `insertSmsBatch` / `deleteSmsBatch` 新线协议均可区分 [notDefault] 与 [native]；
+/// [notDefaultOrError] 仅出现于旧 `int?` 线协议 / 通道异常等不可区分场景。
 enum BatchFailure {
-  /// 通道返回 null 或调用抛错：非默认短信应用 / 原生失败（不可区分）。
+  /// 旧 `int?` 协议的 null、或形态异常：非默认 / 原生失败（不可区分）。
   notDefaultOrError,
 
-  /// 明确「非默认短信应用」（insertSmsBatch errors 含 not_default）。
+  /// 明确「非默认短信应用」（整批未执行）。
   notDefault,
 
-  /// 明确原生插入失败（非 not_default）。
+  /// 明确原生异常 / 删除或插入失败（非 not_default）。
   native,
 }
 
-/// `insertSmsBatch` 单行失败明细。
+/// 批量写单行失败明细（`insertSmsBatch` / `deleteSmsBatch` 共用）。
 class InsertRowError {
   const InsertRowError({
     required this.index,
@@ -179,7 +190,7 @@ class InsertRowError {
     this.message,
   });
 
-  /// 对应入参 rows 下标（0-based）；-1 = 整批级错误（如非默认）。
+  /// 对应入参下标（0-based）；-1 = 整批级错误（如非默认）。
   final int index;
 
   /// [ChannelCodes.insertErrorNotDefault] / [ChannelCodes.insertErrorFailed] /
@@ -211,19 +222,82 @@ class InsertRowError {
 }
 
 /// `deleteSmsBatch` 结果。
+///
+/// 线协议 Map `{ok, deleted, failed, error, errors}`；兼容旧 `int?`（int=全成条数，
+/// null=失败）。部分成功时 ok=true 且 failed>0，明细见 [errors]。
 class DeleteBatchResult {
-  const DeleteBatchResult.ok(this.deleted) : failure = null;
-  const DeleteBatchResult.failed([
-    this.failure = BatchFailure.notDefaultOrError,
-  ]) : deleted = 0;
+  const DeleteBatchResult({
+    this.deleted = 0,
+    this.failed = 0,
+    this.errors = const [],
+    this.failure,
+  });
 
-  /// 实际删除行数（成功时 ≥ 0）。
+  /// 成功（可含部分失败，failed/errors 仍回报）。
+  const DeleteBatchResult.ok(
+    int deleted, {
+    int failed = 0,
+    List<InsertRowError> errors = const [],
+  }) : this(deleted: deleted, failed: failed, errors: errors);
+
+  /// 整批失败；可携带线协议上的 deleted/failed/errors 明细。
+  const DeleteBatchResult.failed([
+    BatchFailure failure = BatchFailure.notDefaultOrError,
+  ]) : this(failure: failure);
+
+  /// 实际删除行数（成功时 ≥ 0；部分成功时为已删条数）。
   final int deleted;
 
-  /// null=成功；否则失败原因。
+  /// 失败条数（部分成功时 >0；整批失败时保留线协议计数）。
+  final int failed;
+
+  /// 逐条失败明细，index 对应入参 targets 下标。
+  final List<InsertRowError> errors;
+
+  /// null=成功（可含部分失败）；否则整批失败原因（线协议 `error` 字段）。
   final BatchFailure? failure;
 
   bool get ok => failure == null;
+
+  /// 线协议任意形态 → 结果。
+  ///
+  /// - Map：新契约，解析 ok/deleted/failed/error/errors；
+  /// - int：旧契约全成，deleted=n；
+  /// - null / 其他：整批失败（不可区分，[BatchFailure.notDefaultOrError]）。
+  static DeleteBatchResult fromWire(Object? raw) {
+    if (raw == null) return const DeleteBatchResult.failed();
+    if (raw is num) return DeleteBatchResult.ok(raw.toInt());
+    if (raw is Map) {
+      final m = raw.cast<Object?, Object?>();
+      final okFlag = m[ChannelCodes.keyOk] == true;
+      final deleted = (m[ChannelCodes.keyDeleted] as num?)?.toInt() ?? 0;
+      final failed = (m[ChannelCodes.keyFailed] as num?)?.toInt() ?? 0;
+      final errors = [
+        for (final e in (m[ChannelCodes.keyErrors] as List? ?? const []))
+          InsertRowError.fromWire(e),
+      ];
+      if (okFlag) {
+        return DeleteBatchResult.ok(deleted, failed: failed, errors: errors);
+      }
+      final errorRaw = m[ChannelCodes.keyError];
+      return DeleteBatchResult(
+        deleted: deleted,
+        failed: failed,
+        errors: errors,
+        failure: switch (errorRaw) {
+          ChannelCodes.deleteErrorNotDefault => BatchFailure.notDefault,
+          ChannelCodes.deleteErrorFailed => BatchFailure.native,
+          ChannelCodes.deleteErrorUnknown => BatchFailure.notDefaultOrError,
+          _ => errors.any(
+              (e) => e.code == ChannelCodes.deleteErrorNotDefault,
+            )
+              ? BatchFailure.notDefault
+              : BatchFailure.notDefaultOrError,
+        },
+      );
+    }
+    return const DeleteBatchResult.failed();
+  }
 }
 
 /// 分块删除停止原因（[DeleteChunkResult.reason]）。
@@ -244,6 +318,7 @@ class DeleteChunkResult {
     required this.deleted,
     required this.total,
     this.reason = DeleteStopReason.none,
+    this.failure,
   });
 
   /// 已成功完成块的条数。块按目标列表原序发出，故等于入参可删列表的前缀长。
@@ -254,6 +329,9 @@ class DeleteChunkResult {
 
   /// 停止原因；[DeleteStopReason.none] 且 deleted==total 为完整成功。
   final DeleteStopReason reason;
+
+  /// [DeleteStopReason.failed] 时的失败原因；其余为 null。
+  final BatchFailure? failure;
 
   /// 是否完整删完。
   bool get complete => reason == DeleteStopReason.none && deleted >= total;

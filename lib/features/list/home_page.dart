@@ -252,11 +252,17 @@ class _HomePageState extends State<HomePage> {
     if (r.complete) {
       _toast(l10n.deletedCount(r.deleted));
     } else if (r.reason == DeleteStopReason.failed) {
-      _toast(
-        r.deleted > 0
-            ? l10n.deletePartialFailed(r.deleted, r.total)
-            : l10n.deleteFailedNeedDefault,
-      );
+      if (r.deleted > 0) {
+        // 部分成功：已删前缀保留，精确报数
+        _toast(l10n.deletePartialFailed(r.deleted, r.total));
+      } else if (r.failure == BatchFailure.notDefault ||
+          r.failure == BatchFailure.notDefaultOrError) {
+        // 明确非默认（或旧协议不可区分）：引导设默认
+        _toast(l10n.deleteFailedNeedDefault);
+      } else {
+        // 原生异常等：不再误报「请先设为默认」
+        _toast(l10n.deleteFailedRetry);
+      }
     } else if (r.deleted > 0) {
       // 取消：已删的保留移除结果，明确报告条数
       _toast(l10n.deleteCancelled(r.deleted));

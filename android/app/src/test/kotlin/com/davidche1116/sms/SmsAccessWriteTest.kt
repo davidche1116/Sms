@@ -22,25 +22,41 @@ class SmsAccessWriteTest {
   // ---- deleteSmsBatch ----
 
   @Test
-  fun `deleteSmsBatch empty list returns zero without touching provider`() {
+  fun `deleteSmsBatch empty list returns ok zero without touching provider`() {
     val resolver = mock<ContentResolver>()
     val access = SmsAccess(mockSmsContext(resolver, defaultSms = true))
-    assertEquals(0, access.deleteSmsBatch(emptyList()))
+    val r = access.deleteSmsBatch(emptyList())
+    assertEquals(true, r[ChannelCodes.KEY_OK])
+    assertEquals(0, r[ChannelCodes.KEY_DELETED])
+    assertEquals(0, r[ChannelCodes.KEY_FAILED])
+    assertEquals(null, r[ChannelCodes.KEY_ERROR])
+    assertTrue((r[ChannelCodes.KEY_ERRORS] as List<*>).isEmpty())
     verify(resolver, never()).delete(anyOrNull(), anyOrNull(), anyOrNull())
   }
 
   @Test
-  fun `deleteSmsBatch empty list returns zero even when not default`() {
+  fun `deleteSmsBatch empty list returns ok zero even when not default`() {
     val resolver = mock<ContentResolver>()
     val access = SmsAccess(mockSmsContext(resolver, defaultSms = false))
-    assertEquals(0, access.deleteSmsBatch(emptyList()))
+    val r = access.deleteSmsBatch(emptyList())
+    assertEquals(true, r[ChannelCodes.KEY_OK])
+    assertEquals(0, r[ChannelCodes.KEY_DELETED])
   }
 
   @Test
-  fun `deleteSmsBatch returns null when not default sms app`() {
+  fun `deleteSmsBatch returns not_default error when not default sms app`() {
     val resolver = mock<ContentResolver>()
     val access = SmsAccess(mockSmsContext(resolver, defaultSms = false))
-    assertNull(access.deleteSmsBatch(listOf(1, 2, 3)))
+    val r = access.deleteSmsBatch(listOf(1, 2, 3))
+    assertEquals(false, r[ChannelCodes.KEY_OK])
+    assertEquals(0, r[ChannelCodes.KEY_DELETED])
+    assertEquals(3, r[ChannelCodes.KEY_FAILED])
+    assertEquals(ChannelCodes.DELETE_ERROR_NOT_DEFAULT, r[ChannelCodes.KEY_ERROR])
+    @Suppress("UNCHECKED_CAST")
+    val errors = r[ChannelCodes.KEY_ERRORS] as List<Map<String, Any?>>
+    assertEquals(1, errors.size)
+    assertEquals(-1, errors[0][ChannelCodes.KEY_INDEX])
+    assertEquals(ChannelCodes.DELETE_ERROR_NOT_DEFAULT, errors[0][ChannelCodes.KEY_CODE])
     verify(resolver, never()).delete(anyOrNull(), anyOrNull(), anyOrNull())
   }
 
@@ -50,7 +66,10 @@ class SmsAccessWriteTest {
     val chunks = stubDeleteCounting(resolver)
     val access = SmsAccess(mockSmsContext(resolver, defaultSms = true))
     val ids = (1..900).toList()
-    assertEquals(900, access.deleteSmsBatch(ids))
+    val r = access.deleteSmsBatch(ids)
+    assertEquals(true, r[ChannelCodes.KEY_OK])
+    assertEquals(900, r[ChannelCodes.KEY_DELETED])
+    assertEquals(0, r[ChannelCodes.KEY_FAILED])
     assertEquals(listOf(900), chunks.map { it.size })
     assertEquals(ids.map { it.toString() }, chunks[0])
   }
@@ -60,7 +79,8 @@ class SmsAccessWriteTest {
     val resolver = mock<ContentResolver>()
     val chunks = stubDeleteCounting(resolver)
     val access = SmsAccess(mockSmsContext(resolver, defaultSms = true))
-    assertEquals(901, access.deleteSmsBatch((1..901).toList()))
+    val r = access.deleteSmsBatch((1..901).toList())
+    assertEquals(901, r[ChannelCodes.KEY_DELETED])
     assertEquals(listOf(900, 1), chunks.map { it.size })
   }
 
@@ -69,7 +89,8 @@ class SmsAccessWriteTest {
     val resolver = mock<ContentResolver>()
     val chunks = stubDeleteCounting(resolver)
     val access = SmsAccess(mockSmsContext(resolver, defaultSms = true))
-    assertEquals(1800, access.deleteSmsBatch((1..1800).toList()))
+    val r = access.deleteSmsBatch((1..1800).toList())
+    assertEquals(1800, r[ChannelCodes.KEY_DELETED])
     assertEquals(listOf(900, 900), chunks.map { it.size })
     verify(resolver, times(2)).delete(anyOrNull(), anyOrNull(), anyOrNull())
   }
@@ -83,16 +104,79 @@ class SmsAccessWriteTest {
     }
     val access = SmsAccess(mockSmsContext(resolver, defaultSms = true))
     // 901 → chunk 900/1 → 450 + 0 = 450
-    assertEquals(450, access.deleteSmsBatch((1..901).toList()))
+    val r = access.deleteSmsBatch((1..901).toList())
+    assertEquals(true, r[ChannelCodes.KEY_OK])
+    assertEquals(450, r[ChannelCodes.KEY_DELETED])
+    assertEquals(0, r[ChannelCodes.KEY_FAILED])
   }
 
   @Test
-  fun `deleteSmsBatch provider exception returns null`() {
+  fun `deleteSmsBatch provider exception returns failed error with per-item indices`() {
     val resolver = mock<ContentResolver>()
     whenever(resolver.delete(anyOrNull(), anyOrNull(), anyOrNull()))
       .thenThrow(RuntimeException("boom"))
     val access = SmsAccess(mockSmsContext(resolver, defaultSms = true))
-    assertNull(access.deleteSmsBatch(listOf(1, 2)))
+    val r = access.deleteSmsBatch(listOf(1, 2))
+    assertEquals(false, r[ChannelCodes.KEY_OK])
+    assertEquals(0, r[ChannelCodes.KEY_DELETED])
+    assertEquals(2, r[ChannelCodes.KEY_FAILED])
+    assertEquals(ChannelCodes.DELETE_ERROR_FAILED, r[ChannelCodes.KEY_ERROR])
+    @Suppress("UNCHECKED_CAST")
+    val errors = r[ChannelCodes.KEY_ERRORS] as List<Map<String, Any?>>
+    assertEquals(2, errors.size)
+    assertEquals(listOf(0, 1), errors.map { it[ChannelCodes.KEY_INDEX] })
+    assertTrue(errors.all { it[ChannelCodes.KEY_CODE] == ChannelCodes.DELETE_ERROR_FAILED })
+  }
+
+  @Test
+  fun `deleteSmsBatch partial chunk failure keeps successes and marks failed indices`() {
+    val resolver = mock<ContentResolver>()
+    var call = 0
+    whenever(resolver.delete(anyOrNull(), anyOrNull(), anyOrNull())).thenAnswer { inv ->
+      call++
+      if (call == 2) throw RuntimeException("chunk failed")
+      inv.getArgument<Array<String>?>(2)?.size ?: 0
+    }
+    val access = SmsAccess(mockSmsContext(resolver, defaultSms = true))
+    // 901 个 SMS → chunk 900 成功 + chunk 1 失败
+    val r = access.deleteSmsBatch((1..901).toList())
+    assertEquals(true, r[ChannelCodes.KEY_OK])
+    assertEquals(900, r[ChannelCodes.KEY_DELETED])
+    assertEquals(1, r[ChannelCodes.KEY_FAILED])
+    assertEquals(null, r[ChannelCodes.KEY_ERROR])
+    @Suppress("UNCHECKED_CAST")
+    val errors = r[ChannelCodes.KEY_ERRORS] as List<Map<String, Any?>>
+    assertEquals(1, errors.size)
+    assertEquals(900, errors[0][ChannelCodes.KEY_INDEX])
+    assertEquals(ChannelCodes.DELETE_ERROR_FAILED, errors[0][ChannelCodes.KEY_CODE])
+  }
+
+  @Test
+  fun `deleteSmsBatch mixed side failure only marks that side`() {
+    val resolver = mock<ContentResolver>()
+    whenever(resolver.delete(anyOrNull(), anyOrNull(), anyOrNull())).thenAnswer { inv ->
+      val args = inv.getArgument<Array<String>?>(2)?.toList().orEmpty()
+      // MMS 侧（第 2 次 delete 调用）抛异常
+      if (args.contains("20")) throw RuntimeException("mms boom")
+      args.size
+    }
+    val access = SmsAccess(mockSmsContext(resolver, defaultSms = true))
+    // targets 下标：0=sms1, 1=mms20, 2=sms2
+    val r = access.deleteSmsBatch(
+      listOf(
+        mapOf("id" to 1, "is_mms" to 0),
+        mapOf("id" to 20, "is_mms" to 1),
+        mapOf("id" to 2, "is_mms" to 0),
+      ),
+    )
+    assertEquals(true, r[ChannelCodes.KEY_OK])
+    assertEquals(2, r[ChannelCodes.KEY_DELETED])
+    assertEquals(1, r[ChannelCodes.KEY_FAILED])
+    @Suppress("UNCHECKED_CAST")
+    val errors = r[ChannelCodes.KEY_ERRORS] as List<Map<String, Any?>>
+    assertEquals(1, errors.size)
+    assertEquals(1, errors[0][ChannelCodes.KEY_INDEX])
+    assertEquals(ChannelCodes.DELETE_ERROR_FAILED, errors[0][ChannelCodes.KEY_CODE])
   }
 
   // ---- insertTestSms debuggable 门禁 ----

@@ -24,7 +24,7 @@
 | `miuiNotificationSmsState` | — | `"allow"` \| `"likely_off"` \| `"ignore"` \| `"deny"` \| `"unknown"` |
 | `openMiuiPermissionEditor` | — | `bool` |
 | `querySms` | `{address?, limit?, offset?}` | `{messages, total, error}` |
-| `deleteSmsBatch` | `List<Int>` \| `List<Map{id,is_mms}>` | `Int?` |
+| `deleteSmsBatch` | `List<Int>` \| `List<Map{id,is_mms}>` | Map（见 §4） |
 | `insertSmsBatch` | `List<row>` | Map（见 §5） |
 | `insertTestSms` | `{count?, bodyPrefix?}` | `{ok, ids}` |
 | `deleteTestSmsByPrefix` | `{bodyPrefix?}` | `{ok, deleted}` |
@@ -140,17 +140,48 @@ Dart 侧另有 `SmsItem.uid`（`is_mms=1` 时 `id + 2^30`）用于多选/隐藏/
 | 方向 | 形状 |
 |------|------|
 | 入参 | `List<Int>`（纯 SMS `_id`，旧调用兼容）或 `List<Map>` `[{id: Int, is_mms: 0\|1}]`（混合） |
-| 返回 | `Int?` |
+| 返回 | Map（新契约，见下）；旧 `Int?` 由 Dart `fromWire` 兼容解析 |
 
-| 返回 | 含义 |
-|------|------|
-| `Int`（≥0） | 实际删除行数（SMS + MMS 之和）；空数组回 `0` |
-| `null` | 非默认短信应用 / 异常 |
+### 返回 Map（新契约）
+
+```json
+{
+  "ok": true,
+  "deleted": 12,
+  "failed": 2,
+  "error": null,
+  "errors": [
+    { "index": 3, "code": "failed", "message": "…" }
+  ]
+}
+```
+
+| 键 | 类型 | 说明 |
+|----|------|------|
+| `ok` | `bool` | `false`=整批未执行/整批失败；`true`=已受理（**可含部分失败**） |
+| `deleted` | `Int` | 实际删除行数（SMS + MMS 之和）；空数组回 `0` |
+| `failed` | `Int` | 失败条数（逐 chunk 计入） |
+| `error` | `String?` | 整批级错误，见下表；成功/部分成功为 `null` |
+| `errors` | `List<Map>` | 逐条失败明细 |
+| `errors[].index` | `Int` | 入参 targets 下标（0-based）；**`-1` = 整批级**（如非默认） |
+| `errors[].code` | `String` | `not_default` \| `failed`（同 `error` 线值） |
+| `errors[].message` | `String?` | 原生补充说明，可空 |
+
+| `error` 线值 | `ChannelCodes` | Dart `BatchFailure` | 含义 |
+|--------------|----------------|---------------------|------|
+| `null` | — | —（ok=true） | 成功或部分成功（部分时 `failed>0` + `errors[]`） |
+| `not_default` | `deleteErrorNotDefault` / `DELETE_ERROR_NOT_DEFAULT` | `notDefault` | 非默认短信应用，**整批未执行** |
+| `failed` | `deleteErrorFailed` / `DELETE_ERROR_FAILED` | `native` | 原生异常导致整批失败（零删零成功） |
+| `unknown` | `deleteErrorUnknown` / `DELETE_ERROR_UNKNOWN` | `notDefaultOrError` | 保留值：形态异常/未知 code 的安全默认（Dart 解析兜底） |
 
 - 原生按 `is_mms` 分组后各自 `ids.chunked(900)` 再 `"_id IN (...)"` 删除：SMS 走 `content://sms`，MMS 走 `content://mms`，**绝不跨表**。
+- **逐 chunk 计入 failed**：某 chunk 抛异常时该 chunk 内全部目标记失败（`errors[]` 逐条、`index` 对齐入参载荷）并继续后续 chunk（尽量全成）。
 - Map 形态缺 `id` 或 `is_mms` 非 0/1/true/false 时：缺 id 丢弃；`is_mms` 缺省按 SMS。
-- Dart `DeleteBatchResult`：`ok(deleted)` / `failed()`；**线协议无法区分**「非默认」与「原生异常」，统一只见 `BatchFailure.notDefaultOrError`。
+- **部分成功**：`ok=true, deleted=N, failed=M, errors[]`。零删且零失败（全是「本就不在库中」）也算成功。
+- Dart `DeleteBatchResult`：`ok(deleted, failed, errors)` / `failed(failure)`；`fromWire` 同时接受 Map / int / null。
+- **兼容**：旧调用方可能读 `Int?`（null=失败、int=全成条数）。旧原生 int → `ok(n)`，null → `failed(notDefaultOrError)`。
 - 删除入口（单条滑删 / 动作 Sheet / 多选 / FAB）**均先弹确认**；取消或失败时滑删卡片回弹、列表不改。
+- UI 失败文案按 `failure` 分支：`notDefault` → 「请先设为默认短信应用」；`native` → 「删除失败，请重试」；部分成功 → 「已删除 X / N 条后失败」。**不再一律提示设为默认**。
 
 ---
 
@@ -271,6 +302,9 @@ adb QA Intent（action 前缀 `com.davidche1116.sms.QA_*`）用法见 [CONTRIBUT
 | `not_default` | `insertErrorNotDefault` | `INSERT_ERROR_NOT_DEFAULT` | errors[].code |
 | `failed` | `insertErrorFailed` | `INSERT_ERROR_FAILED` | errors[].code |
 | `unknown` | `insertErrorUnknown` | `INSERT_ERROR_UNKNOWN` | errors[].code |
+| `not_default` | `deleteErrorNotDefault` | `DELETE_ERROR_NOT_DEFAULT` | deleteSmsBatch error / errors[].code |
+| `failed` | `deleteErrorFailed` | `DELETE_ERROR_FAILED` | deleteSmsBatch error / errors[].code |
+| `unknown` | `deleteErrorUnknown` | `DELETE_ERROR_UNKNOWN` | deleteSmsBatch error |
 
 线值在多个语境复用（如 `error`、`not_default`、`unknown`）：常量按语境拆分，字符串相同。
 
@@ -284,9 +318,9 @@ adb QA Intent（action 前缀 `com.davidche1116.sms.QA_*`）用法见 [CONTRIBUT
 | `RestoreDefaultResult` | `restoreDefaultSms` | `notDefault` / `openedSettings` / `error` |
 | `MiuiNotifState` | `miuiNotificationSmsState` | `allow` / `likelyOff` / `ignore` / `deny` / `unknown` |
 | `QueryError` | `querySms` | `none` / `permission` / `unknown` |
-| `DeleteBatchResult` | `deleteSmsBatch` | `ok(deleted)` / `failed` |
+| `DeleteBatchResult` | `deleteSmsBatch` | `ok(deleted, failed, errors)` / `failed(failure)`；`fromWire` 兼容 Map/int/null |
 | `InsertBatchResult` | `insertSmsBatch` | `ok(inserted, failed, errors)` / `failed` |
-| `InsertRowError` | `insertSmsBatch` | `index` / `code` / `message` |
+| `InsertRowError` | `insertSmsBatch` / `deleteSmsBatch` | `index` / `code` / `message` |
 | `BatchFailure` | 批量写 | `notDefaultOrError` / `notDefault` / `native` |
 | `RequestReadSmsResult` | `requestReadSms` | `granted` / `denied` / `timeout` |
 

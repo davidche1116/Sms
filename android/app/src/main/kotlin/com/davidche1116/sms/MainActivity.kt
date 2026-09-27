@@ -237,8 +237,13 @@ class MainActivity : FlutterFragmentActivity() {
         val ids = intent.getIntArrayExtra("ids")?.toList() ?: emptyList()
         // 只允许删除 body 带测试前缀的 id，真实短信直接拒绝
         val safe = access.filterTestIds(ids, prefix)
-        val n = access.deleteSmsBatch(safe)
-        writeQaResult("DELETE_IDS requested=$ids safe=$safe deleted=$n prefix=$prefix")
+        val r = access.deleteSmsBatch(safe)
+        writeQaResult(
+          "DELETE_IDS requested=$ids safe=$safe " +
+            "ok=${r[ChannelCodes.KEY_OK]} deleted=${r[ChannelCodes.KEY_DELETED]} " +
+            "failed=${r[ChannelCodes.KEY_FAILED]} error=${r[ChannelCodes.KEY_ERROR]} " +
+            "prefix=$prefix",
+        )
       }
       "com.davidche1116.sms.QA_QUERY_STATE" -> {
         val miui = access.isMiui()
