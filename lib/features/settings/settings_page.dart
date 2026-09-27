@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../services/csv_exporter.dart';
 import '../../services/csv_importer.dart';
@@ -38,12 +39,28 @@ class _SettingsPageState extends State<SettingsPage> {
   bool? _isDefault;
   int _hiddenCount = 0;
   bool _exporting = false;
+  String _version = '2.0.0';
 
   @override
   void initState() {
     super.initState();
     _refreshStatus();
     _refreshHiddenCount();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      setState(() {
+        _version = info.buildNumber.isEmpty
+            ? info.version
+            : '${info.version}+${info.buildNumber}';
+      });
+    } catch (_) {
+      // 读取失败时保留 pubspec 回退值
+    }
   }
 
   Future<void> _refreshStatus() async {
@@ -339,7 +356,7 @@ class _SettingsPageState extends State<SettingsPage> {
               icon: Icons.info_outline,
               iconBg: const Color(0xFF8D6E63),
               title: '版本',
-              value: '2.0.0',
+              value: _version,
             ),
             _row(
               icon: Icons.privacy_tip_outlined,
