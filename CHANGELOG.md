@@ -5,6 +5,16 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **`querySms` 部分失败上报（P1-2）**：不再「静默不完整」。各子查询（SMS/MMS 主表与
+  子箱、`mms/addr` 过滤与号码富化、`mms/part` 正文富化）独立收集异常，单路失败不丢
+  其它路已有行。线协议新增 `partial: bool` + `warnings: [{code, message}]`（code 见
+  CHANNEL_CONTRACT §3）；`error` 仍只在**完全无数据且失败**时非 null，与 `partial`
+  互斥。`warnings[].message` 为固定文案，不含 URI/路径/异常信息。
+  Dart `SmsQueryPage` 带 `partial`/`warnings`；首页 `partial` 时横幅轻提示
+  「部分短信可能未加载」+ 点按/下拉重试，不阻断使用。旧客户端忽略新字段仍可见已加载行
+
 ### Performance
 
 - **`querySms` 真分页（P0-1）**：SMS/MMS 各自按 `date DESC, _id DESC` 从 Provider 取流，

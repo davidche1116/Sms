@@ -173,7 +173,9 @@ total: 分页 = 两流 count 之和；全量 = 可用行数
     }
   ],
   "total": 12345,
-  "error": null
+  "error": null,
+  "partial": false,
+  "warnings": []
 }
 ```
 
@@ -182,14 +184,30 @@ total: 分页 = 两流 count 之和；全量 = 可用行数
 | `messages` | 本页（或全量）行，date 降序 |
 | `total` | 去重后总数；便于 UI「已加载 X / total 条」 |
 | `error` | 见下表 |
+| `partial` | 有数据但部分子查询失败 = `true`；与 `error` **互斥** |
+| `warnings` | `[{code, message}]` 部分失败明细；`partial=false` 时 `[]` |
 
 | error | 含义 | Dart |
 |-------|------|------|
-| `null` | 成功（messages 可为 []） | 列表 / 空态 |
+| `null` | 成功或部分成功（部分时 `partial=true`） | 列表 / 空态 + 轻提示 |
 | `"permission"` | 无读能力且非默认 | 提示申请权限 |
-| `"unknown"` | 其他失败 | 提示操作失败 / 重试 |
+| `"unknown"` | 完全失败（无数据且有异常） | 提示操作失败 / 重试 |
 
 **有数据则 error 必须为 null**（不因单 URI 异常而丢已有结果）。
+
+#### 部分失败上报（P1-2）
+
+各子查询独立、互不拖垮：SMS 主表/子箱、MMS 主表/子箱、`mms/addr`（过滤预取 +
+号码富化）、`mms/part`（正文富化）任一抛异常时——
+
+1. **不丢其它路已有行**（单路失败 ≠ 整体失败）；
+2. 把该路记入 `warnings[]`（code 见 [CHANNEL_CONTRACT §3](CHANNEL_CONTRACT.md)）；
+3. 若最终有数据（`total>0` 或 messages 非空）→ `error=null, partial=true`；
+   若完全无数据且有失败 → 仍走 `error=permission|unknown`（旧语义），`partial=false`；
+4. `warnings[].message` 用固定文案，**不携带** `exception.message` / URI / 路径。
+
+UI：列表 `partial=true` 时横幅轻提示「部分短信可能未加载」+ 点按/下拉重试，
+不阻断已有行的浏览 / 筛选 / 删除。
 
 ### 5.8 type → 业务 kind（Dart）
 
@@ -421,11 +439,14 @@ com.davidche1116.sms/
 
 | 场景 | 行为 |
 |------|------|
-| 无 READ_SMS 且非默认 | error=`permission` |
+| 无 READ_SMS 且非默认 | error=`permission`，partial=false |
 | 仅默认、无 READ_SMS | 仍查询（角色特权） |
 | 掉默认后进程被杀 | 冷启动重判权限 |
-| 单 URI SecurityException | 记 error 候选，继续其他 URI |
-| 全部 URI 空且无异常 | messages=[]，error=null |
+| 单 URI SecurityException | 记 warnings（`*_uri_security`），继续其他 URI；有数据则 error=null + partial=true |
+| 单 URI 其它异常 | 记 warnings（`*_uri_failed`），同上 |
+| addr/part 富化异常 | 记 warnings（`mms_addr_failed` / `mms_part_failed`），该字段按空回落，不丢行 |
+| 全部 URI 空且无异常 | messages=[]，error=null，partial=false |
+| 全部 URI 失败且无数据 | error=`permission`/`unknown`，partial=false（互斥） |
 | delete 非默认 | return null |
 | delete 空数组 | return 0 |
 | `_id` 缺失行 | 查询丢弃，不进列表 |
@@ -459,6 +480,9 @@ SmsItem { id, threadId, address, body, dateMs, read, type, subId, kind, isMms, h
 10. **真分页（P0-1）**：5k 假数据 `limit=20, offset=30` → 行消费 ≤50（短路）；
     sortOrder 带 `LIMIT 50`；整表有数据时**不**查子箱 URI；整表空时回落子箱并去重。
 11. 边界：`limit=0` 只 count、`offset` 越界空页 + total、负 offset 归零。
+12. **部分失败（P1-2）**：SMS 成功 + MMS SecurityException → error=null, partial=true,
+    warnings 含 `mms_uri_security`，SMS 行不丢；全成功 → partial=false, warnings=[]；
+    全失败无数据 → error=permission/unknown 且 partial=false；warnings[].message 不含 URI/路径。
 
 ---
 

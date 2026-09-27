@@ -86,6 +86,8 @@
   "hideFromListHint": "Hidden locally only; bulk delete won’t include them",
 
   "miuiBanner": "You may still miss notification SMS like 10086. Tap to enable MIUI “Notification SMS”.",
+  "partialQueryBanner": "Some messages may not have loaded",
+  "partialQueryBannerHint": "Tap to retry",
   "dismissHint": "Don’t show again",
   "miuiGuideTitle": "Also enable “Notification SMS”",
   "miuiGuideBody": "MIUI controls notification SMS (10086, banks, etc.) separately. On the next screen open: Permissions → Other permissions → Notification SMS.",

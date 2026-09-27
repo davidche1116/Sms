@@ -280,6 +280,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get miuiBanner => '可能还看不到 10086 等通知短信，点此开启 MIUI「通知类短信」';
 
   @override
+  String get partialQueryBanner => '部分短信可能未加载';
+
+  @override
+  String get partialQueryBannerHint => '点此重试';
+
+  @override
   String get dismissHint => '不再提示';
 
   @override

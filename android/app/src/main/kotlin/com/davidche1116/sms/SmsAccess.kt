@@ -278,7 +278,11 @@ class SmsAccess(private val context: Context) {
    *
    * @param limit null=全量（兼容旧调用）；非空时按 date 降序切页
    * @param offset 跳过条数，仅在 limit 非空时生效
-   * @return messages + total + error(null|permission|unknown)，键与错误值见 [ChannelCodes]
+   * @return messages + total + error(null|permission|unknown) + partial + warnings，
+   *   键与错误值见 [ChannelCodes]。语义：
+   *   - 有数据但某路子查询失败 → `error=null, partial=true, warnings=[…]`（不丢其它路已有行）
+   *   - 完全无数据且失败 → `error=permission|unknown`，`partial=false`（与 error 互斥）
+   *   - 全成功 → `error=null, partial=false, warnings=[]`
    */
   fun querySms(address: String?, limit: Int? = null, offset: Int = 0): Map<String, Any?> {
     if (!hasReadSms() && isDefaultSms() != true) {
@@ -286,6 +290,8 @@ class SmsAccess(private val context: Context) {
         ChannelCodes.KEY_MESSAGES to emptyList<Any>(),
         ChannelCodes.KEY_TOTAL to 0,
         ChannelCodes.KEY_ERROR to ChannelCodes.QUERY_ERROR_PERMISSION,
+        ChannelCodes.KEY_PARTIAL to false,
+        ChannelCodes.KEY_WARNINGS to emptyList<Any>(),
       )
     }
     val safeOffset = offset.coerceAtLeast(0)
@@ -328,7 +334,8 @@ class SmsAccess(private val context: Context) {
     )
 
     // 彩信 address 在 addr 表：优先下推 `_id IN`，过大则内存收窄（见 scanStream.keepRow）。
-    val mmsAddrFilter = if (address.isNullOrEmpty()) null else queryMmsIdsByAddress(address)
+    val warns = QueryWarns()
+    val mmsAddrFilter = if (address.isNullOrEmpty()) null else queryMmsIdsByAddress(address, warns)
     val mms: StreamScan
     if (mmsAddrFilter != null && mmsAddrFilter.isEmpty()) {
       mms = StreamScan.EMPTY
@@ -375,20 +382,64 @@ class SmsAccess(private val context: Context) {
       merged.drop(safeOffset).take(safeLimit)
     }
     // 正文/号码只对本页彩信补全（addr/part 批量查），避免对全库 N+1。
-    val enriched = enrichMmsRows(page)
+    val enriched = enrichMmsRows(page, warns)
     val total = sms.total + mms.total
     val anyRow = total > 0 || sms.rows.isNotEmpty() || mms.rows.isNotEmpty()
+    // 单路异常 → 对应 warning；不因单路失败丢弃其它路已有行。
+    if (sms.security) warns.add(ChannelCodes.WARN_SMS_URI_SECURITY)
+    if (sms.other) warns.add(ChannelCodes.WARN_SMS_URI_FAILED)
+    if (mms.security) warns.add(ChannelCodes.WARN_MMS_URI_SECURITY)
+    if (mms.other) warns.add(ChannelCodes.WARN_MMS_URI_FAILED)
+
+    // error 与 partial 互斥：
+    // - 完全无数据且有失败 → error（旧语义），partial=false
+    // - 有数据但部分失败 → error=null, partial=true
+    // - 全成功 / 空库无失败 → error=null, partial=false
     val error = when {
       anyRow -> null
       sms.security || mms.security -> ChannelCodes.QUERY_ERROR_PERMISSION
       sms.other || mms.other -> ChannelCodes.QUERY_ERROR_UNKNOWN
       else -> null
     }
+    val partial = error == null && warns.isNotEmpty()
     return mapOf(
       ChannelCodes.KEY_MESSAGES to enriched,
       ChannelCodes.KEY_TOTAL to total,
       ChannelCodes.KEY_ERROR to error,
+      ChannelCodes.KEY_PARTIAL to partial,
+      ChannelCodes.KEY_WARNINGS to warns.toWireList(),
     )
+  }
+
+  /**
+   * 查询过程中的部分失败收集（按 code 去重）。
+   *
+   * message 一律使用固定文案（[messageOf]），**绝不**携带 exception.message /
+   * URI / 文件路径，避免把 Provider 内部路径泄漏到线协议。
+   */
+  private class QueryWarns {
+    private val codes = LinkedHashSet<String>()
+    fun add(code: String) {
+      codes.add(code)
+    }
+
+    fun isNotEmpty(): Boolean = codes.isNotEmpty()
+    fun toWireList(): List<Map<String, Any?>> = codes.map { code ->
+      mapOf(
+        ChannelCodes.KEY_CODE to code,
+        ChannelCodes.KEY_MESSAGE to messageOf(code),
+      )
+    }
+
+    private fun messageOf(code: String): String = when (code) {
+      ChannelCodes.WARN_SMS_URI_SECURITY -> "sms query restricted"
+      ChannelCodes.WARN_SMS_URI_FAILED -> "sms query failed"
+      ChannelCodes.WARN_MMS_URI_SECURITY -> "mms query restricted"
+      ChannelCodes.WARN_MMS_URI_FAILED -> "mms query failed"
+      ChannelCodes.WARN_MMS_ADDR_FAILED -> "mms address lookup failed"
+      ChannelCodes.WARN_MMS_PART_FAILED -> "mms body lookup failed"
+      else -> "query incomplete"
+    }
   }
 
   /** 一条有序流的扫描结果。 */
@@ -863,9 +914,9 @@ class SmsAccess(private val context: Context) {
 
   /**
    * 从 `content://mms/addr` 取匹配号码的 msg_id 集合。
-   * 失败回空集（宁可少显示彩信，也不误含无关行）。
+   * 失败回空集（宁可少显示彩信，也不误含无关行），并记 [ChannelCodes.WARN_MMS_ADDR_FAILED]。
    */
-  private fun queryMmsIdsByAddress(address: String): Set<Int> = try {
+  private fun queryMmsIdsByAddress(address: String, warns: QueryWarns): Set<Int> = try {
     val ids = mutableSetOf<Int>()
     context.contentResolver.query(
       mmsAddrUri(),
@@ -882,20 +933,25 @@ class SmsAccess(private val context: Context) {
     ids
   } catch (e: Exception) {
     Log.e(TAG, "queryMmsIdsByAddress", e)
+    warns.add(ChannelCodes.WARN_MMS_ADDR_FAILED)
     emptySet()
   }
 
   /**
    * 给本页彩信补 address / body 摘要 / has_media。
    * addr + part 各一次批量查询（`IN` 分片），不是逐条 N+1。
+   * 单路失败记 warning，不阻断另一路；失败字段按空串/无媒体回落。
    */
-  private fun enrichMmsRows(page: List<Map<String, Any?>>): List<Map<String, Any?>> {
+  private fun enrichMmsRows(
+    page: List<Map<String, Any?>>,
+    warns: QueryWarns,
+  ): List<Map<String, Any?>> {
     val mmsIds = page.mapNotNull { row ->
       if (isMmsFlag(row["is_mms"])) row["_id"] as? Int else null
     }
     if (mmsIds.isEmpty()) return page
-    val addrs = queryMmsAddresses(mmsIds)
-    val bodies = queryMmsBodies(mmsIds)
+    val addrs = queryMmsAddresses(mmsIds, warns)
+    val bodies = queryMmsBodies(mmsIds, warns)
     return page.map { row ->
       if (!isMmsFlag(row["is_mms"])) row
       else {
@@ -912,8 +968,9 @@ class SmsAccess(private val context: Context) {
 
   /**
    * msg_id → 对端号码。收件优先 FROM(137)，否则 TO(151)，再否则首个非空。
+   * 失败记 [ChannelCodes.WARN_MMS_ADDR_FAILED]，该路返回空映射。
    */
-  private fun queryMmsAddresses(ids: List<Int>): Map<Int, String> {
+  private fun queryMmsAddresses(ids: List<Int>, warns: QueryWarns): Map<Int, String> {
     val best = mutableMapOf<Int, Pair<Int, String>>() // msgId -> (priority, address)
     fun priorityOf(type: Int): Int = when (type) {
       MMS_ADDR_TYPE_FROM -> 0
@@ -949,6 +1006,7 @@ class SmsAccess(private val context: Context) {
         }
       } catch (e: Exception) {
         Log.e(TAG, "queryMmsAddresses", e)
+        warns.add(ChannelCodes.WARN_MMS_ADDR_FAILED)
       }
     }
     return best.mapValues { it.value.second }
@@ -958,8 +1016,9 @@ class SmsAccess(private val context: Context) {
    * msg_id → (文本摘要, 是否含媒体附件)。
    * 文本取 `ct` 为 text/plain · text/x-vcard · text/x-vcalendar · text/html 的 part 的 `text` 列拼接；
    * 媒体看 image/ · audio/ · video/ 或带 `_data` 的 application/ 任意类型。
+   * 失败记 [ChannelCodes.WARN_MMS_PART_FAILED]，该路按空摘要回落。
    */
-  private fun queryMmsBodies(ids: List<Int>): Map<Int, Pair<String, Boolean>> {
+  private fun queryMmsBodies(ids: List<Int>, warns: QueryWarns): Map<Int, Pair<String, Boolean>> {
     val texts = mutableMapOf<Int, MutableList<String>>()
     val media = mutableSetOf<Int>()
     forChunked(ids) { chunk ->
@@ -1004,6 +1063,7 @@ class SmsAccess(private val context: Context) {
         }
       } catch (e: Exception) {
         Log.e(TAG, "queryMmsBodies", e)
+        warns.add(ChannelCodes.WARN_MMS_PART_FAILED)
       }
     }
     return ids.associateWith { id ->

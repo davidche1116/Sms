@@ -126,4 +126,67 @@ void main() {
     expect(find.text('msg-1'), findsNothing);
     expect(find.text('1 条'), findsOneWidget);
   });
+
+  testWidgets('partial=true 时显示「部分短信可能未加载」横幅，可点按重试', (tester) async {
+    var partial = true;
+    var queryCount = 0;
+    setAppChannelHandler((call) async {
+      switch (call.method) {
+        case 'hasReadSmsPermission':
+          return true;
+        case 'isDefaultSms':
+          return true;
+        case 'isMiui':
+          return false;
+        case 'querySms':
+          queryCount++;
+          return {
+            'messages': buildRows(3),
+            'total': 3,
+            'error': null,
+            'partial': partial,
+            if (partial)
+              'warnings': [
+                {
+                  'code': 'mms_uri_security',
+                  'message': 'mms query restricted',
+                },
+              ],
+          };
+        default:
+          return null;
+      }
+    });
+
+    await pumpSmsApp(tester);
+    expect(find.textContaining('部分短信可能未加载'), findsOneWidget);
+    expect(find.text('msg-1'), findsOneWidget);
+
+    // 恢复完整后重试 → 横幅消失
+    partial = false;
+    await tester.tap(find.textContaining('部分短信可能未加载'));
+    await tester.pumpAndSettle();
+    expect(queryCount, 2);
+    expect(find.textContaining('部分短信可能未加载'), findsNothing);
+  });
+
+  testWidgets('partial=false 不显示横幅', (tester) async {
+    setAppChannelHandler((call) async {
+      switch (call.method) {
+        case 'hasReadSmsPermission':
+          return true;
+        case 'isDefaultSms':
+          return true;
+        case 'isMiui':
+          return false;
+        case 'querySms':
+          return {'messages': buildRows(2), 'total': 2, 'error': null};
+        default:
+          return null;
+      }
+    });
+
+    await pumpSmsApp(tester);
+    expect(find.textContaining('部分短信可能未加载'), findsNothing);
+  });
 }

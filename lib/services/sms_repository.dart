@@ -25,12 +25,25 @@ enum RequestReadSmsResult {
   timeout,
 }
 
-/// `queryPage` 结果：本页 items + 库内去重总数。
+/// `queryPage` 结果：本页 items + 库内去重总数 + 部分失败标记。
 class SmsQueryPage {
-  const SmsQueryPage({required this.items, this.total});
+  const SmsQueryPage({
+    required this.items,
+    this.total,
+    this.partial = false,
+    this.warnings = const [],
+  });
 
   final List<SmsItem> items;
   final int? total;
+
+  /// 有数据但某路子查询失败（SMS/MMS 某 URI 或 addr/part 富化）。
+  /// `true` 时 [warnings] 非空，列表可能不完整，UI 应轻提示并可重试。
+  /// 与整批失败互斥：`error` 非空时本字段必为 `false`。
+  final bool partial;
+
+  /// 部分失败明细（[QueryWarning]）；`partial=false` 时为空。
+  final List<QueryWarning> warnings;
 
   /// 是否还有下一页。`total` 未知（旧原生）时用「本页是否写满」估算。
   bool hasMore(int loadedCount, int pageSize) =>
@@ -249,6 +262,7 @@ class SmsRepository {
   ///
   /// [QueryError.permission] 抛 [SmsQueryPermissionException]；
   /// [QueryError.unknown] 抛普通异常；[QueryError.none] 正常返回。
+  /// 有数据但部分子查询失败时返回 `partial=true` + `warnings`（不抛）。
   Future<SmsQueryPage> queryPage({
     String? address,
     int? limit,
@@ -256,6 +270,8 @@ class SmsRepository {
   }) async {
     List<SmsItem> list;
     int? total;
+    var partial = false;
+    List<QueryWarning> warnings = const [];
     try {
       final raw = await _ch.invokeMethod<dynamic>('querySms', {
         if (address != null && address.isNotEmpty) 'address': address,
@@ -273,13 +289,23 @@ class SmsRepository {
       }
       final rows = (raw[ChannelCodes.keyMessages] as List?) ?? const [];
       total = (raw[ChannelCodes.keyTotal] as num?)?.toInt();
+      partial = raw[ChannelCodes.keyPartial] == true;
+      warnings = [
+        for (final w in (raw[ChannelCodes.keyWarnings] as List? ?? const []))
+          QueryWarning.fromWire(w),
+      ];
       list = rows.map(_mapRow).toList();
     } on MissingPluginException {
       return const SmsQueryPage(items: []);
     }
     // 与 Kotlin 同序：date 降序（null 最早），_id 降序作稳定次键。
     list.sort(_dateDesc);
-    return SmsQueryPage(items: list, total: total);
+    return SmsQueryPage(
+      items: list,
+      total: total,
+      partial: partial,
+      warnings: warnings,
+    );
   }
 
   Future<List<SmsItem>> _query(String? address) async {

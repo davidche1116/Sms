@@ -165,6 +165,46 @@ void main() {
     });
   });
 
+  group('QueryWarning.fromWire（querySms warnings[] 项）', () {
+    test('Map{code,message} → 明细', () {
+      const w = QueryWarning(
+        code: ChannelCodes.warnSmsUriSecurity,
+        message: 'sms query restricted',
+      );
+      expect(
+        QueryWarning.fromWire({
+          ChannelCodes.keyCode: ChannelCodes.warnSmsUriSecurity,
+          ChannelCodes.keyMessage: 'sms query restricted',
+        }),
+        w,
+      );
+    });
+
+    test('缺 message 时为 null', () {
+      final w = QueryWarning.fromWire({ChannelCodes.keyCode: 'mms_part_failed'});
+      expect(w.code, ChannelCodes.warnMmsPartFailed);
+      expect(w.message, isNull);
+    });
+
+    test('形态异常 / 非 Map → warnUnknown（安全默认，不抛）', () {
+      expect(
+        QueryWarning.fromWire(null).code,
+        ChannelCodes.warnUnknown,
+      );
+      expect(
+        QueryWarning.fromWire('mms_part_failed').code,
+        ChannelCodes.warnUnknown,
+      );
+      expect(QueryWarning.fromWire(42).code, ChannelCodes.warnUnknown);
+      expect(QueryWarning.fromWire(<Object?, Object?>{}).code, ChannelCodes.warnUnknown);
+    });
+
+    test('未知 code 原样保留，供日志诊断', () {
+      final w = QueryWarning.fromWire({ChannelCodes.keyCode: 'weird_code'});
+      expect(w.code, 'weird_code');
+    });
+  });
+
   group('SmsRepository 通道映射（mock 线值 → 类型化返回）', () {
     test('setDefaultSms：had/no/error/未知/null', () async {
       for (final (wire, expected) in [
@@ -591,6 +631,77 @@ void main() {
       expect(page.total, 0);
     });
 
+    test('querySms：partial/warnings 映射（有数据 + 部分失败）', () async {
+      mockChannel('querySms', () {
+        return {
+          ChannelCodes.keyMessages: [
+            {
+              '_id': 1,
+              'address': '10086',
+              'body': 'hi',
+              'date': 1000,
+              'read': 1,
+              'type': 1,
+              'sub_id': 1,
+            },
+          ],
+          ChannelCodes.keyTotal: 5,
+          ChannelCodes.keyError: null,
+          ChannelCodes.keyPartial: true,
+          ChannelCodes.keyWarnings: [
+            {
+              ChannelCodes.keyCode: ChannelCodes.warnMmsPartFailed,
+              ChannelCodes.keyMessage: 'mms body lookup failed',
+            },
+            {
+              ChannelCodes.keyCode: ChannelCodes.warnSmsUriSecurity,
+              ChannelCodes.keyMessage: 'sms query restricted',
+            },
+          ],
+        };
+      });
+      final page = await SmsRepository().queryPage();
+      expect(page.partial, isTrue);
+      expect(page.warnings.map((w) => w.code), [
+        ChannelCodes.warnMmsPartFailed,
+        ChannelCodes.warnSmsUriSecurity,
+      ]);
+      expect(page.warnings.first.message, 'mms body lookup failed');
+      expect(page.items.single.id, 1);
+    });
+
+    test('querySms：全成功 → partial=false、warnings 空；缺字段时旧线协议兼容', () async {
+      mockChannel('querySms', () {
+        return {
+          ChannelCodes.keyMessages: <Map<String, dynamic>>[],
+          ChannelCodes.keyTotal: 0,
+          ChannelCodes.keyError: null,
+          // 旧原生可能不带 partial/warnings
+        };
+      });
+      final page = await SmsRepository().queryPage();
+      expect(page.partial, isFalse);
+      expect(page.warnings, isEmpty);
+    });
+
+    test('querySms：error 非空时忽略 partial（互斥语义）', () async {
+      // permission 异常在 error 分支抛出，不会走到 partial 解析
+      mockChannel('querySms', () {
+        return {
+          ChannelCodes.keyMessages: <Map<String, dynamic>>[],
+          ChannelCodes.keyError: ChannelCodes.queryErrorPermission,
+          ChannelCodes.keyPartial: true,
+          ChannelCodes.keyWarnings: [
+            {ChannelCodes.keyCode: ChannelCodes.warnSmsUriSecurity},
+          ],
+        };
+      });
+      await expectLater(
+        SmsRepository().queryPage(),
+        throwsA(isA<SmsQueryPermissionException>()),
+      );
+    });
+
     test('insertTestSms：{ok,ids} 键契约', () async {
       mockChannel('insertTestSms', () {
         return {ChannelCodes.keyOk: true, ChannelCodes.keyIds: [7, 8]};
@@ -624,6 +735,15 @@ void main() {
       expect(ChannelCodes.keyMessages, 'messages');
       expect(ChannelCodes.keyTotal, 'total');
       expect(ChannelCodes.keyError, 'error');
+      expect(ChannelCodes.keyPartial, 'partial');
+      expect(ChannelCodes.keyWarnings, 'warnings');
+      expect(ChannelCodes.warnSmsUriSecurity, 'sms_uri_security');
+      expect(ChannelCodes.warnSmsUriFailed, 'sms_uri_failed');
+      expect(ChannelCodes.warnMmsUriSecurity, 'mms_uri_security');
+      expect(ChannelCodes.warnMmsUriFailed, 'mms_uri_failed');
+      expect(ChannelCodes.warnMmsAddrFailed, 'mms_addr_failed');
+      expect(ChannelCodes.warnMmsPartFailed, 'mms_part_failed');
+      expect(ChannelCodes.warnUnknown, 'unknown');
       expect(ChannelCodes.keyInserted, 'inserted');
       expect(ChannelCodes.keyFailed, 'failed');
       expect(ChannelCodes.keyErrors, 'errors');

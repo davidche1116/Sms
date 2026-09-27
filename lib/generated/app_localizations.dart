@@ -578,6 +578,18 @@ abstract class AppLocalizations {
   /// **'可能还看不到 10086 等通知短信，点此开启 MIUI「通知类短信」'**
   String get miuiBanner;
 
+  /// No description provided for @partialQueryBanner.
+  ///
+  /// In zh, this message translates to:
+  /// **'部分短信可能未加载'**
+  String get partialQueryBanner;
+
+  /// No description provided for @partialQueryBannerHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'点此重试'**
+  String get partialQueryBannerHint;
+
   /// No description provided for @dismissHint.
   ///
   /// In zh, this message translates to:

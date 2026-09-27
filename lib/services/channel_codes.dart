@@ -41,6 +41,34 @@ abstract final class ChannelCodes {
   static const String keyTotal = 'total';
   static const String keyError = 'error';
 
+  /// 有数据但部分子查询失败：true。与 `error` 互斥（error 非空时必为 false）。
+  static const String keyPartial = 'partial';
+
+  /// 部分失败明细 `[{code, message}]`；message 为固定文案，不含 URI/路径。
+  static const String keyWarnings = 'warnings';
+
+  // ---- querySms warnings[].code ----
+  /// SMS 主表/子箱查询被 SecurityException 拒绝。
+  static const String warnSmsUriSecurity = 'sms_uri_security';
+
+  /// SMS 主表/子箱查询其它异常。
+  static const String warnSmsUriFailed = 'sms_uri_failed';
+
+  /// MMS 主表/子箱查询被 SecurityException 拒绝。
+  static const String warnMmsUriSecurity = 'mms_uri_security';
+
+  /// MMS 主表/子箱查询其它异常。
+  static const String warnMmsUriFailed = 'mms_uri_failed';
+
+  /// `content://mms/addr`（地址过滤预取 / 号码富化）失败。
+  static const String warnMmsAddrFailed = 'mms_addr_failed';
+
+  /// `content://mms/part`（正文摘要富化）失败。
+  static const String warnMmsPartFailed = 'mms_part_failed';
+
+  /// 保留值：形态异常/未知 code 的安全默认（解析兜底，线值同 `unknown`）。
+  static const String warnUnknown = 'unknown';
+
   // ---- insertSmsBatch 载荷键 ----
   // Map：{ok, inserted, failed, errors:[{index, code, message}]}。
   // index 为入参 rows 下标（0-based）；-1 表示整批级错误（如非默认）。
@@ -165,6 +193,43 @@ enum QueryError {
     ChannelCodes.queryErrorUnknown => QueryError.unknown,
     _ => QueryError.unknown,
   };
+}
+
+/// `querySms` 部分失败明细（`warnings[]` 一项）。
+///
+/// [code] 见 `ChannelCodes.warn*`；[message] 为原生固定文案，**不含** URI /
+/// 文件路径 / 异常堆栈，可安全打日志或展示。
+class QueryWarning {
+  const QueryWarning({required this.code, this.message});
+
+  /// `sms_uri_security` / `sms_uri_failed` / `mms_uri_security` /
+  /// `mms_uri_failed` / `mms_addr_failed` / `mms_part_failed`（未知线值原样保留）。
+  final String code;
+
+  /// 原生补充说明，可空。
+  final String? message;
+
+  /// 线协议 Map → 明细；字段缺失/形态异常时给安全默认。
+  static QueryWarning fromWire(Object? raw) {
+    if (raw is! Map) {
+      return const QueryWarning(code: ChannelCodes.warnUnknown);
+    }
+    final m = raw.cast<Object?, Object?>();
+    return QueryWarning(
+      code: m[ChannelCodes.keyCode]?.toString() ?? ChannelCodes.warnUnknown,
+      message: m[ChannelCodes.keyMessage]?.toString(),
+    );
+  }
+
+  @override
+  String toString() => 'QueryWarning(code: $code, message: $message)';
+
+  @override
+  bool operator ==(Object other) =>
+      other is QueryWarning && other.code == code && other.message == message;
+
+  @override
+  int get hashCode => Object.hash(code, message);
 }
 
 /// 批量写（删除 / 插入）失败原因。

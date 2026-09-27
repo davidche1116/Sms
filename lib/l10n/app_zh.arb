@@ -165,6 +165,8 @@
   "hideFromListHint": "仅本地隐藏；悬浮球删除不会带上它们",
 
   "miuiBanner": "可能还看不到 10086 等通知短信，点此开启 MIUI「通知类短信」",
+  "partialQueryBanner": "部分短信可能未加载",
+  "partialQueryBannerHint": "点此重试",
   "dismissHint": "不再提示",
   "miuiGuideTitle": "还要开启「通知类短信」",
   "miuiGuideBody": "MIUI 将 10086、银行等通知短信单独管控。请在下一页打开：权限管理 → 其他权限 → 通知类短信。",

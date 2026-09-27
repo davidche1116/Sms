@@ -43,6 +43,35 @@ object ChannelCodes {
   const val KEY_TOTAL = "total"
   const val KEY_ERROR = "error"
 
+  /** 有数据但部分子查询失败：true。与 [KEY_ERROR] 互斥（error 非空时必为 false）。 */
+  const val KEY_PARTIAL = "partial"
+
+  /** 部分失败明细 `[{code, message}]`；message 为固定文案，不含 URI/路径。 */
+  const val KEY_WARNINGS = "warnings"
+
+  // ---- querySms warnings[].code ----
+  // message 一律固定文案（见 SmsAccess.warningOf），禁止携带 exception.message / URI / 路径。
+  /** SMS 主表/子箱查询被 SecurityException 拒绝。 */
+  const val WARN_SMS_URI_SECURITY = "sms_uri_security"
+
+  /** SMS 主表/子箱查询其它异常。 */
+  const val WARN_SMS_URI_FAILED = "sms_uri_failed"
+
+  /** MMS 主表/子箱查询被 SecurityException 拒绝。 */
+  const val WARN_MMS_URI_SECURITY = "mms_uri_security"
+
+  /** MMS 主表/子箱查询其它异常。 */
+  const val WARN_MMS_URI_FAILED = "mms_uri_failed"
+
+  /** `content://mms/addr`（地址过滤预取 / 号码富化）失败。 */
+  const val WARN_MMS_ADDR_FAILED = "mms_addr_failed"
+
+  /** `content://mms/part`（正文摘要富化）失败。 */
+  const val WARN_MMS_PART_FAILED = "mms_part_failed"
+
+  /** 保留值：形态异常/未知 code 的安全默认（Dart 解析兜底，线值同 `unknown`）。 */
+  const val WARN_UNKNOWN = "unknown"
+
   // ---- insertSmsBatch 载荷键 ----
   // 返回 Map：{ok, inserted, failed, errors:[{index, code, message}]}。
   // index 为入参 rows 下标（0-based）；-1 表示整批级错误（如非默认）。

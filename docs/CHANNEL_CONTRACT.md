@@ -23,7 +23,7 @@
 | `isMiui` | — | `bool` |
 | `miuiNotificationSmsState` | — | `"allow"` \| `"likely_off"` \| `"ignore"` \| `"deny"` \| `"unknown"` |
 | `openMiuiPermissionEditor` | — | `bool` |
-| `querySms` | `{address?, limit?, offset?}` | `{messages, total, error}` |
+| `querySms` | `{address?, limit?, offset?}` | `{messages, total, error, partial, warnings}` |
 | `deleteSmsBatch` | `List<Int>` \| `List<Map{id,is_mms}>` | Map（见 §4） |
 | `insertSmsBatch` | `List<row>` | Map（见 §5） |
 | `insertTestSms` | `{count?, bodyPrefix?}` | `{ok, ids}` |
@@ -98,6 +98,8 @@ Dart 侧另有 **非线值** `DefaultSmsResult.timeout`：系统未在 `SmsRepos
 | `messages` | `List<Map>` | 本页（或全量）行，date 降序 |
 | `total` | `Int` | 去重后的库内总数（与是否分页无关） |
 | `error` | `String?` | 见下表 |
+| `partial` | `bool` | 有数据但部分子查询失败 = `true`；与 `error` **互斥** |
+| `warnings` | `List<Map>` | 部分失败明细 `[{code, message}]`；`partial=false` 时为 `[]` |
 
 行字段（白名单投影）：`_id, thread_id, address, body, date, date_sent, read, type, sub_id, is_mms, has_media`。无 `_id` 的行原生直接丢弃。
 
@@ -112,11 +114,36 @@ Dart 侧另有 `SmsItem.uid`（`is_mms=1` 时 `id + 2^30`）用于多选/隐藏/
 
 | `error` 线值 | `ChannelCodes` | Dart `QueryError` | 含义 |
 |--------------|----------------|-------------------|------|
-| `null` | — | `none` | 成功（`messages` 可为 `[]`） |
+| `null` | — | `none` | 成功或部分成功（`messages` 可为 `[]`；部分成功见 `partial`） |
 | `permission` | `queryErrorPermission` / `QUERY_ERROR_PERMISSION` | `permission` | 无读能力且非默认 |
-| `unknown` | `queryErrorUnknown` / `QUERY_ERROR_UNKNOWN` | `unknown` | 其他失败 |
+| `unknown` | `queryErrorUnknown` / `QUERY_ERROR_UNKNOWN` | `unknown` | 其他完全失败 |
 
-**有数据则 `error` 必须为 `null`**。Dart：`QueryError.permission` → `SmsQueryPermissionException`；`unknown` → 普通异常。
+**`error` 与 `partial` 互斥**（P1-2 部分失败上报）：
+
+| 场景 | `error` | `partial` | `warnings` |
+|------|---------|-----------|------------|
+| 全成功（含空库） | `null` | `false` | `[]` |
+| 有数据但某路子查询失败 | `null` | `true` | 非空 |
+| 完全无数据且失败 | `permission` \| `unknown` | `false` | 可非空（诊断用） |
+
+- **有数据则 `error` 必须为 `null`**（不因单 URI 异常丢已有结果）；此时若还有其它路失败，改用 `partial=true` + `warnings` 上报，UI 轻提示「部分短信可能未加载」+ 可重试。
+- `warnings[].message` 为**固定文案**（`sms query restricted` 等），**不含** URI / 文件路径 / `exception.message`，可安全打日志。
+- **向后兼容**：旧客户端只读 `messages/total/error` 时行为不变（`error` 语义大体保持：有数据即 null）；`partial`/`warnings` 为新增键，忽略即仍能看到已加载行，只是不提示可能不完整。
+
+`warnings[].code` 线值：
+
+| code | `ChannelCodes` | Dart `QueryWarning.code` | 触发点 |
+|------|----------------|--------------------------|--------|
+| `sms_uri_security` | `WARN_SMS_URI_SECURITY` / `warnSmsUriSecurity` | `warnSmsUriSecurity` | SMS 表查询 SecurityException |
+| `sms_uri_failed` | `WARN_SMS_URI_FAILED` / `warnSmsUriFailed` | `warnSmsUriFailed` | SMS 表查询其它异常 |
+| `mms_uri_security` | `WARN_MMS_URI_SECURITY` / `warnMmsUriSecurity` | `warnMmsUriSecurity` | MMS 表查询 SecurityException |
+| `mms_uri_failed` | `WARN_MMS_URI_FAILED` / `warnMmsUriFailed` | `warnMmsUriFailed` | MMS 表查询其它异常 |
+| `mms_addr_failed` | `WARN_MMS_ADDR_FAILED` / `warnMmsAddrFailed` | `warnMmsAddrFailed` | `mms/addr` 过滤预取 / 号码富化失败 |
+| `mms_part_failed` | `WARN_MMS_PART_FAILED` / `warnMmsPartFailed` | `warnMmsPartFailed` | `mms/part` 正文富化失败 |
+| `unknown` | `WARN_UNKNOWN` / `warnUnknown` | `warnUnknown` | 保留值：形态异常/未知 code 的安全默认 |
+
+Dart：`QueryError.permission` → `SmsQueryPermissionException`；`unknown` → 普通异常；
+`error=null && partial=true` → 正常返回 `SmsQueryPage(partial: true, warnings: […])`，不抛。
 
 分页约定（UI）：启动/刷新 `limit=200, offset=0`，触底按 `offset=已加载条数` 追加并按 `_id` 去重；筛选激活时补齐全量；导出「全部」必须 `queryAll()`。
 
@@ -293,6 +320,15 @@ adb QA Intent（action 前缀 `com.davidche1116.sms.QA_*`）用法见 [CONTRIBUT
 | `messages` | `keyMessages` | `KEY_MESSAGES` | querySms |
 | `total` | `keyTotal` | `KEY_TOTAL` | querySms |
 | `error` | `keyError` | `KEY_ERROR` | querySms |
+| `partial` | `keyPartial` | `KEY_PARTIAL` | querySms |
+| `warnings` | `keyWarnings` | `KEY_WARNINGS` | querySms |
+| `sms_uri_security` | `warnSmsUriSecurity` | `WARN_SMS_URI_SECURITY` | querySms warnings[].code |
+| `sms_uri_failed` | `warnSmsUriFailed` | `WARN_SMS_URI_FAILED` | querySms warnings[].code |
+| `mms_uri_security` | `warnMmsUriSecurity` | `WARN_MMS_URI_SECURITY` | querySms warnings[].code |
+| `mms_uri_failed` | `warnMmsUriFailed` | `WARN_MMS_URI_FAILED` | querySms warnings[].code |
+| `mms_addr_failed` | `warnMmsAddrFailed` | `WARN_MMS_ADDR_FAILED` | querySms warnings[].code |
+| `mms_part_failed` | `warnMmsPartFailed` | `WARN_MMS_PART_FAILED` | querySms warnings[].code |
+| `unknown` | `warnUnknown` | `WARN_UNKNOWN` | querySms warnings[].code 兜底 |
 | `inserted` | `keyInserted` | `KEY_INSERTED` | insertSmsBatch |
 | `failed` | `keyFailed` | `KEY_FAILED` | insertSmsBatch |
 | `errors` | `keyErrors` | `KEY_ERRORS` | insertSmsBatch |
@@ -318,6 +354,7 @@ adb QA Intent（action 前缀 `com.davidche1116.sms.QA_*`）用法见 [CONTRIBUT
 | `RestoreDefaultResult` | `restoreDefaultSms` | `notDefault` / `openedSettings` / `error` |
 | `MiuiNotifState` | `miuiNotificationSmsState` | `allow` / `likelyOff` / `ignore` / `deny` / `unknown` |
 | `QueryError` | `querySms` | `none` / `permission` / `unknown` |
+| `QueryWarning` | `querySms` | `code` / `message`（`SmsQueryPage.warnings` 项） |
 | `DeleteBatchResult` | `deleteSmsBatch` | `ok(deleted, failed, errors)` / `failed(failure)`；`fromWire` 兼容 Map/int/null |
 | `InsertBatchResult` | `insertSmsBatch` | `ok(inserted, failed, errors)` / `failed` |
 | `InsertRowError` | `insertSmsBatch` / `deleteSmsBatch` | `index` / `code` / `message` |

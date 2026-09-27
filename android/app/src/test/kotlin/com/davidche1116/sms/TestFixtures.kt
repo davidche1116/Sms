@@ -117,6 +117,12 @@ internal class SmsProviderStub {
   var mmsAddr: List<List<Any?>> = emptyList()
   var mmsPart: List<List<Any?>> = emptyList()
 
+  /**
+   * 每次 query 之前的钩子：返回 null 走默认 stub 行为；抛异常则该次查询失败。
+   * 用于精确模拟「一路成功、一路 SecurityException」等部分失败场景。
+   */
+  var onQuery: ((org.mockito.invocation.InvocationOnMock) -> Unit?)? = null
+
   data class QueryCall(
     val kind: String, // sms | mms | addr | addrIds | part
     val isCount: Boolean,
@@ -130,6 +136,7 @@ internal class SmsProviderStub {
   fun install(resolver: ContentResolver) {
     whenever(resolver.query(anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull()))
       .thenAnswer { inv ->
+        onQuery?.invoke(inv)
         val proj = inv.getArgument<Array<String>?>(1)?.toList()
         val selection = inv.getArgument<String?>(2)
         val args = inv.getArgument<Array<String>?>(3)?.toList()

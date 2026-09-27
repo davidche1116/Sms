@@ -431,12 +431,174 @@ class SmsAccessQueryTest {
   }
 
   @Test
-  fun `querySms payload always has messages total error keys`() {
+  fun `querySms payload always has messages total error partial warnings keys`() {
     val resolver = mock<ContentResolver>()
     val stub = SmsProviderStub()
     stub.install(resolver)
     val access = accessWith(resolver)
     val r = access.querySms(null)
-    assertEquals(setOf(ChannelCodes.KEY_MESSAGES, ChannelCodes.KEY_TOTAL, ChannelCodes.KEY_ERROR), r.keys)
+    assertEquals(
+      setOf(
+        ChannelCodes.KEY_MESSAGES,
+        ChannelCodes.KEY_TOTAL,
+        ChannelCodes.KEY_ERROR,
+        ChannelCodes.KEY_PARTIAL,
+        ChannelCodes.KEY_WARNINGS,
+      ),
+      r.keys,
+    )
+    // 空库无失败：完整成功
+    assertEquals(false, r[ChannelCodes.KEY_PARTIAL])
+    assertTrue((r[ChannelCodes.KEY_WARNINGS] as List<*>).isEmpty())
+  }
+
+  // ---- querySms：部分失败（partial / warnings） ----
+
+  @Test
+  @Suppress("UNCHECKED_CAST")
+  fun `querySms partial with warnings when mms stream throws but sms rows exist`() {
+    val resolver = mock<ContentResolver>()
+    val stub = SmsProviderStub().apply {
+      sms = smsRows(smsRow(id = 1, date = 100L))
+    }
+    stub.install(resolver)
+    // 只让彩信主表查询抛 SecurityException，短信侧正常返回行。
+    stub.onQuery = { inv ->
+      val proj = inv.getArgument<Array<String>?>(1)?.toList()
+      if (proj != null && proj.contains("msg_box")) {
+        throw SecurityException("mms restricted")
+      }
+      null
+    }
+    val access = accessWith(resolver)
+    val r = access.querySms(null)
+    // 有数据 → error 必须为 null，但 partial=true 且带 warnings
+    assertNull(r[ChannelCodes.KEY_ERROR])
+    assertEquals(true, r[ChannelCodes.KEY_PARTIAL])
+    val warnings = r[ChannelCodes.KEY_WARNINGS] as List<Map<String, Any?>>
+    assertTrue(warnings.isNotEmpty())
+    assertTrue(warnings.any { it[ChannelCodes.KEY_CODE] == ChannelCodes.WARN_MMS_URI_SECURITY })
+    // 不因单路失败丢弃另一路已有行
+    assertEquals(1, r[ChannelCodes.KEY_TOTAL])
+    assertEquals(1, (r[ChannelCodes.KEY_MESSAGES] as List<*>).size)
+  }
+
+  @Test
+  @Suppress("UNCHECKED_CAST")
+  fun `querySms partial with warnings when sms stream throws but mms rows exist`() {
+    val resolver = mock<ContentResolver>()
+    val stub = SmsProviderStub().apply {
+      mms = listOf(mmsRow(id = 9, dateSec = 1_700_000_000L))
+    }
+    stub.install(resolver)
+    stub.onQuery = { inv ->
+      val proj = inv.getArgument<Array<String>?>(1)?.toList()
+      if (proj != null && proj.contains("body")) {
+        throw SecurityException("sms restricted")
+      }
+      null
+    }
+    val access = accessWith(resolver)
+    val r = access.querySms(null)
+    assertNull(r[ChannelCodes.KEY_ERROR])
+    assertEquals(true, r[ChannelCodes.KEY_PARTIAL])
+    val warnings = r[ChannelCodes.KEY_WARNINGS] as List<Map<String, Any?>>
+    assertTrue(warnings.any { it[ChannelCodes.KEY_CODE] == ChannelCodes.WARN_SMS_URI_SECURITY })
+    assertEquals(1, (r[ChannelCodes.KEY_MESSAGES] as List<*>).size)
+  }
+
+  @Test
+  fun `querySms all success is not partial and has empty warnings`() {
+    val resolver = mock<ContentResolver>()
+    val stub = SmsProviderStub().apply {
+      sms = smsRows(smsRow(id = 1, date = 100L))
+      mms = listOf(mmsRow(id = 2, dateSec = 1_700_000_000L))
+      mmsAddr = listOf(listOf(2L, "10086", 137))
+      mmsPart = listOf(listOf(2L, "text/plain", "彩信正文", null))
+    }
+    stub.install(resolver)
+    val access = accessWith(resolver)
+    val r = access.querySms(null)
+    assertNull(r[ChannelCodes.KEY_ERROR])
+    assertEquals(false, r[ChannelCodes.KEY_PARTIAL])
+    assertTrue((r[ChannelCodes.KEY_WARNINGS] as List<*>).isEmpty())
+    assertEquals(2, r[ChannelCodes.KEY_TOTAL])
+  }
+
+  @Test
+  @Suppress("UNCHECKED_CAST")
+  fun `querySms all fail with no rows reports error and partial false`() {
+    val resolver = mock<ContentResolver>()
+    whenever(resolver.query(anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull()))
+      .thenThrow(SecurityException("no sms"))
+    val access = SmsAccess(mockSmsContext(resolver, defaultSms = false))
+    val r = access.querySms(null)
+    assertEquals(ChannelCodes.QUERY_ERROR_PERMISSION, r[ChannelCodes.KEY_ERROR])
+    // error 与 partial 互斥
+    assertEquals(false, r[ChannelCodes.KEY_PARTIAL])
+    val warnings = r[ChannelCodes.KEY_WARNINGS] as List<Map<String, Any?>>
+    assertTrue(warnings.any { it[ChannelCodes.KEY_CODE] == ChannelCodes.WARN_SMS_URI_SECURITY })
+  }
+
+  @Test
+  fun `querySms all fail with generic exception reports unknown error and partial false`() {
+    val resolver = mock<ContentResolver>()
+    whenever(resolver.query(anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull(), anyOrNull()))
+      .thenThrow(RuntimeException("provider dead"))
+    val access = accessWith(resolver)
+    val r = access.querySms(null)
+    assertEquals(ChannelCodes.QUERY_ERROR_UNKNOWN, r[ChannelCodes.KEY_ERROR])
+    assertEquals(false, r[ChannelCodes.KEY_PARTIAL])
+  }
+
+  @Test
+  @Suppress("UNCHECKED_CAST")
+  fun `querySms mms part enrichment failure yields partial with mms_part_failed`() {
+    val resolver = mock<ContentResolver>()
+    val stub = SmsProviderStub().apply {
+      mms = listOf(mmsRow(id = 2, dateSec = 1_700_000_000L))
+    }
+    stub.install(resolver)
+    stub.onQuery = { inv ->
+      val proj = inv.getArgument<Array<String>?>(1)?.toList()
+      if (proj != null && proj.contains("mid")) {
+        throw RuntimeException("part table gone")
+      }
+      null
+    }
+    val access = accessWith(resolver)
+    val r = access.querySms(null)
+    assertNull(r[ChannelCodes.KEY_ERROR])
+    assertEquals(true, r[ChannelCodes.KEY_PARTIAL])
+    val warnings = r[ChannelCodes.KEY_WARNINGS] as List<Map<String, Any?>>
+    assertTrue(warnings.any { it[ChannelCodes.KEY_CODE] == ChannelCodes.WARN_MMS_PART_FAILED })
+    // 行仍在（不因富化失败丢行）
+    assertEquals(1, (r[ChannelCodes.KEY_MESSAGES] as List<*>).size)
+  }
+
+  @Test
+  @Suppress("UNCHECKED_CAST")
+  fun `querySms warnings never contain exception message or uri`() {
+    val resolver = mock<ContentResolver>()
+    val stub = SmsProviderStub().apply {
+      sms = smsRows(smsRow(id = 1, date = 100L))
+    }
+    stub.install(resolver)
+    stub.onQuery = { inv ->
+      val proj = inv.getArgument<Array<String>?>(1)?.toList()
+      if (proj != null && proj.contains("msg_box")) {
+        throw SecurityException("content://mms/secret/path leaked")
+      }
+      null
+    }
+    val access = accessWith(resolver)
+    val r = access.querySms(null)
+    val warnings = r[ChannelCodes.KEY_WARNINGS] as List<Map<String, Any?>>
+    for (w in warnings) {
+      val msg = w[ChannelCodes.KEY_MESSAGE]?.toString().orEmpty()
+      assertFalse("message leaks path: $msg", msg.contains("content://"))
+      assertFalse("message leaks path: $msg", msg.contains("secret"))
+      assertFalse("message leaks path: $msg", msg.contains("/"))
+    }
   }
 }

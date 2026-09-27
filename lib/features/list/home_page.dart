@@ -45,6 +45,10 @@ class _HomePageState extends State<HomePage> {
   bool _miuiNotifHint = false;
   bool _miuiHintDismissed = false;
 
+  /// 查询部分失败（partial=true）：顶栏轻提示，可重试，不阻断使用。
+  bool _partial = false;
+  bool _partialHintDismissed = false;
+
   /// 分页：启动/刷新先拉一页，滚动触底再追加（见 QUERY_DELETE_DESIGN §5.1）。
   static const _pageSize = 200;
   static const _loadMoreThreshold = 400.0;
@@ -126,6 +130,9 @@ class _HomePageState extends State<HomePage> {
         _hasMore = !_filter.active && page.hasMore(items.length, _pageSize);
         _loading = false;
         _miuiNotifHint = hint;
+        _partial = page.partial;
+        // 新一轮查询若已完整，之前的手动关闭自动复位，下次再 partial 仍会提示。
+        if (!page.partial) _partialHintDismissed = false;
         _pruneSelection();
       });
       _scheduleLoadMoreCheck();
@@ -137,6 +144,7 @@ class _HomePageState extends State<HomePage> {
         _hasMore = false;
         _needPermission = true;
         _loading = false;
+        _partial = false;
       });
     } catch (_) {
       if (!mounted || gen != _loadGen) return;
@@ -145,6 +153,7 @@ class _HomePageState extends State<HomePage> {
         _total = null;
         _hasMore = false;
         _loading = false;
+        _partial = false;
       });
       _toast(AppLocalizations.of(context).queryFailedRetry);
     }
@@ -162,6 +171,8 @@ class _HomePageState extends State<HomePage> {
         final before = items.length;
         items = _dedupByUid([...items, ...page.items]);
         _total = page.total ?? _total;
+        // 追加页也可能 partial（如彩信富化失败）：任一页不完整即整体标记。
+        if (page.partial) _partial = true;
         // 没有新条目时强制停止，避免异常通道下反复空转
         _hasMore =
             items.length > before && page.hasMore(items.length, _pageSize);
@@ -185,8 +196,15 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<SmsQueryPage> _allAsPage() async {
-    final list = _dedupByUid(await _repo.queryAll());
-    return SmsQueryPage(items: list, total: list.length);
+    // 直接走 queryPage：保留 partial/warnings（queryAll 会丢掉部分失败标记）。
+    final page = await _repo.queryPage();
+    final list = _dedupByUid(page.items);
+    return SmsQueryPage(
+      items: list,
+      total: list.length,
+      partial: page.partial,
+      warnings: page.warnings,
+    );
   }
 
   /// 筛选激活后补齐全量，保证客户端过滤结果完整；失败则退化为「基于已加载数据」。
@@ -200,6 +218,7 @@ class _HomePageState extends State<HomePage> {
         items = page.items;
         _total = page.total;
         _hasMore = false;
+        if (page.partial) _partial = true;
         _pruneSelection();
       });
     } catch (_) {
@@ -409,7 +428,7 @@ class _HomePageState extends State<HomePage> {
             : CustomScrollView(
                 controller: _scrollController,
                 slivers: [
-                  if (_showMiuiHint || _filter.active)
+                  if (_showMiuiHint || _showPartialHint || _filter.active)
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -425,6 +444,13 @@ class _HomePageState extends State<HomePage> {
                                 onDismiss: () =>
                                     setState(() => _miuiHintDismissed = true),
                               ),
+                            if (_showPartialHint)
+                              PartialQueryBanner(
+                                onRetry: _load,
+                                onDismiss: () => setState(
+                                  () => _partialHintDismissed = true,
+                                ),
+                              ),
                             if (_filter.active)
                               FilterChipsBar(
                                 filter: _filter,
@@ -439,7 +465,11 @@ class _HomePageState extends State<HomePage> {
                       child: Padding(
                         padding: EdgeInsets.fromLTRB(
                           12,
-                          (_showMiuiHint || _filter.active) ? 0 : 8,
+                          (_showMiuiHint ||
+                                  _showPartialHint ||
+                                  _filter.active)
+                              ? 0
+                              : 8,
                           12,
                           88,
                         ),
@@ -453,7 +483,9 @@ class _HomePageState extends State<HomePage> {
                     SliverPadding(
                       padding: EdgeInsets.fromLTRB(
                         12,
-                        (_showMiuiHint || _filter.active) ? 0 : 8,
+                        (_showMiuiHint || _showPartialHint || _filter.active)
+                            ? 0
+                            : 8,
                         12,
                         88,
                       ),
@@ -504,6 +536,10 @@ class _HomePageState extends State<HomePage> {
 
   bool get _showMiuiHint =>
       _miuiNotifHint && !_miuiHintDismissed && !_needPermission;
+
+  /// 部分失败提示：不阻断列表，可关闭；权限态不显示（已有更强提示）。
+  bool get _showPartialHint =>
+      _partial && !_partialHintDismissed && !_needPermission;
 
   Widget _buildEmptyView() {
     return EmptyView(

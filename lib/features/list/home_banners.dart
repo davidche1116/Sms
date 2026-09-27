@@ -55,6 +55,62 @@ class MiuiNotifBanner extends StatelessWidget {
   }
 }
 
+/// 查询部分失败软提示横幅：不阻断列表使用，点按重试（复用下拉刷新）。
+class PartialQueryBanner extends StatelessWidget {
+  const PartialQueryBanner({
+    super.key,
+    required this.onRetry,
+    this.onDismiss,
+  });
+
+  /// 重试：与下拉刷新同一条路径（`HomePage._load`）。
+  final VoidCallback onRetry;
+
+  /// 关闭横幅（本次会话内不再显示）；null = 不提供关闭。
+  final VoidCallback? onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onRetry,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.sync_problem_outlined,
+                  color: Theme.of(context).colorScheme.error,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${l10n.partialQueryBanner}，${l10n.partialQueryBannerHint}',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+                if (onDismiss != null)
+                  IconButton(
+                    tooltip: l10n.dismissHint,
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: onDismiss,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// 筛选条件 Chips 条：删除即改 [filter] 并回调 [onChanged]。
 class FilterChipsBar extends StatelessWidget {
   const FilterChipsBar({

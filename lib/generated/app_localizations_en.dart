@@ -289,6 +289,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'You may still miss notification SMS like 10086. Tap to enable MIUI “Notification SMS”.';
 
   @override
+  String get partialQueryBanner => 'Some messages may not have loaded';
+
+  @override
+  String get partialQueryBannerHint => 'Tap to retry';
+
+  @override
   String get dismissHint => 'Don’t show again';
 
   @override
