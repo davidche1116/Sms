@@ -74,3 +74,7 @@ android/app/src/main/kotlin/com/dc16/sms/
 ## 隐私
 
 短信内容仅用于本机展示、筛选与导出；无网络上传，无统计上报。
+
+## 许可
+
+本项目采用 [MIT License](LICENSE) 开源。
