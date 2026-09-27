@@ -258,4 +258,88 @@ void main() {
       expect(CsvExporter.escapeField('a\r\nb'), '"a\r\nb"');
     });
   });
+
+  group('MIUI 通知类短信引导（requestReadSmsWithMiuiGuide）', () {
+    testWidgets('MIUI 且未开通：申请读权限后弹引导层', (tester) async {
+      var miuiEditorOpened = false;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(appChannel, (call) async {
+            switch (call.method) {
+              case 'hasReadSmsPermission':
+                return false;
+              case 'isDefaultSms':
+                return false;
+              case 'requestReadSms':
+                return true;
+              case 'isMiui':
+                return true;
+              case 'miuiNotificationSmsState':
+                return 'likely_off';
+              case 'openMiuiPermissionEditor':
+                miuiEditorOpened = true;
+                return true;
+              case 'querySms':
+                return {
+                  'messages': <Map<String, dynamic>>[],
+                  'error': 'permission',
+                };
+              default:
+                return null;
+            }
+          });
+
+      await pumpHome(tester);
+      expect(find.text('需要短信权限'), findsOneWidget);
+
+      await tester.tap(find.text('申请短信权限'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('还要开启「通知类短信」'), findsOneWidget);
+      expect(find.text('去开启通知类短信'), findsOneWidget);
+
+      await tester.tap(find.text('去开启通知类短信'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(miuiEditorOpened, isTrue);
+    });
+
+    testWidgets('MIUI 且已开通 allow：不再弹引导层', (tester) async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(appChannel, (call) async {
+            switch (call.method) {
+              case 'hasReadSmsPermission':
+                return true;
+              case 'isDefaultSms':
+                return true;
+              case 'requestReadSms':
+                return true;
+              case 'isMiui':
+                return true;
+              case 'miuiNotificationSmsState':
+                return 'allow';
+              case 'querySms':
+                return {
+                  'messages': sampleRows(),
+                  'error': null,
+                };
+              default:
+                return null;
+            }
+          });
+
+      await pumpHome(tester);
+      expect(find.textContaining('流量提醒'), findsOneWidget);
+
+      // 走更多菜单入口
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('申请短信权限'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('还要开启「通知类短信」'), findsNothing);
+      expect(find.textContaining('流量提醒'), findsOneWidget);
+    });
+  });
 }

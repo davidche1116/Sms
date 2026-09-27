@@ -126,6 +126,13 @@ class MainActivity : FlutterFragmentActivity() {
         val n = access.deleteSmsBatch(safe)
         writeQaResult("DELETE_IDS requested=$ids safe=$safe deleted=$n prefix=$prefix")
       }
+      "com.dc16.sms.QA_QUERY_STATE" -> {
+        val miui = access.isMiui()
+        val notif = access.miuiNotificationSmsState()
+        val read = access.hasReadSms()
+        val def = access.isDefaultSms()
+        writeQaResult("STATE miui=$miui notif=$notif read=$read default=$def")
+      }
     }
   }
 

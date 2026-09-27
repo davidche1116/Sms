@@ -173,7 +173,21 @@ lib/
 #### 待人工确认后执行
 
 - 收新短信 → SmsReceiver 入库验证（等一条真实新短信即可）
+  - **限制**：`SMS_DELIVER` 为系统保护广播，adb 无法注入；`service call isms` 亦不可用。
+  - **已覆盖**：`SmsAccess.insertInbox` 与 QA 插入共用写入路径，insert/delete 已验证；
+    `SmsReceiver` 仅 3 行胶水（`getMessagesFromIntent` → `insertInbox`）。
+  - **请协助**：本应用设为默认后，由另一部手机发一条测试短信即可闭环。
 - FAB 对**真实**全量删除仅在你明确指定可删对象后执行（本次刻意未做）
+
+#### 2026-09-27 最短路径收尾
+
+| 项 | 结果 |
+|----|------|
+| pubspec 版本 / 描述 | ✅ `2.0.0+2` + 项目简介 |
+| push origin/dev | ✅ `5ddfb1c..3ccf07c` |
+| MIUI 引导组件测试 | ✅ 未开通弹层 / allow 不弹（共 13 项全过） |
+| 真机 MIUI 检测 | ✅ `QA_QUERY_STATE` → `miui=true notif=allow read=true default=false`（与你已开启通知类短信一致） |
+| 真实数据 | ✅ 779 条，ids_md5 不变 |
 
 ### 4.3 README.md（✅ 2026-09-27）
 

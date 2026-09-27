@@ -10,9 +10,10 @@ Future<String?> showMiuiNotificationSmsSheet(BuildContext context) {
   return showModalBottomSheet<String>(
     context: context,
     showDragHandle: true,
+    isScrollControlled: true,
     builder: (ctx) => SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -20,41 +21,40 @@ Future<String?> showMiuiNotificationSmsSheet(BuildContext context) {
             Row(
               children: [
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
                     color: Theme.of(
                       ctx,
                     ).colorScheme.primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.sms_failed_outlined),
+                  child: const Icon(Icons.sms_failed_outlined, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     '还要开启「通知类短信」',
-                    style: Theme.of(ctx).textTheme.titleLarge,
+                    style: Theme.of(ctx).textTheme.titleMedium,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             Text(
-              'MIUI 把 10086、银行、快递等通知短信单独管控。'
-              '只开「短信」权限时，本应用可能只能读到普通聊天短信。\n\n'
-              '请在接下来的页面里打开：权限管理 → 其他权限 → 通知类短信。',
-              style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+              'MIUI 将 10086、银行等通知短信单独管控。'
+              '请在下一页打开：权限管理 → 其他权限 → 通知类短信。',
+              style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
                 color: Theme.of(ctx).colorScheme.onSurfaceVariant,
-                height: 1.5,
+                height: 1.4,
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, 'open_miui'),
               child: const Text('去开启通知类短信'),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: const Text('稍后再说'),
