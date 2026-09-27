@@ -65,6 +65,19 @@ class SmsAccess(private val context: Context) {
     false
   }
 
+  /** 打开本应用的系统设置页（权限被长期拒绝时手动开启）。 */
+  fun openAppSettings(activity: Activity): Boolean = try {
+    activity.startActivity(
+      Intent(
+        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+        android.net.Uri.fromParts("package", context.packageName, null),
+      ),
+    )
+    true
+  } catch (_: Exception) {
+    false
+  }
+
   /**
    * 还原为系统默认短信。
    * Q+ 起 ACTION_CHANGE_DEFAULT 对第三方已失效，无法代用户释放 ROLE_SMS，

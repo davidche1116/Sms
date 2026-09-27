@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:sms/main.dart';
+
+import '../models/sms_item.dart';
 
 class SmsQueryPermissionException implements Exception {
   const SmsQueryPermissionException();
@@ -69,12 +70,13 @@ class SmsRepository {
     }
   }
 
-  /// 打开本应用系统设置（用于权限被彻底关闭时）。
-  Future<void> openAppSettingsFallback() async {
+  /// 打开本应用系统设置（权限被长期拒绝时手动开启）。
+  Future<bool> openAppSettings() async {
     try {
-      await _ch.invokeMethod<bool>('openDefaultSmsSettings');
+      return await _ch.invokeMethod<bool>('openAppSettings') ?? false;
     } catch (e) {
-      debugPrint('openAppSettingsFallback: $e');
+      debugPrint('openAppSettings: $e');
+      return false;
     }
   }
 
@@ -83,6 +85,7 @@ class SmsRepository {
   Future<List<SmsItem>> queryByAddress(String address) => _query(address);
 
   Future<List<SmsItem>> _query(String? address) async {
+    List<SmsItem> list;
     try {
       final raw = await _ch.invokeMethod<dynamic>('querySms', {
         if (address != null && address.isNotEmpty) 'address': address,
@@ -95,14 +98,15 @@ class SmsRepository {
         throw Exception('querySms: ${raw['error']}');
       }
       final rows = (raw['messages'] as List?) ?? const [];
-      return rows.map((e) {
+      list = rows.map((e) {
         final m = Map<String, dynamic>.from(e as Map);
         return SmsItem(
           body: m['body']?.toString() ?? '',
           address: m['address']?.toString() ?? '',
-          time: _time(m['date']),
-          dayLabel: _day(m['date']),
+          dateMs: (m['date'] as num?)?.toInt(),
+          type: (m['type'] as num?)?.toInt() ?? 1,
           sim: (m['sub_id'] as num?)?.toInt() ?? 1,
+          read: (m['read'] as num?)?.toInt() == 1,
           id: (m['_id'] as num?)?.toInt(),
           threadId: (m['thread_id'] as num?)?.toInt(),
         );
@@ -110,6 +114,9 @@ class SmsRepository {
     } on MissingPluginException {
       return const [];
     }
+    // 设计 §5.6：Kotlin 合并不排序，Dart 按 date 降序；null 视为最早。
+    list.sort((a, b) => (b.dateMs ?? 0).compareTo(a.dateMs ?? 0));
+    return list;
   }
 
   Future<int?> deleteSmsBatch(List<int> ids) async {
@@ -119,32 +126,5 @@ class SmsRepository {
       debugPrint('deleteSmsBatch: $e');
       return null;
     }
-  }
-
-  String _time(Object? ms) {
-    final t = (ms as num?)?.toInt();
-    if (t == null) return '';
-    final d = DateTime.fromMillisecondsSinceEpoch(t);
-    final now = DateTime.now();
-    final sameDay =
-        d.year == now.year && d.month == now.month && d.day == now.day;
-    if (sameDay) {
-      return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
-    }
-    return '${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-  }
-
-  String _day(Object? ms) {
-    final t = (ms as num?)?.toInt();
-    if (t == null) return '未知';
-    final d = DateTime.fromMillisecondsSinceEpoch(t);
-    final now = DateTime.now();
-    if (d.year == now.year && d.month == now.month && d.day == now.day) {
-      return '今天';
-    }
-    if (d.year == now.year && d.month == now.month && d.day == now.day - 1) {
-      return '昨天';
-    }
-    return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
   }
 }

@@ -55,6 +55,7 @@ class MainActivity : FlutterFragmentActivity() {
             "restoreDefaultSms" -> result.success(access.restoreDefaultSms(this))
             "openDefaultSmsSettings" ->
               result.success(access.openDefaultSmsSettings(this))
+            "openAppSettings" -> result.success(access.openAppSettings(this))
             "querySms" -> {
               val addr = (call.arguments as? Map<*, *>)?.get("address") as? String
               result.success(access.querySms(addr))
