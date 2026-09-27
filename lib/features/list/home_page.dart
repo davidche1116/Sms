@@ -590,13 +590,8 @@ class _HomePageState extends State<HomePage> {
   Future<void> _openFilter() async {
     final f = await showFilterSheet(context, _filter);
     if (f != null && mounted) {
-      setState(() {
-        _filter
-          ..keyword = f.keyword
-          ..start = f.start
-          ..end = f.end
-          ..type = f.type;
-      });
+      // 完整应用返回值：弹层「重置」会清掉 sameAddress/sameSim，必须一并同步。
+      setState(() => _filter.applyFrom(f));
     }
   }
 

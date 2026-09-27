@@ -159,6 +159,54 @@ void main() {
     expect(find.textContaining('已发送'), findsNothing);
   });
 
+  testWidgets('筛选弹层重置后 sameAddress 与 Chip 清除', (tester) async {
+    await pumpHome(tester);
+
+    // 动作 Sheet 设置「同号」筛选
+    await tester.tap(find.textContaining('流量提醒'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('同号短信'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('同号 10010'), findsOneWidget);
+    expect(find.textContaining('验证码'), findsNothing);
+
+    // 打开筛选 → 重置 → 完成：sameAddress 应被一并清掉
+    await tester.tap(find.byIcon(Icons.search));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('重置'));
+    await tester.pump();
+    await tester.tap(find.text('完成'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('同号'), findsNothing);
+    expect(find.text('清除全部'), findsNothing);
+    expect(find.textContaining('流量提醒'), findsOneWidget);
+    expect(find.textContaining('验证码 8888'), findsOneWidget);
+    expect(find.textContaining('已发送'), findsOneWidget);
+  });
+
+  testWidgets('筛选弹层只改关键词时 sameAddress 保留', (tester) async {
+    await pumpHome(tester);
+
+    await tester.tap(find.textContaining('流量提醒'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('同号短信'));
+    await tester.pumpAndSettle();
+    expect(find.text('同号 10010'), findsOneWidget);
+
+    // 只改关键词，不点重置 → 完成
+    await tester.tap(find.byIcon(Icons.search));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, '流量');
+    await tester.tap(find.text('完成'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('同号 10010'), findsOneWidget);
+    expect(find.text('“流量”'), findsOneWidget);
+    expect(find.textContaining('流量提醒'), findsOneWidget);
+  });
+
   group('SmsItem 映射（QUERY_DELETE_DESIGN §5.8 / §10）', () {
     test('type → kind：1 收件 / 2,4,5,6 发送 / 3 草稿', () {
       expect(const SmsItem(body: 'a', address: 'b', type: 1).kind,
@@ -191,21 +239,57 @@ void main() {
       expect(f.active, isFalse);
       f
         ..keyword = '验证码'
-        ..type = 2;
+        ..type = 2
+        ..sameAddress = '10010'
+        ..sameSim = 1;
       expect(f.active, isTrue);
       f.reset();
       expect(f.active, isFalse);
       expect(f.type, 0);
+      expect(f.keyword, '');
+      expect(f.start, isNull);
+      expect(f.end, isNull);
+      expect(f.sameAddress, isNull);
+      expect(f.sameSim, isNull);
     });
 
     test('copy 生成独立副本', () {
       final f = SmsFilter()
         ..keyword = 'x'
+        ..sameAddress = '10010'
         ..sameSim = 2;
       final c = f.copy();
-      f.keyword = 'y';
+      f
+        ..keyword = 'y'
+        ..sameAddress = null;
       expect(c.keyword, 'x');
+      expect(c.sameAddress, '10010');
       expect(c.sameSim, 2);
+    });
+
+    test('applyFrom 完整拷贝全部字段且互不影响', () {
+      final src = SmsFilter()
+        ..keyword = 'k'
+        ..start = DateTime(2026, 1, 1)
+        ..end = DateTime(2026, 1, 2)
+        ..type = 2
+        ..sameAddress = '10010'
+        ..sameSim = 2;
+      final dst = SmsFilter()..applyFrom(src);
+      expect(dst.keyword, 'k');
+      expect(dst.start, src.start);
+      expect(dst.end, src.end);
+      expect(dst.type, 2);
+      expect(dst.sameAddress, '10010');
+      expect(dst.sameSim, 2);
+
+      src
+        ..keyword = 'changed'
+        ..sameAddress = null
+        ..sameSim = 9;
+      expect(dst.keyword, 'k');
+      expect(dst.sameAddress, '10010');
+      expect(dst.sameSim, 2);
     });
 
     test('matches：关键词 / 同号 / 同卡 / 类型 / 日期', () {

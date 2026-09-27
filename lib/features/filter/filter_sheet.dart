@@ -28,13 +28,17 @@ class SmsFilter {
     sameSim = null;
   }
 
-  SmsFilter copy() => SmsFilter()
-    ..keyword = keyword
-    ..start = start
-    ..end = end
-    ..type = type
-    ..sameAddress = sameAddress
-    ..sameSim = sameSim;
+  /// 完整拷贝 [other] 的全部字段。新增字段只需改这里，避免回写时漏字段。
+  void applyFrom(SmsFilter other) {
+    keyword = other.keyword;
+    start = other.start;
+    end = other.end;
+    type = other.type;
+    sameAddress = other.sameAddress;
+    sameSim = other.sameSim;
+  }
+
+  SmsFilter copy() => SmsFilter()..applyFrom(this);
 
   /// 单条是否命中筛选（不含隐藏列表）。可单测。
   bool matches(SmsItem e) {
