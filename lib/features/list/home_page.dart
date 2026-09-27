@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/sms_item.dart';
 import '../../services/csv_exporter.dart';
+import '../../services/csv_importer.dart';
 import '../../services/hidden_store.dart';
 import '../../services/sms_repository.dart';
 import '../delete/confirm_sheet.dart';
@@ -507,6 +508,15 @@ class _HomePageState extends State<HomePage> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.upload_file_outlined),
+              title: const Text('导入 CSV'),
+              subtitle: const Text('写入系统短信库（需设为默认）'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _importCsv();
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.checklist_outlined),
               title: const Text('多选'),
               onTap: () {
@@ -541,6 +551,34 @@ class _HomePageState extends State<HomePage> {
       await CsvExporter.share(r);
     } catch (_) {
       _toast('导出失败，请重试');
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  /// 导入 CSV：只新增写入系统短信库，不覆盖、不删除。
+  Future<void> _importCsv() async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      final r = await CsvImporter.importViaPicker(_repo);
+      if (!mounted) return;
+      if (r.error == 'cancelled') {
+        _toast('已取消导入');
+        return;
+      }
+      if (r.notDefault) {
+        _toast('导入需先设为默认短信应用');
+        return;
+      }
+      if (!r.ok) {
+        _toast('导入失败：${r.error ?? '未知错误'}');
+        return;
+      }
+      _toast('已导入 ${r.inserted} / ${r.parsed} 条');
+      await _load();
+    } catch (_) {
+      _toast('导入失败，请重试');
     } finally {
       if (mounted) setState(() => _exporting = false);
     }

@@ -318,6 +318,47 @@ class SmsAccess(private val context: Context) {
     }
   }
 
+  /**
+   * 导入插入：只新增，不改不删。需默认短信应用。
+   * row: address, body, date(ms), type(1 inbox/2 sent/3 draft), sub_id
+   * @return 成功条数；null=非默认/失败
+   */
+  fun insertSmsBatch(rows: List<Map<String, Any?>>): Int? {
+    if (rows.isEmpty()) return 0
+    if (isDefaultSms() != true) return null
+    return try {
+      var n = 0
+      for (row in rows) {
+        val type = (row["type"] as? Number)?.toInt() ?: Telephony.Sms.MESSAGE_TYPE_INBOX
+        val date = (row["date"] as? Number)?.toLong() ?: System.currentTimeMillis()
+        val uri = when (type) {
+          Telephony.Sms.MESSAGE_TYPE_SENT,
+          Telephony.Sms.MESSAGE_TYPE_OUTBOX,
+          Telephony.Sms.MESSAGE_TYPE_FAILED,
+          Telephony.Sms.MESSAGE_TYPE_QUEUED -> Telephony.Sms.Sent.CONTENT_URI
+          Telephony.Sms.MESSAGE_TYPE_DRAFT -> Telephony.Sms.Draft.CONTENT_URI
+          else -> Telephony.Sms.Inbox.CONTENT_URI
+        }
+        val v = android.content.ContentValues().apply {
+          put(Telephony.Sms.ADDRESS, row["address"] as? String)
+          put(Telephony.Sms.BODY, row["body"] as? String)
+          put(Telephony.Sms.DATE, date)
+          put(Telephony.Sms.DATE_SENT, date)
+          put(Telephony.Sms.READ, 1)
+          put(Telephony.Sms.SEEN, 1)
+          put(Telephony.Sms.TYPE, type)
+          val sub = (row["sub_id"] as? Number)?.toInt()
+          if (sub != null) put(Telephony.Sms.SUBSCRIPTION_ID, sub)
+        }
+        if (context.contentResolver.insert(uri, v) != null) n++
+      }
+      n
+    } catch (e: Exception) {
+      Log.e(TAG, "insertSmsBatch", e)
+      null
+    }
+  }
+
   private fun readRow(c: Cursor): Map<String, Any?> {
     fun col(n: String) = c.getColumnIndex(n)
     fun long(i: Int): Long? = if (i >= 0 && !c.isNull(i)) c.getLong(i) else null

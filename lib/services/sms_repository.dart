@@ -177,4 +177,15 @@ class SmsRepository {
       return null;
     }
   }
+
+  /// 批量插入（导入 CSV）。仅新增，不删不改。返回插入条数；null=非默认/失败。
+  Future<int?> insertSmsBatch(List<Map<String, Object?>> rows) async {
+    if (rows.isEmpty) return 0;
+    try {
+      return await _ch.invokeMethod<int>('insertSmsBatch', rows);
+    } catch (e) {
+      debugPrint('insertSmsBatch: $e');
+      return null;
+    }
+  }
 }

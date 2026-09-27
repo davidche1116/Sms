@@ -189,6 +189,14 @@ lib/
 | 真机 MIUI 检测 | ✅ `QA_QUERY_STATE` → `miui=true notif=allow read=true default=false`（与你已开启通知类短信一致） |
 | 真实数据 | ✅ 779 条，ids_md5 不变 |
 
+### CSV 导入（2026-09-27 新增 ✅）
+
+- **能力**：默认短信应用可通过 `insertSmsBatch` 写入短信库（收件/已发送/草稿按 type 落到对应 URI）。
+- **入口**：更多菜单「导入 CSV」、设置 → 数据「导入短信 CSV」（`file_picker` 选文件）。
+- **格式**：与导出互逆 `address,body,date,kind,sub_id`，RFC 4180 + BOM。
+- **安全**：只 insert，绝不 delete/update；非默认时拒绝并提示。
+- **验证**：16 项单测含解析往返；真机 `QA_IMPORT_TEST` 走同一 `insertSmsBatch`，插入 2 条（inbox+sent）后按前缀删除，真实 779 条哈希不变。
+
 ### 4.3 README.md（✅ 2026-09-27）
 
 已替换 Flutter 模板：项目简介、功能列表、权限说明（含 MIUI）、构建方式、项目结构、设计文档索引、隐私说明。

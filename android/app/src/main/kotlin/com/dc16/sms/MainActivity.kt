@@ -84,6 +84,21 @@ class MainActivity : FlutterFragmentActivity() {
               val ids = (call.arguments as? List<*>)?.mapNotNull { (it as? Number)?.toInt() }
               result.success(access.deleteSmsBatch(ids ?: emptyList()))
             }
+            "insertSmsBatch" -> {
+              val raw = (call.arguments as? List<*>) ?: emptyList<Any>()
+              val rows = raw.mapNotNull { item ->
+                (item as? Map<*, *>)?.let { m ->
+                  mapOf<String, Any?>(
+                    "address" to m["address"] as? String,
+                    "body" to m["body"] as? String,
+                    "date" to (m["date"] as? Number)?.toLong(),
+                    "type" to (m["type"] as? Number)?.toInt(),
+                    "sub_id" to (m["sub_id"] as? Number)?.toInt(),
+                  )
+                }
+              }
+              result.success(access.insertSmsBatch(rows))
+            }
             else -> result.notImplemented()
           }
         } catch (e: Exception) {
@@ -132,6 +147,27 @@ class MainActivity : FlutterFragmentActivity() {
         val read = access.hasReadSms()
         val def = access.isDefaultSms()
         writeQaResult("STATE miui=$miui notif=$notif read=$read default=$def")
+      }
+      "com.dc16.sms.QA_IMPORT_TEST" -> {
+        // 与 CSV 导入同一 insertSmsBatch 通道，仅写入带前缀的测试行
+        val rows = listOf(
+          mapOf<String, Any?>(
+            "address" to "10086",
+            "body" to "$prefix import #1",
+            "date" to System.currentTimeMillis(),
+            "type" to 1,
+            "sub_id" to 1,
+          ),
+          mapOf<String, Any?>(
+            "address" to "13800000000",
+            "body" to "$prefix import #2",
+            "date" to System.currentTimeMillis(),
+            "type" to 2,
+            "sub_id" to 1,
+          ),
+        )
+        val n = access.insertSmsBatch(rows)
+        writeQaResult("IMPORT_BATCH ok=${n != null} inserted=$n prefix=$prefix")
       }
     }
   }

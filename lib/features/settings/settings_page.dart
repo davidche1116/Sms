@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/csv_exporter.dart';
+import '../../services/csv_importer.dart';
 import '../../services/hidden_store.dart';
 import '../../services/sms_repository.dart';
 import '../../theme/tokens.dart';
@@ -179,6 +180,34 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  /// 导入 CSV：只新增写入系统短信库。
+  Future<void> _importCsv() async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      final r = await CsvImporter.importViaPicker(widget.repo);
+      if (!mounted) return;
+      if (r.error == 'cancelled') {
+        _toast('已取消导入');
+        return;
+      }
+      if (r.notDefault) {
+        _toast('导入需先设为默认短信应用');
+        return;
+      }
+      if (!r.ok) {
+        _toast('导入失败：${r.error ?? '未知错误'}');
+        return;
+      }
+      _toast('已导入 ${r.inserted} / ${r.parsed} 条');
+      await widget.onDataChanged?.call();
+    } catch (_) {
+      _toast('导入失败，请重试');
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
   /// 清空本地隐藏列表，被移出的短信重新显示。
   Future<void> _resetHidden() async {
     await widget.hiddenStore.clear();
@@ -286,6 +315,13 @@ class _SettingsPageState extends State<SettingsPage> {
               title: '导出短信 CSV',
               subtitle: _exporting ? '导出中…' : '导出全部短信到文件并分享',
               onTap: _exporting ? null : _exportAll,
+            ),
+            _row(
+              icon: Icons.upload_file_outlined,
+              iconBg: const Color(0xFF66BB6A),
+              title: '导入短信 CSV',
+              subtitle: _exporting ? '导入中…' : '只新增入库，需设为默认短信应用',
+              onTap: _exporting ? null : _importCsv,
             ),
             _row(
               icon: Icons.visibility_off_outlined,
