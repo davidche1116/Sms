@@ -6,6 +6,7 @@ import '../../services/hidden_store.dart';
 import '../../services/sms_repository.dart';
 import '../delete/confirm_sheet.dart';
 import '../filter/filter_sheet.dart';
+import '../settings/miui_notif_guide.dart';
 import '../settings/settings_page.dart';
 import '../widgets/empty_view.dart';
 import 'action_sheet.dart';
@@ -37,6 +38,8 @@ class _HomePageState extends State<HomePage> {
   bool _loading = true;
   bool _needPermission = false;
   bool _exporting = false;
+  bool _miuiNotifHint = false;
+  bool _miuiHintDismissed = false;
 
   /// 本地移出列表的 id：不再展示，且 FAB 批量删除不会带上它们。
   final _hiddenIds = <int>{};
@@ -63,9 +66,17 @@ class _HomePageState extends State<HomePage> {
     try {
       final list = await _repo.queryAll();
       if (!mounted) return;
+      // MIUI 通知类短信未开通时的软提示（申请流程里也会弹，这里是兜底）
+      var hint = false;
+      if (await _repo.isMiui()) {
+        final st = await _repo.miuiNotificationSmsState();
+        hint = st == 'likely_off' || st == 'ignore' || st == 'deny';
+      }
+      if (!mounted) return;
       setState(() {
         items = list;
         _loading = false;
+        _miuiNotifHint = hint;
         _pruneSelection();
       });
     } on SmsQueryPermissionException {
@@ -248,6 +259,47 @@ class _HomePageState extends State<HomePage> {
             : ListView(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 88),
                 children: [
+                  if (_miuiNotifHint && !_miuiHintDismissed && !_needPermission)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Material(
+                        color: const Color(0xFFE6A23C).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () async {
+                            await showMiuiNotificationSmsSheet(context);
+                            await _load();
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.info_outline,
+                                  color: Color(0xFFE6A23C),
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                const Expanded(
+                                  child: Text(
+                                    '可能还看不到 10086 等通知短信，点此开启 MIUI「通知类短信」',
+                                    style: TextStyle(fontSize: 13),
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: '不再提示',
+                                  icon: const Icon(Icons.close, size: 18),
+                                  onPressed: () => setState(
+                                    () => _miuiHintDismissed = true,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   if (_filter.active)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
@@ -518,12 +570,9 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  /// 申请读取短信权限（菜单 / 空态共用），结束后按结果刷新。
+  /// 申请读取短信权限（菜单 / 空态共用）；MIUI 上成功后自动跟上通知类短信引导。
   Future<void> _requestPermission() async {
-    final ok = await _repo.requestReadSms();
-    if (!mounted) return;
-    _toast(ok ? '已可读取短信' : '仍未获得权限，可到系统设置开启');
-    await _load();
+    await requestReadSmsWithMiuiGuide(context, _repo, onRefresh: _load);
   }
 
   Future<void> _openSettings() async {

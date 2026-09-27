@@ -4,6 +4,7 @@ import '../../services/csv_exporter.dart';
 import '../../services/hidden_store.dart';
 import '../../services/sms_repository.dart';
 import '../../theme/tokens.dart';
+import 'miui_notif_guide.dart';
 import 'permission_page.dart';
 import 'theme_page.dart';
 
@@ -131,11 +132,17 @@ class _SettingsPageState extends State<SettingsPage> {
     await widget.onDataChanged?.call();
   }
 
-  /// 一键检查并修复：缺读权限先申请，非默认再拉起角色申请，最后回到列表刷新。
+  /// 一键检查并修复：缺读权限先申请（MIUI 自动跟通知类短信引导），非默认再拉起角色申请。
   Future<void> _autoRepair() async {
     final messenger = ScaffoldMessenger.of(context);
     if (_hasRead != true) {
-      await widget.repo.requestReadSms();
+      await requestReadSmsWithMiuiGuide(context, widget.repo);
+    } else if (await widget.repo.isMiui()) {
+      final st = await widget.repo.miuiNotificationSmsState();
+      if (st != 'allow' && mounted) {
+        final action = await showMiuiNotificationSmsSheet(context);
+        if (action == 'open_miui') await widget.repo.openMiuiPermissionEditor();
+      }
     }
     if (await widget.repo.isDefaultSms() != true) {
       await widget.repo.setDefaultSms();

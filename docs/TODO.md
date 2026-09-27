@@ -163,7 +163,12 @@ lib/
 
 1. **「通知类短信」私有权限**：MIUI 在 应用信息 → 权限管理 → 其他权限 → **通知类短信**（默认拒绝）。不开通时应用只能读到普通点对点短信（本机 9 条），开通后通知类短信（10086/银行等，770+ 条）全部可见。**这是 MIUI 特有行为，非标准 READ_SMS 能覆盖**。
 2. **adb 授予 ROLE_SMS 对「读库」无效、对写入有效**：`cmd role add-role-holder` 后 `isRoleHeld=true`，ContentResolver **insert/delete 可成功**（本次测试数据即走此路径），但 MIUI 短信库 **读列表** 仍可能受「通知类短信」过滤；完整体验仍建议走应用内「设为默认」→ RoleManager 弹窗。本机 `settings get secure sms_default_application` 始终为 null（MIUI 不写该 legacy 设置）。
-3. **产品建议** → **已落地（2026-09-27）**：权限子页检测 MIUI（`ro.miui.ui.version.name`）+ 探测通知类短信 AppOps + `miui.intent.action.APP_PERM_EDITOR` 跳转。
+3. **产品建议** → **已落地（2026-09-27）**：权限子页检测 MIUI（`ro.miui.ui.version.name`）+ 探测通知类短信状态 + `miui.intent.action.APP_PERM_EDITOR` 跳转。
+4. **能否在申请短信权限时一并自动处理？（2026-09-27 结论）**
+   - **不能自动授权**：「通知类短信」是 MIUI 私有开关，无公开 Permission/AppOps 字符串（本机 `RECEIVE_NOTIFICATION_SMS` 等均为 Unknown），第三方只能跳设置页。
+   - **已做成「申请后自动跟一步」**：`requestReadSmsWithMiuiGuide`——READ_SMS 成功后检测状态，非 `allow` 立即弹引导层（「去开启」/「稍后」），一键打开 MIUI 权限编辑器。菜单、空态、权限页、一键修复共用。
+   - **额外兜底提示**：首页在 MIUI + 可能未开通时显示可关闭横幅；权限子页保留状态卡与入口。
+   - **状态探测**：已知 op 名 + 启发式（已能读到 10086 等服务号 → allow；仅少量点对点号码 → likely_off）。
 
 #### 待人工确认后执行
 

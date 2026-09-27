@@ -88,14 +88,17 @@ class SmsAccess(private val context: Context) {
   }
 
   /**
-   * MIUI「通知类短信」AppOps 状态。
-   * @return "allow" / "deny" / "ignore" / "unknown"
+   * MIUI「通知类短信」状态。
+   * @return "allow" / "likely_off" / "unknown"
    *
-   * MIUI 在 READ_SMS 之外还有私有「通知类短信」开关：关闭时第三方只能读到
-   * 点对点短信，10086/银行等通知类会全部不可见。op 名各版本略有差异，逐个试探。
+   * MIUI 私有开关，标准 AppOps 字符串多半不存在；结合两路信号：
+   *  1) 已知 op 名 / 数值 MIUIOP；
+   *  2) 查询结果启发式：若已能读到 10086/95566 等服务号，视为已开通；
+   *     若只有点对点手机号且条数很少，大概率未开通（未开通时常见只有个位数）。
    */
   fun miuiNotificationSmsState(): String {
     if (!isMiui()) return "unknown"
+
     val candidates = listOf(
       "RECEIVE_NOTIFICATION_SMS",
       "READ_NOTIFICATION_SMS",
@@ -105,18 +108,49 @@ class SmsAccess(private val context: Context) {
     for (op in candidates) {
       try {
         val mode = appOps.unsafeCheckOpNoThrow(op, Process.myUid(), context.packageName)
-        val name = when (mode) {
-          AppOpsManager.MODE_ALLOWED -> "allow"
-          AppOpsManager.MODE_IGNORED -> "ignore"
-          AppOpsManager.MODE_ERRORED -> "deny"
-          else -> null
+        when (mode) {
+          AppOpsManager.MODE_ALLOWED -> return "allow"
+          AppOpsManager.MODE_IGNORED, AppOpsManager.MODE_ERRORED -> return "likely_off"
         }
-        if (name != null) return name
       } catch (_: Exception) {
-        // op 名不存在，继续试下一个
+        // op 名不存在
       }
     }
-    return "unknown"
+
+    // 启发式：看库里是否已经出现服务号短信
+    return try {
+      var service = 0
+      var total = 0
+      context.contentResolver.query(
+        Telephony.Sms.CONTENT_URI,
+        arrayOf(Telephony.Sms.ADDRESS),
+        null,
+        null,
+        "${Telephony.Sms.DATE} DESC",
+      )?.use { c ->
+        while (c.moveToNext() && total < 80) {
+          total++
+          val addr = c.getString(0) ?: continue
+          if (looksLikeServiceAddress(addr)) service++
+        }
+      }
+      when {
+        service > 0 -> "allow"
+        total in 1..20 -> "likely_off"
+        else -> "unknown"
+      }
+    } catch (_: Exception) {
+      "unknown"
+    }
+  }
+
+  /** 10086 / 95566 / 106xxx 等服务号，或非手机号格式。 */
+  private fun looksLikeServiceAddress(addr: String): Boolean {
+    val a = addr.trim()
+    if (a.isEmpty()) return false
+    if (a.startsWith("106")) return true
+    if (a.length <= 6) return true
+    return !a.matches(Regex("^\\+?\\d{7,15}$"))
   }
 
   /**

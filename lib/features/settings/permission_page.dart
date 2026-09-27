@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/sms_repository.dart';
+import 'miui_notif_guide.dart';
 
 /// 权限子页：实时展示读权限 / 默认短信状态，提供申请与修复入口
 /// （INTERACTION_DESIGN §6.3）。
@@ -61,10 +62,11 @@ class _PermissionPageState extends State<PermissionPage> {
   }
 
   Future<void> _requestRead() => _run(() async {
-    final ok = await widget.repo.requestReadSms();
-    await _refresh();
-    if (!mounted) return;
-    _toast(ok ? '已可读取短信' : '仍未获得权限，可到系统设置开启');
+    await requestReadSmsWithMiuiGuide(
+      context,
+      widget.repo,
+      onRefresh: _refresh,
+    );
   });
 
   Future<void> _setDefault() => _run(() async {
@@ -153,6 +155,7 @@ class _PermissionPageState extends State<PermissionPage> {
                     subtitle: Text(
                       switch (_miuiNotif) {
                         'allow' => '已允许 · 通知类短信可见',
+                        'likely_off' => '可能未开通 · 10086 等可能读不到',
                         'deny' || 'ignore' => '未开通 · 只能读到点对点短信',
                         _ => 'MIUI 附加权限 · 建议开通',
                       },
@@ -193,10 +196,13 @@ class _PermissionPageState extends State<PermissionPage> {
               onPressed: _busy
                   ? null
                   : () => _run(() async {
-                      final ok = await widget.repo.openMiuiPermissionEditor();
-                      if (!ok && mounted) _toast('打开 MIUI 权限页失败');
+                      final action = await showMiuiNotificationSmsSheet(context);
+                      if (action == 'open_miui') {
+                        final ok = await widget.repo.openMiuiPermissionEditor();
+                        if (!ok && mounted) _toast('打开 MIUI 权限页失败');
+                      }
                     }),
-              child: const Text('打开 MIUI 通知类短信设置'),
+              child: const Text('开启 MIUI 通知类短信'),
             ),
             const SizedBox(height: 12),
             Text(
