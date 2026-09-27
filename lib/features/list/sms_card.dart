@@ -32,7 +32,7 @@ class SmsCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Dismissible(
-        key: ValueKey('sms_${e.id ?? e.hashCode}'),
+        key: ValueKey('sms_${e.uid ?? e.hashCode}'),
         direction: DismissDirection.endToStart,
         // 删除在 confirmDismiss 内完成：成功才划走，取消/失败卡片回弹
         confirmDismiss: (_) => onDelete(),
@@ -76,8 +76,27 @@ class SmsCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        if (e.isMms)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Row(
+                              children: [
+                                _TypeBadge(
+                                  label: l10n.mmsBadge,
+                                  color: scheme.tertiary,
+                                ),
+                                if (e.hasMedia) ...[
+                                  const SizedBox(width: 6),
+                                  _TypeBadge(
+                                    label: l10n.mmsHasAttachment,
+                                    color: scheme.outline,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
                         Text(
-                          e.body,
+                          e.bodyOf(l10n),
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.bodyLarge,
@@ -124,6 +143,32 @@ class SmsCard extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TypeBadge extends StatelessWidget {
+  const _TypeBadge({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color,
         ),
       ),
     );

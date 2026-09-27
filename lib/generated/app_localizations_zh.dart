@@ -159,6 +159,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get typeSent => '仅已发送';
 
   @override
+  String get typeMms => '仅彩信';
+
+  @override
+  String get mmsBadge => '彩信';
+
+  @override
+  String get mmsHasAttachment => '含附件';
+
+  @override
+  String get mmsBodyPlaceholder => '[彩信]';
+
+  @override
+  String get mmsBodyWithAttachment => '[彩信]·含附件';
+
+  @override
   String get reset => '重置';
 
   @override

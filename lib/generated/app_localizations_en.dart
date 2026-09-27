@@ -165,6 +165,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get typeSent => 'Sent only';
 
   @override
+  String get typeMms => 'MMS only';
+
+  @override
+  String get mmsBadge => 'MMS';
+
+  @override
+  String get mmsHasAttachment => 'Attachment';
+
+  @override
+  String get mmsBodyPlaceholder => '[MMS]';
+
+  @override
+  String get mmsBodyWithAttachment => '[MMS] · attachment';
+
+  @override
   String get reset => 'Reset';
 
   @override

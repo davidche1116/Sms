@@ -57,6 +57,36 @@ internal val SMS_CURSOR_COLUMNS = listOf(
 internal fun smsCursor(vararg rows: List<Any?>): FakeCursor =
   FakeCursor(SMS_CURSOR_COLUMNS, rows.toList())
 
+/** 彩信元数据行（`content://mms` 投影）。date 传**秒**（与真机一致）。 */
+internal fun mmsRow(
+  id: Int,
+  threadId: Int = 1,
+  dateSec: Long? = 1_700_000_000L + id,
+  dateSentSec: Long? = dateSec,
+  read: Int? = 1,
+  msgBox: Int? = 1,
+  subId: Int? = 1,
+): List<Any?> = listOf(id.toLong(), threadId.toLong(), dateSec, dateSentSec, read, msgBox, subId)
+
+internal val MMS_CURSOR_COLUMNS = listOf(
+  "_id", "thread_id", "date", "date_sent", "read", "msg_box", "sub_id",
+)
+
+internal fun mmsCursor(vararg rows: List<Any?>): FakeCursor =
+  FakeCursor(MMS_CURSOR_COLUMNS, rows.toList())
+
+/** addr 表行：msg_id, address, type。 */
+internal val MMS_ADDR_COLUMNS = listOf("msg_id", "address", "type")
+
+internal fun mmsAddrCursor(vararg rows: List<Any?>): FakeCursor =
+  FakeCursor(MMS_ADDR_COLUMNS, rows.toList())
+
+/** part 表行：mid, ct, text, _data。 */
+internal val MMS_PART_COLUMNS = listOf("mid", "ct", "text", "_data")
+
+internal fun mmsPartCursor(vararg rows: List<Any?>): FakeCursor =
+  FakeCursor(MMS_PART_COLUMNS, rows.toList())
+
 /** 捕获 ContentResolver.delete 的 selectionArgs，便于断言 chunk 边界。 */
 internal fun stubDeleteCounting(resolver: ContentResolver): MutableList<List<String>> {
   val chunks = mutableListOf<List<String>>()

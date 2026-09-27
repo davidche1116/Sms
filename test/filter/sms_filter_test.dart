@@ -94,6 +94,15 @@ void main() {
       ),
       // date null：日期筛选时被丢弃，无日期筛选时保留
       const SmsItem(id: 4, body: '无日期', address: '1', type: 1, sim: 1),
+      const SmsItem(
+        id: 5,
+        body: '彩信正文',
+        address: '10086',
+        dateMs: 0,
+        type: 1,
+        sim: 1,
+        isMms: true,
+      ),
     ];
 
     test('关键词 / 同号 / 同卡 / 类型 / 日期各自命中', () {
@@ -111,6 +120,17 @@ void main() {
 
       final byDate = SmsFilter()..start = DateTime(2000, 1, 2);
       expect(items.where(byDate.matches).map((e) => e.id), isEmpty);
+    });
+
+    test('type=3 只命中彩信', () {
+      final byMms = SmsFilter()..type = 3;
+      expect(items.where(byMms.matches).map((e) => e.id), [5]);
+    });
+
+    test('type=1 收件含彩信（按 kind 而非 isMms）', () {
+      final byInbox = SmsFilter()..type = 1;
+      // id=5 是 type=1 的彩信，kind=received，应命中；id=4 也是收件
+      expect(items.where(byInbox.matches).map((e) => e.id), [1, 2, 4, 5]);
     });
   });
 }

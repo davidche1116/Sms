@@ -179,8 +179,9 @@ class MainActivity : FlutterFragmentActivity() {
               result.success(access.querySms(addr, limit, offset))
             }
             "deleteSmsBatch" -> {
-              val ids = (call.arguments as? List<*>)?.mapNotNull { (it as? Number)?.toInt() }
-              result.success(access.deleteSmsBatch(ids ?: emptyList()))
+              // 兼容两种入参：List<Int>（纯 SMS）或 List<Map{id,is_mms}>（混合）
+              val targets = (call.arguments as? List<*>) ?: emptyList<Any?>()
+              result.success(access.deleteSmsBatch(targets))
             }
             "insertSmsBatch" -> {
               val raw = (call.arguments as? List<*>) ?: emptyList<Any>()

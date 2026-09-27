@@ -24,7 +24,7 @@
 | `miuiNotificationSmsState` | — | `"allow"` \| `"likely_off"` \| `"ignore"` \| `"deny"` \| `"unknown"` |
 | `openMiuiPermissionEditor` | — | `bool` |
 | `querySms` | `{address?, limit?, offset?}` | `{messages, total, error}` |
-| `deleteSmsBatch` | `List<Int>` | `Int?` |
+| `deleteSmsBatch` | `List<Int>` \| `List<Map{id,is_mms}>` | `Int?` |
 | `insertSmsBatch` | `List<row>` | Map（见 §5） |
 | `insertTestSms` | `{count?, bodyPrefix?}` | `{ok, ids}` |
 | `deleteTestSmsByPrefix` | `{bodyPrefix?}` | `{ok, deleted}` |
@@ -99,7 +99,16 @@ Dart 侧另有 **非线值** `DefaultSmsResult.timeout`：系统未在 `SmsRepos
 | `total` | `Int` | 去重后的库内总数（与是否分页无关） |
 | `error` | `String?` | 见下表 |
 
-行字段（白名单投影）：`_id, thread_id, address, body, date, date_sent, read, type, sub_id`。无 `_id` 的行原生直接丢弃。
+行字段（白名单投影）：`_id, thread_id, address, body, date, date_sent, read, type, sub_id, is_mms, has_media`。无 `_id` 的行原生直接丢弃。
+
+| 字段 | 说明 |
+|------|------|
+| `is_mms` | `0`=短信 / `1`=彩信。**身份 = `_id` + `is_mms` 二元组**（两表 `_id` 独立编号，可能同号） |
+| `has_media` | 仅彩信：`1`=含非文本附件（图片/音频/视频）。短信恒 `0` |
+| `body` | 彩信为文本 part 摘要（可空串）；展示占位由 Dart `SmsItem.bodyOf` 补 |
+| `date` | 一律毫秒。彩信表原生是**秒**，原生层已换算 |
+
+Dart 侧另有 `SmsItem.uid`（`is_mms=1` 时 `id + 2^30`）用于多选/隐藏/去重；**删除仍用原生 `_id` + `is_mms`**，不要用 `uid` 传给删除。
 
 | `error` 线值 | `ChannelCodes` | Dart `QueryError` | 含义 |
 |--------------|----------------|-------------------|------|
@@ -125,15 +134,16 @@ Dart 侧另有 **非线值** `DefaultSmsResult.timeout`：系统未在 `SmsRepos
 
 | 方向 | 形状 |
 |------|------|
-| 入参 | `List<Int>`（`_id` 列表；非 List → 当空表） |
+| 入参 | `List<Int>`（纯 SMS `_id`，旧调用兼容）或 `List<Map>` `[{id: Int, is_mms: 0\|1}]`（混合） |
 | 返回 | `Int?` |
 
 | 返回 | 含义 |
 |------|------|
-| `Int`（≥0） | 实际删除行数；空数组回 `0` |
+| `Int`（≥0） | 实际删除行数（SMS + MMS 之和）；空数组回 `0` |
 | `null` | 非默认短信应用 / 异常 |
 
-- 原生按 `ids.chunked(900)` 再 `"_id IN (...)"` 删除。
+- 原生按 `is_mms` 分组后各自 `ids.chunked(900)` 再 `"_id IN (...)"` 删除：SMS 走 `content://sms`，MMS 走 `content://mms`，**绝不跨表**。
+- Map 形态缺 `id` 或 `is_mms` 非 0/1/true/false 时：缺 id 丢弃；`is_mms` 缺省按 SMS。
 - Dart `DeleteBatchResult`：`ok(deleted)` / `failed()`；**线协议无法区分**「非默认」与「原生异常」，统一只见 `BatchFailure.notDefaultOrError`。
 - 删除入口（单条滑删 / 动作 Sheet / 多选 / FAB）**均先弹确认**；取消或失败时滑删卡片回弹、列表不改。
 

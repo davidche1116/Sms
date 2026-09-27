@@ -1,9 +1,8 @@
-# 短信查询 / 删除 · Kotlin 设计（Android 29–37）v1
+# 短信 / 彩信查询 · 删除 · Kotlin 设计（Android 29–37）v2
 
-> 范围：`querySms` / `deleteSmsBatch` 的完整规格。  
-> 参考：老项目 `sms_advanced` 实战坑 + Android 官方 `Telephony.Sms`。  
-> 线协议字面量与枚举对照以 [CHANNEL_CONTRACT.md](CHANNEL_CONTRACT.md) 为准。  
-> **本阶段只定设计，不写实现。**
+> 范围：`querySms` / `deleteSmsBatch` 的完整规格（**v2 起含彩信 MMS**）。  
+> 参考：老项目 `sms_advanced` 实战坑 + Android 官方 `Telephony.Sms` / `Telephony.Mms`。  
+> 线协议字面量与枚举对照以 [CHANNEL_CONTRACT.md](CHANNEL_CONTRACT.md) 为准。
 
 ---
 
@@ -11,8 +10,9 @@
 
 | 目标 | 非目标 |
 |------|--------|
-| 读 inbox / sent / draft（可按号码过滤） | 发送短信、彩信解析 |
-| 批量删除系统短信库 | 会话（threads）UI |
+| 读 inbox / sent / draft（可按号码过滤） | 发送短信/彩信 |
+| **彩信纳入同一查询/删除/导出数据面** | 彩信完整渲染（smil / 媒体播放） |
+| 批量删除系统短信/彩信库 | 会话（threads）UI |
 | 掉默认后可恢复、不崩溃 | 云同步、验证码自动提取 |
 | 与 Dart 层简单契约 | 保留 sms_advanced 插件 |
 
@@ -177,12 +177,64 @@ _id, thread_id, address, body, date, date_sent, read, type, sub_id
 
 ---
 
+## 5M. 彩信（MMS）查询（P3-17）
+
+### 5M.1 身份与 id 策略
+
+- **wire 身份 = `_id` + `is_mms` 二元组**。SMS / MMS 各自独立编号，`_id` 可能同号，合并时必须分表去重。
+- Dart `SmsItem.uid = isMms ? id + (1<<30) : id`，用于多选 / 隐藏 / 去重 / 卡片 key；**删除传原生 `id` + `is_mms`**，不用 `uid`。
+- 返回行在 §5.7 基础上增加 `is_mms`（0/1）与 `has_media`（0/1）。
+
+### 5M.2 URI 策略
+
+| 顺序 | URI | 作用 |
+|------|-----|------|
+| 1 | `Telephony.Mms.CONTENT_URI` | 整表 |
+| 2 | `Telephony.Mms.Inbox.CONTENT_URI` | 收件箱 |
+| 3 | `Telephony.Mms.Sent.CONTENT_URI` | 已发送 |
+| 4 | `Telephony.Mms.Draft.CONTENT_URI` | 草稿（URI 路径是 `drafts`） |
+
+与 SMS 同样按 `_id` 去重后并入总列表。`readMmsRow` 需有 `msg_box` 列，否则跳过（防误喂 SMS Cursor）。
+
+### 5M.3 列与换算
+
+| 字段 | 来源 | 说明 |
+|------|------|------|
+| `_id` | `_id` | 表内 id |
+| `thread_id` | `thread_id` | |
+| `date` / `date_sent` | `date` / `date_sent` | **彩信表是秒**，`< 1e11` 视为秒并 ×1000，否则原样 |
+| `read` | `read` | |
+| `type` | `msg_box` | 1..5，与 SMS type 同构 |
+| `sub_id` | `sub_id` | |
+| `address` | `content://mms/addr` | 页面级补全，见 §5M.4 |
+| `body` | `content://mms/part` | 页面级补全，见 §5M.5 |
+
+### 5M.4 address（addr 表）
+
+- 收件优先 `type=137`（FROM），否则 `151`（TO），再否则首个非空。
+- **地址过滤**：`content://mms/addr` 按 `address=?` 先取 `msg_id` 集合，再收窄 MMS 行（addr 表无法用 selection 直接过滤主表）。过滤集为空则跳过 MMS 主表扫描。
+- 只对**本页**彩信批量补全（`msg_id IN (...)`，900 分片），不做全库 N+1。
+
+### 5M.5 body 摘要（part 表）
+
+- 文本 part：`ct ∈ {text/plain, text/x-vcard, text/x-vcalendar, text/html}`，取 `text` 列拼接（`\n` 连接）。
+- 媒体 part：`image/*`、`audio/*`、`video/*`，或带 `_data` 的 `application/*`（除 smil）→ `has_media=1`。
+- 无文本 part → `body=""`，由 Dart `SmsItem.bodyOf(l10n)` 显示本地化占位「[彩信]」/「[彩信]·含附件」。
+- **不读 part 文件 `_data` 正文**（图片/音频不解析），只做计数标记。
+
+### 5M.6 排序
+
+date 降序（null 最早）→ `is_mms` 降序 → `_id` 降序。与 Dart `uid` 序一致，保证分页稳定。
+
+---
+
 ## 6. 删除设计
 
 ### 6.1 入参
 
 ```json
-[1, 2, 3]          // _id 列表
+[1, 2, 3]                              // 旧：纯 SMS _id 列表
+[{"id": 1, "is_mms": 0}, {"id": 2, "is_mms": 1}]   // 新：混合
 ```
 
 ### 6.2 权限门闩
@@ -197,17 +249,20 @@ if (isDefaultSms() != true) return null   // Dart 提示「设为默认短信」
 ### 6.3 执行
 
 ```
-ids.chunked(900)     // SQLITE_MAX_VARIABLE_NUMBER 默认 999
-  → contentResolver.delete(
-        Telephony.Sms.CONTENT_URI,
-        "_id IN (?, ?, …)",
-        args
-    )
+splitDeleteTargets(targets) → (smsIds, mmsIds)
+  smsIds.chunked(900) → contentResolver.delete(Telephony.Sms.CONTENT_URI, "_id IN …")
+  mmsIds.chunked(900) → contentResolver.delete(Telephony.Mms.CONTENT_URI, "_id IN …")
 ```
+
+| 规则 | 说明 |
+|------|------|
+| **绝不跨表** | `is_mms=0` 只进 sms URI，`=1` 只进 mms URI |
+| 未知形态丢弃 | 无 `id`、`is_mms` 非 0/1/bool 的 Map 不猜测路由 |
+| `is_mms` 缺省 | 按 SMS 处理（兼容旧 `List<Int>`） |
 
 | 返回 | 含义 |
 |------|------|
-| `Int` | 实际删除行数（≥0） |
+| `Int` | 实际删除行数（SMS+MMS，≥0） |
 | `null` | 非默认 / 异常 / 参数非法 |
 
 ### 6.4 单条删除
@@ -226,8 +281,8 @@ ids.chunked(900)     // SQLITE_MAX_VARIABLE_NUMBER 默认 999
 
 | Method | 参数 | 返回 |
 |--------|------|------|
-| `querySms` | `{address?, limit?, offset?}` 或 null | 见 §5.7（含 `total`） |
-| `deleteSmsBatch` | `List<Int>` | `Int?` |
+| `querySms` | `{address?, limit?, offset?}` 或 null | 见 §5.7（含 `total`、`is_mms`） |
+| `deleteSmsBatch` | `List<Int>` 或 `List<{id, is_mms}>` | `Int?` |
 | `insertSmsBatch` | `List<{address, body, date, type, sub_id}>` | 见 §7.1 Map |
 | `hasReadSmsPermission` | — | `bool` |
 | `isDefaultSms` | — | `bool?` |
@@ -326,11 +381,13 @@ com.davidche1116.sms/
 ## 10. Dart 映射（查询结果）
 
 ```
-SmsItem { id, threadId, address, body, dateMs, read, type, subId, kind }
+SmsItem { id, threadId, address, body, dateMs, read, type, subId, kind, isMms, hasMedia, uid }
 ```
 
 - `kind` 由 `type` 映射（§5.8），不用 fromJson 强解包 date。
 - `dateMs == null` → 排序哨兵，不崩溃。
+- `uid` = `isMms ? id + (1<<30) : id`：多选 / 隐藏 / 去重专用；删除用 `id` + `isMms`。
+- `bodyOf(l10n)`：彩信无文本时回本地化占位。
 
 ---
 

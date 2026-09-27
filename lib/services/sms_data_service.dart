@@ -24,7 +24,7 @@ Future<String?> exportItems(
 }) async {
   try {
     if (items.isEmpty) return l10n.exportEmpty;
-    final r = await CsvExporter.export(items, tag: tag);
+    final r = await CsvExporter.export(items, tag: tag, l10n: l10n);
     await CsvExporter.share(r, l10n);
     return null;
   } catch (_) {

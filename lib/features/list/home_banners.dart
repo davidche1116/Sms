@@ -118,7 +118,12 @@ class FilterChipsBar extends StatelessWidget {
           if (filter.type != 0)
             Chip(
               label: Text(
-                filter.type == 1 ? l10n.typeInbox : l10n.typeSent,
+                switch (filter.type) {
+                  1 => l10n.typeInbox,
+                  2 => l10n.typeSent,
+                  3 => l10n.typeMms,
+                  _ => l10n.typeAll,
+                },
               ),
               onDeleted: () {
                 filter.type = 0;

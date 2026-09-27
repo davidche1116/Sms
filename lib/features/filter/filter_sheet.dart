@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../generated/app_localizations.dart';
 import '../../models/sms_item.dart';
 
-/// 列表筛选条件。type：0 全部 / 1 仅收件箱 / 2 仅已发送（草稿归入发送侧）。
+/// 列表筛选条件。type：0 全部 / 1 仅收件箱 / 2 仅已发送（草稿归入发送侧）/ 3 仅彩信。
 class SmsFilter {
   String keyword = '';
   DateTime? start;
@@ -64,6 +64,8 @@ class SmsFilter {
         if (e.kind != SmsKind.received) return false;
       case 2:
         if (e.kind == SmsKind.received) return false;
+      case 3:
+        if (!e.isMms) return false;
       default:
         break;
     }
@@ -158,6 +160,7 @@ Future<SmsFilter?> showFilterSheet(BuildContext context, SmsFilter current) {
                     DropdownMenuItem(value: 0, child: Text(l10n.typeAll)),
                     DropdownMenuItem(value: 1, child: Text(l10n.typeInbox)),
                     DropdownMenuItem(value: 2, child: Text(l10n.typeSent)),
+                    DropdownMenuItem(value: 3, child: Text(l10n.typeMms)),
                   ],
                   onChanged: (v) => setLocal(() => f.type = v ?? 0),
                 ),

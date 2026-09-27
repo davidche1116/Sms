@@ -60,7 +60,7 @@ List<Map<String, dynamic>> sampleRows() => [
 /// 首页默认场景：有读权限、默认短信、返回 [sampleRows]（删除成功后缩减）。
 ///
 /// - [queryResult]：整包覆盖 `querySms` 返回（如 `{messages, error}`）。
-/// - [onDelete]：`deleteSmsBatch` 钩子，返回 null 表示删除失败；默认全成功。
+/// - [onDelete]：`deleteSmsBatch` 钩子，入参为原生 id 列表；返回 null 表示删除失败；默认全成功。
 /// - [handlers]：按方法名追加/覆盖返回（如 MIUI 相关方法）。
 void mockHomeChannel({
   Object? queryResult,
@@ -84,7 +84,17 @@ void mockHomeChannel({
           'error': null,
         };
       case 'deleteSmsBatch':
-        final ids = (call.arguments as List).cast<int>();
+        // 线协议：[{id, is_mms}]（也兼容旧 List<int>）
+        final raw = (call.arguments as List?) ?? const [];
+        final ids = <int>[];
+        for (final e in raw) {
+          if (e is Map) {
+            final id = (e['id'] as num?)?.toInt();
+            if (id != null) ids.add(id);
+          } else if (e is num) {
+            ids.add(e.toInt());
+          }
+        }
         if (onDelete != null) {
           final n = onDelete(ids);
           if (n != null) deleted.addAll(ids);

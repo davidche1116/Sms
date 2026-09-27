@@ -99,8 +99,12 @@ class CsvImportResult {
 }
 
 /// CSV 导入：与 `CsvExporter` 同一格式（BOM + RFC 4180）。
+///
+/// **只重建短信**：带 `is_mms=1` 的行会被跳过（彩信含 smil/pdu/媒体，无法用
+/// insertSmsBatch 还原）。旧 5 列格式无 `is_mms` 时按短信处理。
 class CsvImporter {
   /// 解析导出格式文本为行。忽略表头；`kind` 支持 received/sent/draft。
+  /// 彩信行（`is_mms=1`）直接丢弃，不进返回列表。
   static List<SmsImportRow> parse(String text) {
     var t = text;
     if (t.startsWith('﻿')) t = t.substring(1);
@@ -110,6 +114,8 @@ class CsvImporter {
       // 表头
       if (fields.first.trim().toLowerCase() == 'address') continue;
       if (fields.length < 4) continue;
+      // 可选 is_mms 列（第 6 列）：1 = 彩信，导入不重建
+      if (fields.length > 5 && fields[5].trim() == '1') continue;
       final address = fields[0];
       final body = fields[1];
       final dateMs = _parseDateMs(fields[2]);

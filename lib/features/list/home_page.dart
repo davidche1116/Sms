@@ -36,7 +36,7 @@ class _HomePageState extends State<HomePage> {
   List<SmsItem> items = const [];
   final _filter = SmsFilter();
 
-  /// 多选：只存 `_id`，不存下标（设计 §4.3：id 一律用 _id）。
+  /// 多选：只存跨 SMS/MMS 唯一的 `uid`（MMS 加偏移），避免同号 `_id` 互撞。
   final _selected = <int>{};
   bool _selectMode = false;
   bool _loading = true;
@@ -56,7 +56,7 @@ class _HomePageState extends State<HomePage> {
   /// 递增代际：刷新/重载后丢弃仍在途的下一页结果，避免旧页污染新列表。
   int _loadGen = 0;
 
-  /// 本地移出列表的 id：不再展示，且 FAB 批量删除不会带上它们。
+  /// 本地移出列表的 uid：不再展示，且 FAB 批量删除不会带上它们。
   final _hiddenIds = <int>{};
   final _repo = SmsRepository();
   final _hiddenStore = HiddenStore();
@@ -121,7 +121,7 @@ class _HomePageState extends State<HomePage> {
       }
       if (!mounted || gen != _loadGen) return;
       setState(() {
-        items = _dedupById(page.items);
+        items = _dedupByUid(page.items);
         _total = page.total;
         _hasMore = !_filter.active && page.hasMore(items.length, _pageSize);
         _loading = false;
@@ -160,7 +160,7 @@ class _HomePageState extends State<HomePage> {
       if (!mounted || gen != _loadGen) return;
       setState(() {
         final before = items.length;
-        items = _dedupById([...items, ...page.items]);
+        items = _dedupByUid([...items, ...page.items]);
         _total = page.total ?? _total;
         // 没有新条目时强制停止，避免异常通道下反复空转
         _hasMore =
@@ -175,17 +175,17 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  /// 按 `_id` 去重，保留首次出现的顺序（分页追加时防重复行）。
-  static List<SmsItem> _dedupById(List<SmsItem> source) {
+  /// 按 `uid` 去重，保留首次出现的顺序（分页追加时防重复行；SMS/MMS 同号不互吞）。
+  static List<SmsItem> _dedupByUid(List<SmsItem> source) {
     final seen = <int>{};
     return [
       for (final e in source)
-        if (e.id == null || seen.add(e.id!)) e,
+        if (e.uid == null || seen.add(e.uid!)) e,
     ];
   }
 
   Future<SmsQueryPage> _allAsPage() async {
-    final list = _dedupById(await _repo.queryAll());
+    final list = _dedupByUid(await _repo.queryAll());
     return SmsQueryPage(items: list, total: list.length);
   }
 
@@ -214,32 +214,30 @@ class _HomePageState extends State<HomePage> {
     await _ensureFullForFilter();
   }
 
-  /// 刷新后把选中集裁剪到仍存在的 id，避免残留失效项。
+  /// 刷新后把选中集裁剪到仍存在的 uid，避免残留失效项。
   void _pruneSelection() {
-    final ids = {for (final e in items) if (e.id != null) e.id!};
-    _selected.removeWhere((id) => !ids.contains(id));
+    final uids = {for (final e in items) if (e.uid != null) e.uid!};
+    _selected.removeWhere((id) => !uids.contains(id));
   }
 
   /// 删除并同步本地列表；返回是否真正删掉（失败不改 UI）。
   Future<bool> _deleteIds(List<SmsItem> targets) async {
     final l10n = AppLocalizations.of(context);
-    final ids = [
-      for (final e in targets)
-        if (e.id != null) e.id!,
-    ];
-    if (ids.isEmpty) return false;
-    final r = await _repo.deleteSmsBatch(ids);
+    final deletable = [for (final e in targets) if (e.id != null) e];
+    if (deletable.isEmpty) return false;
+    final r = await _repo.deleteSmsBatch(deletable);
     if (!mounted) return false;
     if (!r.ok) {
       // 失败不改 UI，列表保持原样
       _toast(l10n.deleteFailedNeedDefault);
       return false;
     }
+    final uids = {for (final e in deletable) if (e.uid != null) e.uid!};
     setState(() {
-      items.removeWhere((e) => e.id != null && ids.contains(e.id));
-      _selected.removeAll(ids);
+      items.removeWhere((e) => e.uid != null && uids.contains(e.uid));
+      _selected.removeAll(uids);
       // 已删除的不再占用隐藏名额
-      _hiddenIds.removeAll(ids);
+      _hiddenIds.removeAll(uids);
       _pruneSelection();
       _selectMode = false;
     });
@@ -252,7 +250,7 @@ class _HomePageState extends State<HomePage> {
   /// 客户端过滤：关键词 / 日期范围 / 类型 / 同号 / 同卡（不重复打库）。
   List<SmsItem> get _visible {
     return items.where((e) {
-      if (e.id != null && _hiddenIds.contains(e.id)) return false;
+      if (e.uid != null && _hiddenIds.contains(e.uid)) return false;
       return _filter.matches(e);
     }).toList();
   }
@@ -308,17 +306,17 @@ class _HomePageState extends State<HomePage> {
             TextButton(
               onPressed: () {
                 // 全选针对当前筛选后的可见列表（INTERACTION §4.2）
-                final ids = {
+                final uids = {
                   for (final e in visible)
-                    if (e.id != null) e.id!,
+                    if (e.uid != null) e.uid!,
                 };
                 setState(() {
-                  if (ids.isNotEmpty && _selected.containsAll(ids)) {
+                  if (uids.isNotEmpty && _selected.containsAll(uids)) {
                     _selected.clear();
                   } else {
                     _selected
                       ..clear()
-                      ..addAll(ids);
+                      ..addAll(uids);
                   }
                 });
               },
@@ -451,8 +449,8 @@ class _HomePageState extends State<HomePage> {
                               item: item,
                               selectMode: _selectMode,
                               selected:
-                                  item.id != null &&
-                                  _selected.contains(item.id),
+                                  item.uid != null &&
+                                  _selected.contains(item.uid),
                               onDelete: () => _confirmAndDelete([item]),
                               onTap: () => _onItemTap(item),
                               onLongPress: () => _onItemLongPress(item),
@@ -518,10 +516,10 @@ class _HomePageState extends State<HomePage> {
 
   void _onItemTap(SmsItem e) {
     if (_selectMode) {
-      final id = e.id;
-      if (id == null) return; // 无 id 不允许选中（防御）
+      final uid = e.uid;
+      if (uid == null) return; // 无 id 不允许选中（防御）
       setState(() {
-        if (!_selected.remove(id)) _selected.add(id);
+        if (!_selected.remove(uid)) _selected.add(uid);
       });
       return;
     }
@@ -541,27 +539,27 @@ class _HomePageState extends State<HomePage> {
 
   void _onItemLongPress(SmsItem e) {
     if (!_selectMode) {
-      final id = e.id;
-      if (id == null) return;
+      final uid = e.uid;
+      if (uid == null) return;
       setState(() {
         _selectMode = true;
-        _selected.add(id);
+        _selected.add(uid);
       });
     }
   }
 
   void _hideItem(SmsItem e) {
-    final id = e.id;
-    if (id == null) return;
-    setState(() => _hiddenIds.add(id));
+    final uid = e.uid;
+    if (uid == null) return;
+    setState(() => _hiddenIds.add(uid));
     _hiddenStore.save(_hiddenIds);
     _toast(AppLocalizations.of(context).removedFromList);
   }
 
-  /// 当前选中项（按 `_id` 匹配，不依赖下标）。
+  /// 当前选中项（按 `uid` 匹配，不依赖下标）。
   List<SmsItem> _selectedItems() => [
     for (final e in items)
-      if (e.id != null && _selected.contains(e.id)) e,
+      if (e.uid != null && _selected.contains(e.uid)) e,
   ];
 
   Future<void> _exportSelected() async {

@@ -368,6 +368,36 @@ abstract class AppLocalizations {
   /// **'仅已发送'**
   String get typeSent;
 
+  /// No description provided for @typeMms.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅彩信'**
+  String get typeMms;
+
+  /// No description provided for @mmsBadge.
+  ///
+  /// In zh, this message translates to:
+  /// **'彩信'**
+  String get mmsBadge;
+
+  /// No description provided for @mmsHasAttachment.
+  ///
+  /// In zh, this message translates to:
+  /// **'含附件'**
+  String get mmsHasAttachment;
+
+  /// No description provided for @mmsBodyPlaceholder.
+  ///
+  /// In zh, this message translates to:
+  /// **'[彩信]'**
+  String get mmsBodyPlaceholder;
+
+  /// No description provided for @mmsBodyWithAttachment.
+  ///
+  /// In zh, this message translates to:
+  /// **'[彩信]·含附件'**
+  String get mmsBodyWithAttachment;
+
   /// No description provided for @reset.
   ///
   /// In zh, this message translates to:

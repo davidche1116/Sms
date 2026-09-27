@@ -292,19 +292,29 @@ class SmsRepository {
       read: (m['read'] as num?)?.toInt() == 1,
       id: (m['_id'] as num?)?.toInt(),
       threadId: (m['thread_id'] as num?)?.toInt(),
+      isMms: (m['is_mms'] as num?)?.toInt() == 1,
+      hasMedia: (m['has_media'] as num?)?.toInt() == 1,
     );
   }
 
   static int _dateDesc(SmsItem a, SmsItem b) {
     final d = (b.dateMs ?? 0).compareTo(a.dateMs ?? 0);
     if (d != 0) return d;
-    return (b.id ?? 0).compareTo(a.id ?? 0);
+    // 与 Kotlin 同序：is_mms 降序（uid 已把 MMS 抬到高位）+ id 降序。
+    return (b.uid ?? 0).compareTo(a.uid ?? 0);
   }
 
-  /// 见 [DeleteBatchResult]。
-  Future<DeleteBatchResult> deleteSmsBatch(List<int> ids) async {
+  /// 见 [DeleteBatchResult]。按 `is_mms` 路由删除，SMS / MMS 不会误删对方同号行。
+  ///
+  /// 线协议：`[{id, is_mms}]`；原生兼容旧 `List<Int>`（纯 SMS）。
+  Future<DeleteBatchResult> deleteSmsBatch(List<SmsItem> items) async {
+    final targets = [
+      for (final e in items)
+        if (e.id != null) {'id': e.id, 'is_mms': e.isMms ? 1 : 0},
+    ];
+    if (targets.isEmpty) return DeleteBatchResult.ok(0);
     try {
-      final n = await _ch.invokeMethod<int>('deleteSmsBatch', ids);
+      final n = await _ch.invokeMethod<int>('deleteSmsBatch', targets);
       return n == null
           ? const DeleteBatchResult.failed()
           : DeleteBatchResult.ok(n);

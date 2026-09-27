@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sms/models/sms_item.dart';
 import 'package:sms/services/sms_repository.dart';
 
 import 'helpers/app_channel.dart';
@@ -220,16 +221,43 @@ void main() {
 
     test('deleteSmsBatch：int → ok；null → failed', () async {
       mockChannel('deleteSmsBatch', () => 3);
-      var r = await SmsRepository().deleteSmsBatch([1, 2, 3]);
+      var r = await SmsRepository().deleteSmsBatch([
+        const SmsItem(id: 1, body: '', address: ''),
+        const SmsItem(id: 2, body: '', address: ''),
+        const SmsItem(id: 3, body: '', address: ''),
+      ]);
       expect(r.ok, isTrue);
       expect(r.deleted, 3);
       expect(r.failure, isNull);
 
       mockChannel('deleteSmsBatch', () => null);
-      r = await SmsRepository().deleteSmsBatch([1]);
+      r = await SmsRepository().deleteSmsBatch([
+        const SmsItem(id: 1, body: '', address: ''),
+      ]);
       expect(r.ok, isFalse);
       expect(r.deleted, 0);
       expect(r.failure, BatchFailure.notDefaultOrError);
+    });
+
+    test('deleteSmsBatch：混合 is_mms 线协议载荷', () async {
+      Object? captured;
+      setAppChannelHandler((call) async {
+        if (call.method != 'deleteSmsBatch') return null;
+        captured = call.arguments;
+        return 2;
+      });
+      await SmsRepository().deleteSmsBatch([
+        const SmsItem(id: 1, body: '', address: '', isMms: false),
+        const SmsItem(id: 2, body: '', address: '', isMms: true),
+        const SmsItem(body: '', address: ''), // 无 id 被丢弃
+      ]);
+      expect(
+        captured,
+        [
+          {'id': 1, 'is_mms': 0},
+          {'id': 2, 'is_mms': 1},
+        ],
+      );
     });
 
     test('insertSmsBatch：Map 新契约解析 + 旧 int/null 兼容 + 空列表', () async {

@@ -7,6 +7,19 @@
 
 ### Added
 
+- **彩信（MMS）纳入统一数据面**（P3-17）：浏览 / 筛选 / 删除 / 导出；wire 身份为 `_id` + `is_mms` 二元组，删除按 `is_mms` 路由到 `content://sms` / `content://mms`，绝不跨表
+- `SmsItem.isMms` / `hasMedia` / `uid`（MMS id + 2^30 偏移，多选/隐藏/去重专用）；卡片「彩信」徽章 + 「含附件」标注；筛选类型新增「仅彩信」
+- CSV 导出新增 `is_mms` 列；导入**跳过彩信行**（smil/pdu/媒体无法用 insertSmsBatch 重建）
+- 彩信正文摘要：`content://mms/part` 文本 part 拼接；无文本时本地化占位「[彩信]」
+
+### Changed
+
+- `deleteSmsBatch` 入参支持 `List<{id, is_mms}>` 混合目标（旧 `List<Int>` 仍兼容，按纯 SMS 处理）；Dart `SmsRepository.deleteSmsBatch` 改为接收 `List<SmsItem>`
+- 查询 `querySms` 合并彩信元数据（`content://mms` + inbox/sent/drafts），`date` 秒→毫秒换算；地址过滤经 `content://mms/addr` 预取 msg_id；正文/号码只对**本页**彩信批量补全
+- 多选 / 隐藏列表 / 去重改用 `uid`（避免 SMS/MMS 同号 `_id` 互撞）
+
+### Added (previous)
+
 - **i18n 基建**（P3-15）：`flutter_localizations` + `intl` + ARB/`flutter gen-l10n`（`l10n.yaml`，模板 `lib/l10n/app_zh.arb`，生成 `lib/generated/`）
 - 中文（默认）+ 英文两套文案，覆盖首页/筛选/删除/空态/toast/设置/权限/MIUI 引导/主题页/CSV 导入导出
 - `test/i18n/i18n_smoke_test.dart`：中英文 locale 关键文案冒烟

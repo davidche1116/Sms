@@ -22,8 +22,8 @@ void main() {
   group('CsvImporter 解析（与导出格式互逆）', () {
     test('表头 + 普通行 + BOM', () {
       final rows = CsvImporter.parse(
-        '\u{FEFF}address,body,date,kind,sub_id\r\n'
-        '10086,流量提醒,2026-09-26 11:02:00,received,1\r\n',
+        '\u{FEFF}address,body,date,kind,sub_id,is_mms\r\n'
+        '10086,流量提醒,2026-09-26 11:02:00,received,1,0\r\n',
       );
       expect(rows, hasLength(1));
       expect(rows.first.address, '10086');
@@ -45,6 +45,26 @@ void main() {
       expect(rows.first.body, '含,逗号与"引号"\n换行');
       expect(rows.first.kind, SmsKind.sent);
       expect(rows.first.sim, 2);
+    });
+
+    test('is_mms=1 的彩信行被跳过（导入只重建短信）', () {
+      final rows = CsvImporter.parse(
+        'address,body,date,kind,sub_id,is_mms\n'
+        '10086,短信,2026-01-01 00:00:00,received,1,0\n'
+        '139,彩信,2026-01-01 00:00:00,received,1,1\n'
+        '10010,又一条短信,2026-01-01 00:00:00,received,1,0\n',
+      );
+      expect(rows, hasLength(2));
+      expect(rows.map((e) => e.body), ['短信', '又一条短信']);
+    });
+
+    test('旧 5 列格式（无 is_mms）全部按短信导入', () {
+      final rows = CsvImporter.parse(
+        'address,body,date,kind,sub_id\n'
+        '10086,老格式,2026-01-01 00:00:00,received,1\n',
+      );
+      expect(rows, hasLength(1));
+      expect(rows.first.body, '老格式');
     });
   });
 
