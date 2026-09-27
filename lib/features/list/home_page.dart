@@ -103,18 +103,19 @@ class _HomePageState extends State<HomePage> {
     _selected.removeWhere((id) => !ids.contains(id));
   }
 
-  Future<void> _deleteIds(List<SmsItem> targets) async {
+  /// 删除并同步本地列表；返回是否真正删掉（失败不改 UI）。
+  Future<bool> _deleteIds(List<SmsItem> targets) async {
     final ids = [
       for (final e in targets)
         if (e.id != null) e.id!,
     ];
-    if (ids.isEmpty) return;
+    if (ids.isEmpty) return false;
     final n = await _repo.deleteSmsBatch(ids);
-    if (!mounted) return;
+    if (!mounted) return false;
     if (n == null) {
       // 失败不改 UI，列表保持原样
       _toast('删除失败：请先设为默认短信应用');
-      return;
+      return false;
     }
     setState(() {
       items.removeWhere((e) => e.id != null && ids.contains(e.id));
@@ -122,10 +123,12 @@ class _HomePageState extends State<HomePage> {
       // 已删除的不再占用隐藏名额
       _hiddenIds.removeAll(ids);
       _pruneSelection();
+      _selectMode = false;
     });
     _hiddenStore.save(_hiddenIds);
     _toast('已删除 $n 条');
     _load();
+    return true;
   }
 
   /// 客户端过滤：关键词 / 日期范围 / 类型 / 同号 / 同卡（不重复打库）。
@@ -219,7 +222,7 @@ class _HomePageState extends State<HomePage> {
       floatingActionButton: _selectMode || visible.isEmpty
           ? null
           : FloatingActionButton(
-              onPressed: () => _confirmDelete(visible),
+              onPressed: () => _confirmAndDelete(visible),
               child: const Icon(Icons.delete_forever_outlined),
             ),
       bottomNavigationBar: _selectMode
@@ -244,7 +247,7 @@ class _HomePageState extends State<HomePage> {
                         ),
                         onPressed: _selected.isEmpty
                             ? null
-                            : () => _confirmDelete(_selectedItems()),
+                            : () => _confirmAndDelete(_selectedItems()),
                         child: const Text('删除选中'),
                       ),
                     ),
@@ -416,7 +419,7 @@ class _HomePageState extends State<HomePage> {
                                 selectMode: _selectMode,
                                 selected:
                                     e.id != null && _selected.contains(e.id),
-                                onDelete: () => _deleteIds([e]),
+                                onDelete: () => _confirmAndDelete([e]),
                                 onTap: () => _onItemTap(e),
                                 onLongPress: () => _onItemLongPress(e),
                               ),
@@ -444,7 +447,7 @@ class _HomePageState extends State<HomePage> {
       e,
       onSameAddress: (addr) => setState(() => _filter.sameAddress = addr),
       onSameSim: (sim) => setState(() => _filter.sameSim = sim),
-      onDelete: () => _deleteIds([e]),
+      onDelete: () => _confirmAndDelete([e]),
       onHide: () => _hideItem(e),
     );
   }
@@ -597,15 +600,17 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  void _confirmDelete(List<SmsItem> targets) {
+  /// 统一删除入口：确认弹层 → 删除。返回「确认且删除成功」，滑删据此决定回弹。
+  Future<bool> _confirmAndDelete(List<SmsItem> targets) async {
     if (targets.isEmpty) {
       _toast('没有可删除的短信');
-      return;
+      return false;
     }
-    showConfirmDeleteSheet(context, targets.length, () async {
-      await _deleteIds(targets);
-      if (mounted) setState(() => _selectMode = false);
-    });
+    return showConfirmDeleteSheet(
+      context,
+      targets.length,
+      () => _deleteIds(targets),
+    );
   }
 
   /// 申请读取短信权限（菜单 / 空态共用）；MIUI 上成功后自动跟上通知类短信引导。

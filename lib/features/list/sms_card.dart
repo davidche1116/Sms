@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/sms_item.dart';
 
-/// 列表项卡片：左滑快速删除、单击/长按回调、多选态左侧勾选（UI_DESIGN §6.1）。
+/// 列表项卡片：左滑删除（确认 + 失败回弹）、单击/长按回调、多选态左侧勾选（UI_DESIGN §6.1）。
 class SmsCard extends StatelessWidget {
   const SmsCard({
     super.key,
@@ -15,7 +15,9 @@ class SmsCard extends StatelessWidget {
   });
 
   final SmsItem item;
-  final VoidCallback onDelete;
+
+  /// 确认并删除当前条；返回 true 才让卡片划走，false（取消/失败）回弹。
+  final Future<bool> Function() onDelete;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
   final bool selectMode;
@@ -30,7 +32,8 @@ class SmsCard extends StatelessWidget {
       child: Dismissible(
         key: ValueKey('sms_${e.id ?? e.hashCode}'),
         direction: DismissDirection.endToStart,
-        onDismissed: (_) => onDelete(),
+        // 删除在 confirmDismiss 内完成：成功才划走，取消/失败卡片回弹
+        confirmDismiss: (_) => onDelete(),
         background: Container(
           alignment: Alignment.centerRight,
           padding: const EdgeInsets.only(right: 22),

@@ -61,8 +61,9 @@ void main() {
 
   void mockChannel({
     Object? queryResult,
-    int Function(List<int> ids)? onDelete,
+    int? Function(List<int> ids)? onDelete,
   }) {
+    final deleted = <int>{};
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(appChannel, (call) async {
           switch (call.method) {
@@ -71,14 +72,22 @@ void main() {
             case 'isDefaultSms':
               return true;
             case 'querySms':
-              return queryResult ??
-                  {
-                    'messages': sampleRows(),
-                    'error': null,
-                  };
+              if (queryResult != null) return queryResult;
+              return {
+                'messages': sampleRows()
+                    .where((r) => !deleted.contains(r['_id']))
+                    .toList(),
+                'error': null,
+              };
             case 'deleteSmsBatch':
               final ids = (call.arguments as List).cast<int>();
-              return onDelete?.call(ids) ?? ids.length;
+              if (onDelete != null) {
+                final n = onDelete(ids);
+                if (n != null) deleted.addAll(ids);
+                return n;
+              }
+              deleted.addAll(ids);
+              return ids.length;
             default:
               return null;
           }
@@ -408,6 +417,94 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       expect(find.text('还要开启「通知类短信」'), findsNothing);
+      expect(find.textContaining('流量提醒'), findsOneWidget);
+    });
+  });
+
+  group('删除确认对齐（README：四个删除入口均有确认）', () {
+    testWidgets('滑删弹确认；取消后卡片回弹仍在', (tester) async {
+      await pumpHome(tester);
+      expect(find.textContaining('流量提醒'), findsOneWidget);
+
+      await tester.fling(
+        find.textContaining('流量提醒'),
+        const Offset(-500, 0),
+        1000,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('删除短信？'), findsOneWidget);
+      expect(find.text('将删除 1 条短信。删除后不可恢复。'), findsOneWidget);
+
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('删除短信？'), findsNothing);
+      expect(find.textContaining('流量提醒'), findsOneWidget);
+    });
+
+    testWidgets('滑删确认后删除成功：卡片移除', (tester) async {
+      await pumpHome(tester);
+
+      await tester.fling(
+        find.textContaining('流量提醒'),
+        const Offset(-500, 0),
+        1000,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('确认删除'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('流量提醒'), findsNothing);
+      // 其余仍在
+      expect(find.textContaining('验证码 8888'), findsOneWidget);
+    });
+
+    testWidgets('滑删确认但删除失败：卡片回弹不消失', (tester) async {
+      mockChannel(onDelete: (_) => null);
+      await pumpHome(tester);
+
+      await tester.fling(
+        find.textContaining('流量提醒'),
+        const Offset(-500, 0),
+        1000,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('确认删除'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('删除失败'), findsOneWidget);
+      expect(find.textContaining('流量提醒'), findsOneWidget);
+    });
+
+    testWidgets('动作 Sheet 删除同样先确认；取消不删', (tester) async {
+      await pumpHome(tester);
+      await tester.tap(find.textContaining('流量提醒'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('删除'), findsOneWidget);
+      await tester.tap(find.text('删除'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('删除短信？'), findsOneWidget);
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('流量提醒'), findsOneWidget);
+    });
+
+    testWidgets('FAB 批量删除确认文案按条数', (tester) async {
+      await pumpHome(tester);
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle();
+
+      expect(find.text('删除短信？'), findsOneWidget);
+      expect(
+        find.text('将删除 4 条短信。删除后不可恢复。'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
       expect(find.textContaining('流量提醒'), findsOneWidget);
     });
   });

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
 /// 删除确认弹层（UI_DESIGN §6.4）：确认文案 + >3000 提示 + 弱进度。
-/// 返回 true 表示用户点了确认且 onDone 已执行。
+/// [onDone] 返回是否真正删掉；弹层最终返回「用户确认且删除成功」。
+/// 取消或删除失败均返回 false，调用方（如滑删）可据此回弹 UI。
 Future<bool> showConfirmDeleteSheet(
   BuildContext context,
   int count,
-  Future<void> Function() onDone,
+  Future<bool> Function() onDone,
 ) async {
   if (count == 0) return false;
   var progress = 0;
@@ -61,8 +62,8 @@ Future<bool> showConfirmDeleteSheet(
                         : () async {
                             // 进度仅作提示；实际删除一次批量调用
                             setLocal(() => progress = 1);
-                            await onDone();
-                            if (ctx.mounted) Navigator.pop(ctx, true);
+                            final ok = await onDone();
+                            if (ctx.mounted) Navigator.pop(ctx, ok);
                           },
                     child: Text(
                       progress > 0 && progress < count ? '删除中…' : '确认删除',

@@ -101,10 +101,10 @@ Future<void> showSmsActionSheet(
                       color: Theme.of(ctx).colorScheme.error,
                     ),
                     title: Text(
-                      '快速删除',
+                      '删除',
                       style: TextStyle(color: Theme.of(ctx).colorScheme.error),
                     ),
-                    subtitle: const Text('删除这一条，不弹确认'),
+                    subtitle: const Text('删除这一条，删除前确认'),
                     onTap: () {
                       Navigator.pop(ctx);
                       onDelete();
