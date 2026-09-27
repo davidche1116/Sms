@@ -54,10 +54,11 @@ Dart  SmsRepository
 MainActivity  ──►  SmsAccess
                       ├─ querySms()
                       ├─ deleteSmsBatch()
+                      ├─ insertSmsBatch()   （导入；见 §7.1）
                       └─ hasReadSms() / isDefaultSms()  （见权限设计）
 ```
 
-查询/删除**不**再经过 sms_advanced；Dart 只保留 `SmsItem` 模型。
+查询/删除/导入**不**再经过 sms_advanced；Dart 只保留 `SmsItem` 模型。
 
 ---
 
@@ -226,11 +227,63 @@ ids.chunked(900)     // SQLITE_MAX_VARIABLE_NUMBER 默认 999
 |--------|------|------|
 | `querySms` | `{address?, limit?, offset?}` 或 null | 见 §5.7（含 `total`） |
 | `deleteSmsBatch` | `List<Int>` | `Int?` |
+| `insertSmsBatch` | `List<{address, body, date, type, sub_id}>` | 见 §7.1 Map |
 | `hasReadSmsPermission` | — | `bool` |
 | `isDefaultSms` | — | `bool?` |
 | （已有）`setDefaultSms` 等 | — | 见 PERMISSION_DESIGN v3 |
 
 所有 handler **try/catch** → `result.error("error", …)`，禁止裸抛。
+
+### 7.1 insertSmsBatch 返回契约（P2-12）
+
+```json
+{
+  "ok": true,
+  "inserted": 16,
+  "failed": 2,
+  "errors": [
+    { "index": 3,  "code": "failed", "message": "insert returned null" },
+    { "index": 17, "code": "failed", "message": "…" }
+  ]
+}
+```
+
+| 字段 | 含义 |
+|------|------|
+| `ok` | false=整批未执行（非默认等）；true=已受理（**可含部分失败**） |
+| `inserted` | 成功条数 |
+| `failed` | 失败条数（= errors 中行级条目数） |
+| `errors[]` | 逐行失败明细 |
+| `errors[].index` | 入参 rows 下标（0-based）；**-1=整批级**（如非默认） |
+| `errors[].code` | `not_default` \| `failed` \| `unknown` |
+| `errors[].message` | 原生补充说明，可空 |
+
+| code | 含义 | Dart |
+|------|------|------|
+| `not_default` | 非默认短信应用，整批未执行 | toast「导入需先设为默认短信应用」 |
+| `failed` | 单行插入失败（insert 回 null 或抛异常） | 计入 failed，文案「已导入 X / Y 条（N 条失败）」 |
+| `unknown` | 保留值：形态异常/未知 code 的安全默认（Dart 解析兜底） | 同上 |
+
+**兼容**：旧调用方读 `Int?`（null=失败、int=成功条数）。新契约返回 Map，
+Dart `InsertBatchResult.fromWire` 同时接受 Map / int / null；**旧 int 解析路径仅作
+兼容保留**，新代码一律按 Map 解析。`deleteSmsBatch` 仍回 `Int?`（另项任务）。
+
+**事务策略与系统限制（必读）**：
+
+1. **逐行 insert + 尽量全成 + 逐行明细**：每行独立 `contentResolver.insert`，
+   失败只影响该行并记录 `index/code/message`，其余行继续，不中途放弃。
+2. **为何不用 `applyBatch` 整批提交**（调研后否决）：
+   - AOSP `SmsProvider` 不覆写 `applyBatch`，默认实现**逐条 apply、无事务**，
+     中途失败已成功的行不回滚——「批」本身并不原子；
+   - `OperationApplicationException` **不暴露失败下标**（公开 API 只有
+     `getNumSuccessfulYieldPoints`，语义是 yield 点数而非操作数），失败后无法
+     安全定位续插起点；盲目重试整片会**重复插入**真实短信。
+3. 因此不做整批回滚（回滚需按 _id 删，存在二次失败与误删风险），
+   改为保证 `inserted` 计数准确、错误可对应 CSV 行。
+4. index 对应 CSV `parse()` 后行下标（表头已跳过），可直接映射回导入行定位。
+5. 大列表：Dart 侧按 `SmsRepository.insertChunkSize=200` 行分片过通道
+   （单条 platform message 受 Binder ~1MB 上限），errors[].index 重映射为
+   **全局**下标；内存上不整表复制，只切片 sublist。
 
 **UI 增量加载约定（P1-6）**：
 - 启动/下拉刷新拉第一页（`limit=200, offset=0`）；滚动触底按 `offset=已加载条数` 追加，按 `_id` 去重。
@@ -287,7 +340,10 @@ SmsItem { id, threadId, address, body, dateMs, read, type, subId, kind }
 3. 批量 delete 成功 / 非默认 null。  
 4. 投影缺 `sub_id` 仍返回其他字段。  
 5. 回归：不对 `creator` 等列 getInt（可用带该列的假 Cursor 测读取函数）。  
-6. 真机：设默认 → 读/删 → 改默认 → 重开 → 权限/查询。
+6. 真机：设默认 → 读/删 → 改默认 → 重开 → 权限/查询。  
+7. insertSmsBatch：mock 新 Map 形状 → Dart 解析 inserted/failed/errors；旧 int/null 兼容。  
+8. CsvImporter 端到端：全成 / 部分失败 / 非默认 / 原生失败 → toast 文案与错误摘要。  
+9. 真机：QA_IMPORT_TEST 走同一通道，核对 IMPORT_BATCH 的 inserted/failed/errors。
 
 ---
 

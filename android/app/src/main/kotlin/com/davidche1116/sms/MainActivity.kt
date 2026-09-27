@@ -264,8 +264,13 @@ class MainActivity : FlutterFragmentActivity() {
             "sub_id" to 1,
           ),
         )
-        val n = access.insertSmsBatch(rows)
-        writeQaResult("IMPORT_BATCH ok=${n != null} inserted=$n prefix=$prefix")
+        val r = access.insertSmsBatch(rows)
+        writeQaResult(
+          "IMPORT_BATCH ok=${r[ChannelCodes.KEY_OK]} " +
+            "inserted=${r[ChannelCodes.KEY_INSERTED]} " +
+            "failed=${r[ChannelCodes.KEY_FAILED]} " +
+            "errors=${r[ChannelCodes.KEY_ERRORS]} prefix=$prefix",
+        )
       }
     }
   }

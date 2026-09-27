@@ -47,6 +47,8 @@ Future<CsvImportResult> importCsv(SmsRepository repo) async {
 }
 
 /// 导入结果 → toast 文案的唯一出口。
+///
+/// 部分成功：「已导入 16 / 18 条（2 条失败）」；全成：「已导入 18 / 18 条」。
 String importMessage(CsvImportResult r) {
   if (r.error == CsvImportError.cancelled) return '已取消导入';
   if (r.notDefault) return '导入需先设为默认短信应用';
@@ -55,6 +57,9 @@ String importMessage(CsvImportResult r) {
     return r.error == null || r.error == CsvImportError.unknown
         ? '导入失败，请重试'
         : '导入失败：${r.error!.message}';
+  }
+  if (r.failed > 0) {
+    return '已导入 ${r.inserted} / ${r.parsed} 条（${r.failed} 条失败）';
   }
   return '已导入 ${r.inserted} / ${r.parsed} 条';
 }

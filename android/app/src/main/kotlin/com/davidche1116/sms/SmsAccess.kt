@@ -3,9 +3,11 @@ package com.davidche1116.sms
 import android.app.Activity
 import android.app.AppOpsManager
 import android.app.role.RoleManager
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.database.Cursor
+import android.net.Uri
 import android.os.Build
 import android.os.Process
 import android.provider.BaseColumns
@@ -343,43 +345,100 @@ class SmsAccess(private val context: Context) {
   /**
    * 导入插入：只新增，不改不删。需默认短信应用。
    * row: address, body, date(ms), type(1 inbox/2 sent/3 draft), sub_id
-   * @return 成功条数；null=非默认/失败
+   *
+   * 策略：**逐行 insert + 尽量全成 + 逐行明细**（不中途放弃）。
+   *
+   * 为何不用 `ContentResolver.applyBatch` 做整批提交：
+   * 1. AOSP `SmsProvider` 不覆写 `applyBatch`，默认实现**逐条 apply、无事务**，
+   *    中途失败已成功的行不回滚——「批」本身并不原子。
+   * 2. `OperationApplicationException` **不暴露失败下标**（公开 API 只有
+   *    `getNumSuccessfulYieldPoints`，语义是 yield 点数不是操作数），失败后无法
+   *    安全定位续插起点；盲目重试整片会**重复插入**真实短信。
+   * 因此选择可精确回溯的逐行路径：每行独立 insert，失败只影响该行并记录
+   * `index/code/message`，其余行继续，保证 inserted 计数准确、错误可对应 CSV 行。
+   *
+   * @return Map:
+   *   ok       Boolean  是否非失败态（false=非默认/整批未执行）
+   *   inserted Int      成功条数
+   *   failed   Int      失败条数
+   *   errors   List     [{index, code, message}]，index 为入参 rows 下标；-1=整批级
    */
-  fun insertSmsBatch(rows: List<Map<String, Any?>>): Int? {
-    if (rows.isEmpty()) return 0
-    if (isDefaultSms() != true) return null
-    return try {
-      var n = 0
-      for (row in rows) {
-        val type = (row["type"] as? Number)?.toInt() ?: Telephony.Sms.MESSAGE_TYPE_INBOX
-        val date = (row["date"] as? Number)?.toLong() ?: System.currentTimeMillis()
-        val uri = when (type) {
-          Telephony.Sms.MESSAGE_TYPE_SENT,
-          Telephony.Sms.MESSAGE_TYPE_OUTBOX,
-          Telephony.Sms.MESSAGE_TYPE_FAILED,
-          Telephony.Sms.MESSAGE_TYPE_QUEUED -> Telephony.Sms.Sent.CONTENT_URI
-          Telephony.Sms.MESSAGE_TYPE_DRAFT -> Telephony.Sms.Draft.CONTENT_URI
-          else -> Telephony.Sms.Inbox.CONTENT_URI
-        }
-        val v = android.content.ContentValues().apply {
-          put(Telephony.Sms.ADDRESS, row["address"] as? String)
-          put(Telephony.Sms.BODY, row["body"] as? String)
-          put(Telephony.Sms.DATE, date)
-          put(Telephony.Sms.DATE_SENT, date)
-          put(Telephony.Sms.READ, 1)
-          put(Telephony.Sms.SEEN, 1)
-          put(Telephony.Sms.TYPE, type)
-          val sub = (row["sub_id"] as? Number)?.toInt()
-          if (sub != null) put(Telephony.Sms.SUBSCRIPTION_ID, sub)
-        }
-        if (context.contentResolver.insert(uri, v) != null) n++
-      }
-      n
-    } catch (e: Exception) {
-      Log.e(TAG, "insertSmsBatch", e)
-      null
+  fun insertSmsBatch(rows: List<Map<String, Any?>>): Map<String, Any?> {
+    if (rows.isEmpty()) {
+      return insertResult(ok = true, inserted = 0, failed = 0, errors = emptyList())
     }
+    if (isDefaultSms() != true) {
+      return insertResult(
+        ok = false,
+        inserted = 0,
+        failed = rows.size,
+        errors = listOf(
+          insertError(-1, ChannelCodes.INSERT_ERROR_NOT_DEFAULT, "not default sms app"),
+        ),
+      )
+    }
+    val errors = mutableListOf<Map<String, Any?>>()
+    var inserted = 0
+    var failed = 0
+    rows.forEachIndexed { i, row ->
+      try {
+        val (uri, values) = buildInsert(row)
+        if (context.contentResolver.insert(uri, values) != null) inserted++
+        else {
+          failed++
+          errors.add(insertError(i, ChannelCodes.INSERT_ERROR_FAILED, "insert returned null"))
+        }
+      } catch (e: Exception) {
+        Log.e(TAG, "insertSmsBatch row $i", e)
+        failed++
+        errors.add(insertError(i, ChannelCodes.INSERT_ERROR_FAILED, e.message ?: "insert failed"))
+      }
+    }
+    return insertResult(ok = true, inserted = inserted, failed = failed, errors = errors)
   }
+
+  private fun buildInsert(row: Map<String, Any?>): Pair<Uri, ContentValues> {
+    val type = (row["type"] as? Number)?.toInt() ?: Telephony.Sms.MESSAGE_TYPE_INBOX
+    val date = (row["date"] as? Number)?.toLong() ?: System.currentTimeMillis()
+    val uri = when (type) {
+      Telephony.Sms.MESSAGE_TYPE_SENT,
+      Telephony.Sms.MESSAGE_TYPE_OUTBOX,
+      Telephony.Sms.MESSAGE_TYPE_FAILED,
+      Telephony.Sms.MESSAGE_TYPE_QUEUED -> Telephony.Sms.Sent.CONTENT_URI
+      Telephony.Sms.MESSAGE_TYPE_DRAFT -> Telephony.Sms.Draft.CONTENT_URI
+      else -> Telephony.Sms.Inbox.CONTENT_URI
+    }
+    val v = ContentValues().apply {
+      put(Telephony.Sms.ADDRESS, row["address"] as? String)
+      put(Telephony.Sms.BODY, row["body"] as? String)
+      put(Telephony.Sms.DATE, date)
+      put(Telephony.Sms.DATE_SENT, date)
+      put(Telephony.Sms.READ, 1)
+      put(Telephony.Sms.SEEN, 1)
+      put(Telephony.Sms.TYPE, type)
+      val sub = (row["sub_id"] as? Number)?.toInt()
+      if (sub != null) put(Telephony.Sms.SUBSCRIPTION_ID, sub)
+    }
+    return uri to v
+  }
+
+  private fun insertResult(
+    ok: Boolean,
+    inserted: Int,
+    failed: Int,
+    errors: List<Map<String, Any?>>,
+  ): Map<String, Any?> = mapOf(
+    ChannelCodes.KEY_OK to ok,
+    ChannelCodes.KEY_INSERTED to inserted,
+    ChannelCodes.KEY_FAILED to failed,
+    ChannelCodes.KEY_ERRORS to errors,
+  )
+
+  private fun insertError(index: Int, code: String, message: String): Map<String, Any?> = mapOf(
+    ChannelCodes.KEY_INDEX to index,
+    ChannelCodes.KEY_CODE to code,
+    ChannelCodes.KEY_MESSAGE to message,
+  )
 
   private fun readRow(c: Cursor): Map<String, Any?> {
     fun col(n: String) = c.getColumnIndex(n)

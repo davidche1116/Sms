@@ -60,16 +60,39 @@ class CsvImportResult {
   const CsvImportResult({
     required this.parsed,
     required this.inserted,
+    this.failed = 0,
+    this.rowErrors = const [],
     this.error,
     this.notDefault = false,
   });
 
+  /// 解析出的可导入行数（=提交给 insertSmsBatch 的行数）。
   final int parsed;
+
+  /// 实际写入条数。
   final int inserted;
+
+  /// 失败条数（部分成功时 >0）。
+  final int failed;
+
+  /// 逐行失败明细（index 对应 parse 后行下标）。
+  final List<InsertRowError> rowErrors;
+
   final CsvImportError? error;
   final bool notDefault;
 
   bool get ok => error == null && !notDefault;
+
+  /// 失败摘要（最多 3 条），供 toast/日志；无失败时为空串。
+  String get errorSummary {
+    if (rowErrors.isEmpty) return '';
+    final shown = rowErrors.take(3).map((e) {
+      final msg = e.message?.trim();
+      return (msg == null || msg.isEmpty) ? e.code : '${e.code}: $msg';
+    }).join('；');
+    final more = rowErrors.length > 3 ? ' 等 ${rowErrors.length} 条' : '';
+    return shown + more;
+  }
 }
 
 /// CSV 导入：与 `CsvExporter` 同一格式（BOM + RFC 4180）。
@@ -145,14 +168,25 @@ class CsvImporter {
       for (final e in rows) e.toChannel(),
     ]);
     if (!r.ok) {
-      // 线协议上 null=非默认/失败不可区分；UI 以「先设默认」为主要引导。
+      // 非默认 → 引导设默认；其余原生整批失败 → 可重试。
+      final notDefault =
+          r.failure == BatchFailure.notDefault ||
+          r.failure == BatchFailure.notDefaultOrError;
       return CsvImportResult(
         parsed: rows.length,
-        inserted: 0,
-        notDefault: true,
+        inserted: r.inserted,
+        failed: r.failed,
+        rowErrors: r.errors,
+        notDefault: notDefault,
+        error: notDefault ? null : CsvImportError.unknown,
       );
     }
-    return CsvImportResult(parsed: rows.length, inserted: r.inserted);
+    return CsvImportResult(
+      parsed: rows.length,
+      inserted: r.inserted,
+      failed: r.failed,
+      rowErrors: r.errors,
+    );
   }
 
   static SmsKind _parseKind(String raw) {

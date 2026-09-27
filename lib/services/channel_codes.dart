@@ -40,6 +40,26 @@ abstract final class ChannelCodes {
   static const String keyMessages = 'messages';
   static const String keyTotal = 'total';
   static const String keyError = 'error';
+
+  // ---- insertSmsBatch 载荷键 ----
+  // Map：{ok, inserted, failed, errors:[{index, code, message}]}。
+  // index 为入参 rows 下标（0-based）；-1 表示整批级错误（如非默认）。
+  static const String keyInserted = 'inserted';
+  static const String keyFailed = 'failed';
+  static const String keyErrors = 'errors';
+  static const String keyIndex = 'index';
+  static const String keyCode = 'code';
+  static const String keyMessage = 'message';
+
+  // ---- insertSmsBatch errors[].code ----
+  /// 非默认短信应用，整批未执行。
+  static const String insertErrorNotDefault = 'not_default';
+
+  /// 单行插入失败（insert 回 null 或抛异常）。
+  static const String insertErrorFailed = 'failed';
+
+  /// 保留值：形态异常/未知 code 的安全默认（解析兜底）。
+  static const String insertErrorUnknown = 'unknown';
 }
 
 /// `setDefaultSms` 返回。
@@ -137,10 +157,57 @@ enum QueryError {
 
 /// 批量写（删除 / 插入）失败原因。
 ///
-/// 线协议只回 `int?`（null=失败），「非默认」与「原生异常」不可区分。
+/// `deleteSmsBatch` 线协议仍只回 `int?`（null=失败），「非默认」与「原生异常」
+/// 不可区分，只见 [notDefaultOrError]。
+/// `insertSmsBatch` 新线协议可区分，见 [InsertBatchResult]。
 enum BatchFailure {
-  /// 通道返回 null 或调用抛错：非默认短信应用 / 原生失败。
+  /// 通道返回 null 或调用抛错：非默认短信应用 / 原生失败（不可区分）。
   notDefaultOrError,
+
+  /// 明确「非默认短信应用」（insertSmsBatch errors 含 not_default）。
+  notDefault,
+
+  /// 明确原生插入失败（非 not_default）。
+  native,
+}
+
+/// `insertSmsBatch` 单行失败明细。
+class InsertRowError {
+  const InsertRowError({
+    required this.index,
+    required this.code,
+    this.message,
+  });
+
+  /// 对应入参 rows 下标（0-based）；-1 = 整批级错误（如非默认）。
+  final int index;
+
+  /// [ChannelCodes.insertErrorNotDefault] / [ChannelCodes.insertErrorFailed] /
+  /// [ChannelCodes.insertErrorUnknown]。
+  final String code;
+
+  /// 原生补充说明，可能为 null。
+  final String? message;
+
+  /// 线协议 Map → 明细；字段缺失/形态异常时给安全默认。
+  static InsertRowError fromWire(Object? raw) {
+    if (raw is! Map) {
+      return const InsertRowError(
+        index: -1,
+        code: ChannelCodes.insertErrorUnknown,
+      );
+    }
+    final m = raw.cast<Object?, Object?>();
+    return InsertRowError(
+      index: (m[ChannelCodes.keyIndex] as num?)?.toInt() ?? -1,
+      code: m[ChannelCodes.keyCode]?.toString() ?? ChannelCodes.insertErrorUnknown,
+      message: m[ChannelCodes.keyMessage]?.toString(),
+    );
+  }
+
+  @override
+  String toString() =>
+      'InsertRowError(index: $index, code: $code, message: $message)';
 }
 
 /// `deleteSmsBatch` 结果。
@@ -160,17 +227,73 @@ class DeleteBatchResult {
 }
 
 /// `insertSmsBatch` 结果。
+///
+/// 线协议 Map `{ok, inserted, failed, errors}`；兼容旧 `int?`（int=全成条数，
+/// null=失败）。部分成功时 ok=true 且 failed>0，明细见 [errors]。
 class InsertBatchResult {
-  const InsertBatchResult.ok(this.inserted) : failure = null;
+  const InsertBatchResult({
+    this.inserted = 0,
+    this.failed = 0,
+    this.errors = const [],
+    this.failure,
+  });
+
+  /// 成功（可含部分失败，failed/errors 仍回报）。
+  const InsertBatchResult.ok(
+    int inserted, {
+    int failed = 0,
+    List<InsertRowError> errors = const [],
+  }) : this(inserted: inserted, failed: failed, errors: errors);
+
+  /// 整批失败；可携带线协议上的 failed/errors 明细。
   const InsertBatchResult.failed([
-    this.failure = BatchFailure.notDefaultOrError,
-  ]) : inserted = 0;
+    BatchFailure failure = BatchFailure.notDefaultOrError,
+  ]) : this(failure: failure);
 
   /// 成功插入条数。
   final int inserted;
 
-  /// null=成功；否则失败原因。
+  /// 失败条数（部分成功时 >0；整批失败时保留线协议计数）。
+  final int failed;
+
+  /// 逐行失败明细，index 对应入参 rows 下标。
+  final List<InsertRowError> errors;
+
+  /// null=成功（可含部分失败）；否则整批失败原因。
   final BatchFailure? failure;
 
   bool get ok => failure == null;
+
+  /// 线协议任意形态 → 结果。
+  ///
+  /// - Map：新契约，解析 ok/inserted/failed/errors；
+  /// - int：旧契约全成，inserted=n；
+  /// - null / 其他：整批失败。
+  static InsertBatchResult fromWire(Object? raw) {
+    if (raw == null) return const InsertBatchResult.failed();
+    if (raw is num) return InsertBatchResult.ok(raw.toInt());
+    if (raw is Map) {
+      final m = raw.cast<Object?, Object?>();
+      final okFlag = m[ChannelCodes.keyOk] == true;
+      final inserted = (m[ChannelCodes.keyInserted] as num?)?.toInt() ?? 0;
+      final failed = (m[ChannelCodes.keyFailed] as num?)?.toInt() ?? 0;
+      final errors = [
+        for (final e in (m[ChannelCodes.keyErrors] as List? ?? const []))
+          InsertRowError.fromWire(e),
+      ];
+      if (okFlag) {
+        return InsertBatchResult.ok(inserted, failed: failed, errors: errors);
+      }
+      final notDefault = errors.any(
+        (e) => e.code == ChannelCodes.insertErrorNotDefault,
+      );
+      return InsertBatchResult(
+        inserted: inserted,
+        failed: failed,
+        errors: errors,
+        failure: notDefault ? BatchFailure.notDefault : BatchFailure.native,
+      );
+    }
+    return const InsertBatchResult.failed();
+  }
 }

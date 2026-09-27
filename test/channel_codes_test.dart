@@ -237,16 +237,121 @@ void main() {
       expect(r.failure, BatchFailure.notDefaultOrError);
     });
 
-    test('insertSmsBatch：int → ok；null → failed；空列表 → ok(0)', () async {
-      mockChannel('insertSmsBatch', () => 2);
+    test('insertSmsBatch：Map 新契约解析 + 旧 int/null 兼容 + 空列表', () async {
+      // 新契约：全成
+      mockChannel('insertSmsBatch', () {
+        return {
+          ChannelCodes.keyOk: true,
+          ChannelCodes.keyInserted: 2,
+          ChannelCodes.keyFailed: 0,
+          ChannelCodes.keyErrors: <Map<String, Object?>>[],
+        };
+      });
       var r = await SmsRepository().insertSmsBatch([
         {'address': '1', 'body': 'a'},
         {'address': '2', 'body': 'b'},
       ]);
       expect(r.ok, isTrue);
       expect(r.inserted, 2);
+      expect(r.failed, 0);
+      expect(r.errors, isEmpty);
       expect(r.failure, isNull);
 
+      // 新契约：部分成功 + 逐行明细
+      mockChannel('insertSmsBatch', () {
+        return {
+          ChannelCodes.keyOk: true,
+          ChannelCodes.keyInserted: 1,
+          ChannelCodes.keyFailed: 2,
+          ChannelCodes.keyErrors: [
+            {
+              ChannelCodes.keyIndex: 1,
+              ChannelCodes.keyCode: ChannelCodes.insertErrorFailed,
+              ChannelCodes.keyMessage: 'insert returned null',
+            },
+            {
+              ChannelCodes.keyIndex: 2,
+              ChannelCodes.keyCode: ChannelCodes.insertErrorUnknown,
+              ChannelCodes.keyMessage: 'batch failed',
+            },
+          ],
+        };
+      });
+      r = await SmsRepository().insertSmsBatch([
+        {'address': '1', 'body': 'a'},
+        {'address': '2', 'body': 'b'},
+        {'address': '3', 'body': 'c'},
+      ]);
+      expect(r.ok, isTrue);
+      expect(r.inserted, 1);
+      expect(r.failed, 2);
+      expect(r.errors, hasLength(2));
+      expect(r.errors[0].index, 1);
+      expect(r.errors[0].code, ChannelCodes.insertErrorFailed);
+      expect(r.errors[0].message, 'insert returned null');
+      expect(r.errors[1].index, 2);
+      expect(r.errors[1].code, ChannelCodes.insertErrorUnknown);
+      expect(r.errors[1].message, 'batch failed');
+
+      // 新契约：非默认整批失败
+      mockChannel('insertSmsBatch', () {
+        return {
+          ChannelCodes.keyOk: false,
+          ChannelCodes.keyInserted: 0,
+          ChannelCodes.keyFailed: 2,
+          ChannelCodes.keyErrors: [
+            {
+              ChannelCodes.keyIndex: -1,
+              ChannelCodes.keyCode: ChannelCodes.insertErrorNotDefault,
+              ChannelCodes.keyMessage: 'not default sms app',
+            },
+          ],
+        };
+      });
+      r = await SmsRepository().insertSmsBatch([
+        {'address': '1', 'body': 'a'},
+        {'address': '2', 'body': 'b'},
+      ]);
+      expect(r.ok, isFalse);
+      expect(r.inserted, 0);
+      expect(r.failed, 2);
+      expect(r.errors.single.index, -1);
+      expect(r.errors.single.code, ChannelCodes.insertErrorNotDefault);
+      expect(r.failure, BatchFailure.notDefault);
+
+      // 新契约：ok=false 且非 not_default → native
+      mockChannel('insertSmsBatch', () {
+        return {
+          ChannelCodes.keyOk: false,
+          ChannelCodes.keyInserted: 0,
+          ChannelCodes.keyFailed: 1,
+          ChannelCodes.keyErrors: [
+            {
+              ChannelCodes.keyIndex: -1,
+              ChannelCodes.keyCode: ChannelCodes.insertErrorUnknown,
+              ChannelCodes.keyMessage: 'boom',
+            },
+          ],
+        };
+      });
+      r = await SmsRepository().insertSmsBatch([
+        {'address': '1', 'body': 'a'},
+      ]);
+      expect(r.ok, isFalse);
+      expect(r.failure, BatchFailure.native);
+
+      // 旧契约：int → 全成
+      mockChannel('insertSmsBatch', () => 2);
+      r = await SmsRepository().insertSmsBatch([
+        {'address': '1', 'body': 'a'},
+        {'address': '2', 'body': 'b'},
+      ]);
+      expect(r.ok, isTrue);
+      expect(r.inserted, 2);
+      expect(r.failed, 0);
+      expect(r.failure, isNull);
+
+      // 旧契约：null → failed
       mockChannel('insertSmsBatch', () => null);
       r = await SmsRepository().insertSmsBatch([
         {'address': '1', 'body': 'a'},
@@ -258,6 +363,54 @@ void main() {
       final empty = await SmsRepository().insertSmsBatch(const []);
       expect(empty.ok, isTrue);
       expect(empty.inserted, 0);
+    });
+
+    test('insertSmsBatch：多分片下 errors[].index 重映射为全局下标', () async {
+      // 250 行 → 2 个通道分片（200+50）；第二片 index=1 应映射为 201。
+      final rows = [
+        for (var i = 0; i < 250; i++) {'address': '$i', 'body': 'b$i'},
+      ];
+      var calls = 0;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(appChannel, (call) async {
+            if (call.method != 'insertSmsBatch') return null;
+            calls++;
+            final n = (call.arguments as List).length;
+            if (calls == 1) {
+              return {
+                ChannelCodes.keyOk: true,
+                ChannelCodes.keyInserted: n - 1,
+                ChannelCodes.keyFailed: 1,
+                ChannelCodes.keyErrors: [
+                  {
+                    ChannelCodes.keyIndex: 5,
+                    ChannelCodes.keyCode: ChannelCodes.insertErrorFailed,
+                    ChannelCodes.keyMessage: 'row 5',
+                  },
+                ],
+              };
+            }
+            return {
+              ChannelCodes.keyOk: true,
+              ChannelCodes.keyInserted: n - 1,
+              ChannelCodes.keyFailed: 1,
+              ChannelCodes.keyErrors: [
+                {
+                  ChannelCodes.keyIndex: 1,
+                  ChannelCodes.keyCode: ChannelCodes.insertErrorFailed,
+                  ChannelCodes.keyMessage: 'row 201',
+                },
+              ],
+            };
+          });
+
+      final r = await SmsRepository().insertSmsBatch(rows);
+      expect(calls, 2);
+      expect(r.ok, isTrue);
+      expect(r.inserted, 248);
+      expect(r.failed, 2);
+      expect(r.errors.map((e) => e.index), [5, 201]);
+      expect(r.errors[1].message, 'row 201');
     });
 
     test('querySms：error 字段映射（permission 抛权限异常，未知抛普通异常）', () async {
@@ -325,6 +478,15 @@ void main() {
       expect(ChannelCodes.keyMessages, 'messages');
       expect(ChannelCodes.keyTotal, 'total');
       expect(ChannelCodes.keyError, 'error');
+      expect(ChannelCodes.keyInserted, 'inserted');
+      expect(ChannelCodes.keyFailed, 'failed');
+      expect(ChannelCodes.keyErrors, 'errors');
+      expect(ChannelCodes.keyIndex, 'index');
+      expect(ChannelCodes.keyCode, 'code');
+      expect(ChannelCodes.keyMessage, 'message');
+      expect(ChannelCodes.insertErrorNotDefault, 'not_default');
+      expect(ChannelCodes.insertErrorFailed, 'failed');
+      expect(ChannelCodes.insertErrorUnknown, 'unknown');
     });
   });
 }

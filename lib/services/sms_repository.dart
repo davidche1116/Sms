@@ -49,6 +49,12 @@ class SmsRepository {
   /// 默认等系统回包时限（2 分钟）。
   static const Duration defaultSystemResponseTimeout = Duration(minutes: 2);
 
+  /// `insertSmsBatch` 单次通道分片行数。
+  ///
+  /// 单条 platform message 受 Binder ~1MB 限制；短信行很小，200 行足够安全，
+  /// 也给原生侧 applyBatch 同量级分片（见 Kotlin `INSERT_CHUNK`）留了余量。
+  static const int insertChunkSize = 200;
+
   /// 见构造参数。
   final Duration systemResponseTimeout;
 
@@ -309,18 +315,52 @@ class SmsRepository {
   }
 
   /// 批量插入（导入 CSV）。仅新增，不删不改。见 [InsertBatchResult]。
+  ///
+  /// 线协议 Map `{ok, inserted, failed, errors}`；兼容旧 `int?` / 通道异常。
+  /// 大列表按 [insertChunkSize] 分片过通道：单条 platform message 不超过
+  /// Binder ~1MB 上限；errors[].index 始终是**全局**入参下标。
   Future<InsertBatchResult> insertSmsBatch(
     List<Map<String, Object?>> rows,
   ) async {
     if (rows.isEmpty) return const InsertBatchResult.ok(0);
-    try {
-      final n = await _ch.invokeMethod<int>('insertSmsBatch', rows);
-      return n == null
-          ? const InsertBatchResult.failed()
-          : InsertBatchResult.ok(n);
-    } catch (e) {
-      debugPrint('insertSmsBatch: $e');
-      return const InsertBatchResult.failed();
+    var inserted = 0;
+    var failed = 0;
+    final errors = <InsertRowError>[];
+    for (var offset = 0; offset < rows.length; offset += insertChunkSize) {
+      final end = (offset + insertChunkSize).clamp(0, rows.length);
+      final chunk = rows.sublist(offset, end);
+      // 后续分片的全局下标偏移；-1（整批级）保持不变。
+      final base = offset;
+      InsertRowError remap(InsertRowError e) => InsertRowError(
+        index: e.index < 0 ? e.index : e.index + base,
+        code: e.code,
+        message: e.message,
+      );
+      try {
+        final raw = await _ch.invokeMethod<Object?>('insertSmsBatch', chunk);
+        final r = InsertBatchResult.fromWire(raw);
+        if (!r.ok) {
+          // 非默认/整批失败：其后分片无意义，直接汇总返回。
+          return InsertBatchResult(
+            inserted: inserted + r.inserted,
+            failed: failed + (r.failed > 0 ? r.failed : chunk.length - r.inserted),
+            errors: [...errors, ...r.errors.map(remap)],
+            failure: r.failure,
+          );
+        }
+        inserted += r.inserted;
+        failed += r.failed;
+        errors.addAll(r.errors.map(remap));
+      } catch (e) {
+        debugPrint('insertSmsBatch: $e');
+        return InsertBatchResult(
+          inserted: inserted,
+          failed: failed + (rows.length - offset),
+          errors: errors,
+          failure: BatchFailure.notDefaultOrError,
+        );
+      }
     }
+    return InsertBatchResult.ok(inserted, failed: failed, errors: errors);
   }
 }
