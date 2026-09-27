@@ -7,7 +7,7 @@ import 'package:sms/services/sms_repository.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const appChannel = MethodChannel('com.dc16.sms/smsApp');
+  const appChannel = MethodChannel('com.davidche1116.sms/smsApp');
 
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger

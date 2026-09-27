@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+# 全流程只跑 analyze / test / debug APK，不涉及发布签名。
+# release 签名密钥仅存在于本地 key.properties 或 CI Secrets，绝不入库。
+jobs:
+  analyze-test-build:
+    name: Analyze, Test & Debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Flutter (stable)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      # --debug 会走 Android 工具链（含 compileDebugKotlin），验证 Kotlin 侧能编过。
+      # release 构建依赖签名配置，不在 CI 强制。
+      - name: Build debug APK
+        run: flutter build apk --debug

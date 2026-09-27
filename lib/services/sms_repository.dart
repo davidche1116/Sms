@@ -37,7 +37,7 @@ class SmsQueryPage {
       total != null ? loadedCount < total! : items.length >= pageSize;
 }
 
-/// 薄封装原生通道 `com.dc16.sms/smsApp`。
+/// 薄封装原生通道 `com.davidche1116.sms/smsApp`。
 class SmsRepository {
   /// [systemResponseTimeout]：等待系统权限弹窗 / 角色页返回的最长时限。
   /// 超时后回退再查一次真实状态，绝不让 `invokeMethod` 永久 pending。
@@ -52,7 +52,7 @@ class SmsRepository {
   /// 见构造参数。
   final Duration systemResponseTimeout;
 
-  static const _ch = MethodChannel('com.dc16.sms/smsApp');
+  static const _ch = MethodChannel('com.davidche1116.sms/smsApp');
 
   /// 等系统回包并套超时；超时抛 [TimeoutException]，由调用方回退再查状态。
   Future<T> _awaitSystem<T>(Future<T> future) =>

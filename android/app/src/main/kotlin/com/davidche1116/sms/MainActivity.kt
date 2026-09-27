@@ -1,4 +1,4 @@
-package com.dc16.sms
+package com.davidche1116.sms
 
 import android.Manifest
 import android.app.role.RoleManager
@@ -53,7 +53,7 @@ private class OnceResult(private val raw: MethodChannel.Result) : MethodChannel.
 }
 
 class MainActivity : FlutterFragmentActivity() {
-  private val channelName = "com.dc16.sms/smsApp"
+  private val channelName = "com.davidche1116.sms/smsApp"
   private lateinit var access: SmsAccess
 
   /** 等待系统权限弹窗结果后再回包，Dart 才能刷新。取出即清空，保证只 complete 一次。 */
@@ -213,8 +213,8 @@ class MainActivity : FlutterFragmentActivity() {
 
   /**
    * debug 包 QA 入口：adb 跳转触发，只操作带测试前缀的短信。
-   *  - action=com.dc16.sms.QA_INSERT_TEST   extra count=3 bodyPrefix=SMSCLEANUP_TEST
-   *  - action=com.dc16.sms.QA_DELETE_TEST   extra bodyPrefix=SMSCLEANUP_TEST
+   *  - action=com.davidche1116.sms.QA_INSERT_TEST   extra count=3 bodyPrefix=SMSCLEANUP_TEST
+   *  - action=com.davidche1116.sms.QA_DELETE_TEST   extra bodyPrefix=SMSCLEANUP_TEST
    * 结果写入 filesDir/qa_result.txt，便于 run-as 回读。
    */
   private fun handleQaIntent(intent: Intent?) {
@@ -223,30 +223,30 @@ class MainActivity : FlutterFragmentActivity() {
     val action = intent.action ?: return
     val prefix = intent.getStringExtra("bodyPrefix") ?: "SMSCLEANUP_TEST"
     when (action) {
-      "com.dc16.sms.QA_INSERT_TEST" -> {
+      "com.davidche1116.sms.QA_INSERT_TEST" -> {
         val count = intent.getIntExtra("count", 3)
         val ids = access.insertTestSms(count, prefix)
         writeQaResult("INSERT ok=${ids != null} ids=$ids prefix=$prefix")
       }
-      "com.dc16.sms.QA_DELETE_TEST" -> {
+      "com.davidche1116.sms.QA_DELETE_TEST" -> {
         val n = access.deleteTestSmsByPrefix(prefix)
         writeQaResult("DELETE ok=${n != null} deleted=$n prefix=$prefix")
       }
-      "com.dc16.sms.QA_DELETE_IDS" -> {
+      "com.davidche1116.sms.QA_DELETE_IDS" -> {
         val ids = intent.getIntArrayExtra("ids")?.toList() ?: emptyList()
         // 只允许删除 body 带测试前缀的 id，真实短信直接拒绝
         val safe = access.filterTestIds(ids, prefix)
         val n = access.deleteSmsBatch(safe)
         writeQaResult("DELETE_IDS requested=$ids safe=$safe deleted=$n prefix=$prefix")
       }
-      "com.dc16.sms.QA_QUERY_STATE" -> {
+      "com.davidche1116.sms.QA_QUERY_STATE" -> {
         val miui = access.isMiui()
         val notif = access.miuiNotificationSmsState()
         val read = access.hasReadSms()
         val def = access.isDefaultSms()
         writeQaResult("STATE miui=$miui notif=$notif read=$read default=$def")
       }
-      "com.dc16.sms.QA_IMPORT_TEST" -> {
+      "com.davidche1116.sms.QA_IMPORT_TEST" -> {
         // 与 CSV 导入同一 insertSmsBatch 通道，仅写入带前缀的测试行
         val rows = listOf(
           mapOf<String, Any?>(

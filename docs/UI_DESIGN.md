@@ -248,4 +248,4 @@ lib/
     widgets/            # SmsCard, EmptyView, ...
 ```
 
-原生通道契约沿用 `com.dc16.sms/smsApp`（querySms / deleteSmsBatch / hasReadSmsPermission / defaultSms*），与文档 AGENTS.md 对齐。
+原生通道契约沿用 `com.davidche1116.sms/smsApp`（querySms / deleteSmsBatch / hasReadSmsPermission / defaultSms*），与文档 AGENTS.md 对齐。

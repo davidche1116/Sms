@@ -50,7 +50,7 @@ Manifest 仅声明上述组件 + `READ_SMS`；**不申请** `SEND_SMS`/`RECEIVE_
   └─ isDefaultSms ? deleteSmsBatch : setDefaultSms()
 ```
 
-## 3. 通道 `com.dc16.sms/smsApp`
+## 3. 通道 `com.davidche1116.sms/smsApp`
 
 | Method | 返回 / 说明 |
 |--------|-------------|
@@ -77,7 +77,7 @@ Manifest 仅声明上述组件 + `READ_SMS`；**不申请** `SEND_SMS`/`RECEIVE_
 ## 4. Kotlin 落点
 
 ```
-com.dc16.sms/
+com.davidche1116.sms/
   MainActivity.kt          # MethodChannel + try/catch → result.error
   sms/SmsAccess.kt         # 全部短信/权限/角色逻辑
 ```

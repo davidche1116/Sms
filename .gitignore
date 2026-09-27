@@ -46,3 +46,11 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Android release signing — never commit keystores or credentials
+key.properties
+keystore.properties
+*.jks
+*.keystore
+*.p12
+*.pem

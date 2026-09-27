@@ -8,7 +8,7 @@ import 'package:sms/app.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const appChannel = MethodChannel('com.dc16.sms/smsApp');
+  const appChannel = MethodChannel('com.davidche1116.sms/smsApp');
   final base = DateTime(2026, 9, 26, 12, 0);
 
   List<Map<String, dynamic>> buildRows(int n) => [

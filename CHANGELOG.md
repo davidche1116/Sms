@@ -5,6 +5,20 @@
 
 ## [Unreleased]
 
+### Added
+
+- GitHub Actions CI（`.github/workflows/ci.yml`）：push / PR 到 `main`、`dev` 时跑 `flutter analyze` → `flutter test` → `flutter build apk --debug`
+- 发布签名配置：`android/key.properties`（已 gitignore）或 `RELEASE_*` 环境变量驱动 release 签名；README 新增「发布签名」一节
+
+### Changed
+
+- **Breaking**：`applicationId` / `namespace` 从 `com.dc16.sms` 改为 `com.davidche1116.sms`，MethodChannel 由 `com.dc16.sms/smsApp` 改为 `com.davidche1116.sms/smsApp`，QA Intent action 前缀同步为 `com.davidche1116.sms.QA_*`。已装旧包无法覆盖升级，需卸载重装
+- release 构建不再无条件使用 debug 签名：有 `key.properties` / `RELEASE_*` 时用正式签名；否则回退 debug 签名并在 Gradle 日志明确警告（禁止上架）
+
+### Security
+
+- `.gitignore` 增加 `key.properties` / `*.jks` / `*.keystore` 等密钥文件忽略规则
+
 ## [2.0.0] - 2026-09-27
 
 2.0 全面重写：Material 3 界面、原生查询 / 删除通道、RoleManager 默认短信应用、默认时收信入库。

@@ -1,4 +1,4 @@
-package com.dc16.sms
+package com.davidche1116.sms
 
 import android.app.Activity
 import android.app.AppOpsManager

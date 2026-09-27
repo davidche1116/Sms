@@ -1,4 +1,4 @@
-/// MethodChannel `com.dc16.sms/smsApp` 协议字面量与类型化返回值。
+/// MethodChannel `com.davidche1116.sms/smsApp` 协议字面量与类型化返回值。
 ///
 /// 与 Kotlin `ChannelCodes` 一一对应。**协议字符串保持不变**，
 /// 业务代码只准引用本文件常量 / 枚举，禁止散落裸字面量。

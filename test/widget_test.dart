@@ -11,7 +11,7 @@ import 'package:sms/services/csv_importer.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const appChannel = MethodChannel('com.dc16.sms/smsApp');
+  const appChannel = MethodChannel('com.davidche1116.sms/smsApp');
   final today = DateTime(2026, 9, 26, 11, 2);
   final yesterday = DateTime(2026, 9, 25, 9, 0);
   final older = DateTime(2026, 8, 1, 8, 0);

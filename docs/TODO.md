@@ -157,7 +157,7 @@ lib/
 
 结论：插入 / 按 id 删除 / 按前缀清理均可用；**真实短信零丢失、零改动**。测试后已把 `ROLE_SMS` 还原给 `com.android.mms`。
 
-辅助：debug 包 QA Intent（仅 FLAG_DEBUGGABLE）：`com.dc16.sms.QA_INSERT_TEST` / `QA_DELETE_TEST` / `QA_DELETE_IDS`，结果写 `filesDir/qa_result.txt`。
+辅助：debug 包 QA Intent（仅 FLAG_DEBUGGABLE）：`com.davidche1116.sms.QA_INSERT_TEST` / `QA_DELETE_TEST` / `QA_DELETE_IDS`，结果写 `filesDir/qa_result.txt`。
 
 #### ⚠️ MIUI 特有发现（重要）
 

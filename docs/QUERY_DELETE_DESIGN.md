@@ -49,7 +49,7 @@
 
 ```
 Dart  SmsRepository
-        │  MethodChannel  com.dc16.sms/smsApp
+        │  MethodChannel  com.davidche1116.sms/smsApp
         ▼
 MainActivity  ──►  SmsAccess
                       ├─ querySms()
@@ -242,7 +242,7 @@ ids.chunked(900)     // SQLITE_MAX_VARIABLE_NUMBER 默认 999
 ## 8. 模块划分（Kotlin）
 
 ```
-com.dc16.sms/
+com.davidche1116.sms/
   MainActivity.kt     # 仅分发
   SmsAccess.kt        # query / delete / hasRead / isDefault   ← 本设计主体
   SmsReceiver.kt      # 默认时收信入库（已实现）

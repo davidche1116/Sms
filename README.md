@@ -37,10 +37,47 @@ flutter pub get
 flutter run                 # 调试
 flutter test                # 单测 / 组件测试
 flutter analyze
-flutter build apk --release
+flutter build apk --debug   # CI 同款：验证可编译（含 Kotlin）
+flutter build apk --release # 见下方「发布签名」
 ```
 
 需要 Flutter 3.47+（Dart 3.13+），Android minSdk 29。
+
+## 发布签名
+
+release 构建**不会**把密钥写进仓库。签名材料只放在本地 `android/key.properties`（已 gitignore）。
+
+### 1. 生成密钥（一次性）
+
+```bash
+keytool -genkey -v -keystore ~/keystore/sms-release.jks \
+  -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+```
+
+### 2. 编写 `android/key.properties`
+
+```properties
+storeFile=/absolute/path/to/sms-release.jks
+storePassword=***
+keyAlias=upload
+keyPassword=***
+```
+
+`storeFile` 支持绝对路径，或相对 `android/app/` 的相对路径。`*.jks` / `*.keystore` / `key.properties` 均已在 `.gitignore` 中，**请勿提交**。
+
+也可用环境变量替代（CI Secrets 常用）：`RELEASE_STORE_FILE` / `RELEASE_STORE_PASSWORD` / `RELEASE_KEY_ALIAS` / `RELEASE_KEY_PASSWORD`。
+
+### 3. 构建
+
+```bash
+flutter build apk --release
+```
+
+若 `android/key.properties` 与 `RELEASE_*` 环境变量均不存在，release 会**回退 debug 签名**并在 Gradle 日志打印警告——仅方便本地自测。**debug 签名的包禁止上架商店、禁止作为正式升级包分发**；上架前必须配置正式签名。
+
+### 4. 包名说明（Breaking）
+
+`applicationId` / `namespace` / MethodChannel / QA Intent 前缀已从 `com.dc16.sms` 改为 `com.davidche1116.sms`，降低开源后的包名冲突与仿冒风险。**已安装旧包的用户无法直接升级**，需卸载后重装（本地数据在短信系统库中，卸载本应用不影响短信本身）。
 
 ## 项目结构
 
@@ -57,7 +94,7 @@ lib/
     delete/                 # 删除确认
     settings/               # 设置 / 主题 / 权限
     widgets/                # 空态
-android/app/src/main/kotlin/com/dc16/sms/
+android/app/src/main/kotlin/com/davidche1116/sms/
   MainActivity.kt           # MethodChannel 分发
   SmsAccess.kt              # 查询 / 删除 / 权限 / MIUI
   SmsReceiver.kt            # 默认短信时收信入库

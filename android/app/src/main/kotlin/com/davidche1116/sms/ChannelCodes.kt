@@ -1,7 +1,7 @@
-package com.dc16.sms
+package com.davidche1116.sms
 
 /**
- * MethodChannel `com.dc16.sms/smsApp` 协议字面量。
+ * MethodChannel `com.davidche1116.sms/smsApp` 协议字面量。
  *
  * 与 Dart `channel_codes.dart` 的 `ChannelCodes` 一一对应。
  * **协议字符串保持不变**；`MainActivity` / `SmsAccess` 只准引用本对象，
