@@ -220,31 +220,49 @@ class _HomePageState extends State<HomePage> {
     _selected.removeWhere((id) => !uids.contains(id));
   }
 
-  /// 删除并同步本地列表；返回是否真正删掉（失败不改 UI）。
-  Future<bool> _deleteIds(List<SmsItem> targets) async {
+  /// 删除并同步本地列表；返回「至少删掉一条」（供滑删决定是否划走）。
+  ///
+  /// 分块删除：某块失败即停，已删的从列表移除；取消同理（已发出的不撤回）。
+  Future<bool> _deleteIds(List<SmsItem> targets, DeleteProgress progress) async {
     final l10n = AppLocalizations.of(context);
     final deletable = [for (final e in targets) if (e.id != null) e];
     if (deletable.isEmpty) return false;
-    final r = await _repo.deleteSmsBatch(deletable);
-    if (!mounted) return false;
-    if (!r.ok) {
-      // 失败不改 UI，列表保持原样
-      _toast(l10n.deleteFailedNeedDefault);
-      return false;
+    final r = await _repo.deleteSmsBatchChunked(
+      deletable,
+      onProgress: (done, total) => progress.report(done),
+      shouldCancel: () => progress.cancelRequested,
+    );
+    if (!mounted) return r.deleted > 0;
+    if (r.deleted > 0) {
+      // 块按原序发出，前 r.deleted 项即已删（含失败块之前的完整前缀）。
+      final uids = {
+        for (final e in deletable.take(r.deleted))
+          if (e.uid != null) e.uid!,
+      };
+      setState(() {
+        items.removeWhere((e) => e.uid != null && uids.contains(e.uid));
+        _selected.removeAll(uids);
+        // 已删除的不再占用隐藏名额
+        _hiddenIds.removeAll(uids);
+        _pruneSelection();
+        if (r.complete) _selectMode = false;
+      });
+      _hiddenStore.save(_hiddenIds);
     }
-    final uids = {for (final e in deletable) if (e.uid != null) e.uid!};
-    setState(() {
-      items.removeWhere((e) => e.uid != null && uids.contains(e.uid));
-      _selected.removeAll(uids);
-      // 已删除的不再占用隐藏名额
-      _hiddenIds.removeAll(uids);
-      _pruneSelection();
-      _selectMode = false;
-    });
-    _hiddenStore.save(_hiddenIds);
-    _toast(l10n.deletedCount(r.deleted));
-    _load();
-    return true;
+    if (r.complete) {
+      _toast(l10n.deletedCount(r.deleted));
+    } else if (r.reason == DeleteStopReason.failed) {
+      _toast(
+        r.deleted > 0
+            ? l10n.deletePartialFailed(r.deleted, r.total)
+            : l10n.deleteFailedNeedDefault,
+      );
+    } else if (r.deleted > 0) {
+      // 取消：已删的保留移除结果，明确报告条数
+      _toast(l10n.deleteCancelled(r.deleted));
+    }
+    if (r.deleted > 0) _load();
+    return r.deleted > 0;
   }
 
   /// 客户端过滤：关键词 / 日期范围 / 类型 / 同号 / 同卡（不重复打库）。
@@ -618,16 +636,18 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  /// 统一删除入口：确认弹层 → 删除。返回「确认且删除成功」，滑删据此决定回弹。
+  /// 统一删除入口：确认弹层 → 分块删除。返回「确认且至少删掉一条」，滑删据此决定回弹。
   Future<bool> _confirmAndDelete(List<SmsItem> targets) async {
-    if (targets.isEmpty) {
+    // 无 id 行不可删：文案与进度分母只计真正会走通道的条目。
+    final deletable = [for (final e in targets) if (e.id != null) e];
+    if (deletable.isEmpty) {
       _toast(AppLocalizations.of(context).nothingToDelete);
       return false;
     }
     return showConfirmDeleteSheet(
       context,
-      targets.length,
-      () => _deleteIds(targets),
+      deletable.length,
+      (progress) => _deleteIds(deletable, progress),
     );
   }
 

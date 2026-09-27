@@ -135,7 +135,28 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String deleteCannotUndo(int count) {
+    return '$count deleted, cannot be undone';
+  }
+
+  @override
+  String deletePartialFailed(int deleted, int total) {
+    return 'Failed after deleting $deleted / $total';
+  }
+
+  @override
+  String deleteCancelled(int count) {
+    return 'Cancelled after deleting $count';
+  }
+
+  @override
   String get cancel => 'Cancel';
+
+  @override
+  String get stopDelete => 'Stop';
+
+  @override
+  String get stoppingDelete => 'Stopping…';
 
   @override
   String get deleting => 'Deleting…';

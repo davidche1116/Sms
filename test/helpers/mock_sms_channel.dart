@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -59,12 +61,14 @@ List<Map<String, dynamic>> sampleRows() => [
 
 /// 首页默认场景：有读权限、默认短信、返回 [sampleRows]（删除成功后缩减）。
 ///
-/// - [queryResult]：整包覆盖 `querySms` 返回（如 `{messages, error}`）。
+/// - [queryResult]：整包覆盖 `querySms` 返回（如 `{messages, error}`）；
+///   其 `messages` 同样按已删 id 过滤，保证删后 `_load()` 列表一致。
 /// - [onDelete]：`deleteSmsBatch` 钩子，入参为原生 id 列表；返回 null 表示删除失败；默认全成功。
+///   可为 async（测试里用 Completer 悬住某块，观察进度/取消）。
 /// - [handlers]：按方法名追加/覆盖返回（如 MIUI 相关方法）。
 void mockHomeChannel({
   Object? queryResult,
-  int? Function(List<int> ids)? onDelete,
+  FutureOr<int?> Function(List<int> ids)? onDelete,
   Map<String, Future<Object?> Function(MethodCall call)>? handlers,
 }) {
   final deleted = <int>{};
@@ -77,7 +81,16 @@ void mockHomeChannel({
       case 'isDefaultSms':
         return true;
       case 'querySms':
-        if (queryResult != null) return queryResult;
+        if (queryResult != null) {
+          // 与默认路径一致：已删 id 不再回传，避免删后 _load() 又把行带回来。
+          final map = Map<Object?, Object?>.from(queryResult as Map);
+          final messages = (map['messages'] as List?) ?? const [];
+          map['messages'] = [
+            for (final r in messages)
+              if (!deleted.contains((r as Map)['_id'])) r,
+          ];
+          return map;
+        }
         return {
           'messages':
               sampleRows().where((r) => !deleted.contains(r['_id'])).toList(),
@@ -96,7 +109,7 @@ void mockHomeChannel({
           }
         }
         if (onDelete != null) {
-          final n = onDelete(ids);
+          final n = await onDelete(ids);
           if (n != null) deleted.addAll(ids);
           return n;
         }

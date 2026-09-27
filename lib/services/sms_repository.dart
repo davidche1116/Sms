@@ -55,6 +55,12 @@ class SmsRepository {
   /// 也给原生侧 applyBatch 同量级分片（见 Kotlin `INSERT_CHUNK`）留了余量。
   static const int insertChunkSize = 200;
 
+  /// `deleteSmsBatchChunked` 单次通道分片条数（UI 级进度粒度）。
+  ///
+  /// 小于 Kotlin 内部 900 分片，保证大批次也能看到真实进度步进；
+  /// 单条 platform message 载荷很小，200 条远低于 Binder ~1MB 上限。
+  static const int deleteChunkSize = 200;
+
   /// 见构造参数。
   final Duration systemResponseTimeout;
 
@@ -322,6 +328,55 @@ class SmsRepository {
       debugPrint('deleteSmsBatch: $e');
       return const DeleteBatchResult.failed();
     }
+  }
+
+  /// 分块删除：按 [deleteChunkSize] 循环调用 [deleteSmsBatch]，每块完成回调
+  /// [onProgress]。混合 SMS/MMS 目标保持原序整块过通道，线协议不变。
+  ///
+  /// - 某块失败：停止后续块，返回 [DeleteStopReason.failed]。
+  /// - [shouldCancel] 置真：停止后续块（已发出的不撤回），
+  ///   返回 [DeleteStopReason.cancelled]。
+  /// - [DeleteChunkResult.deleted] 是**顺序前缀**长度，调用方可直接
+  ///   `targets.take(deleted)` 得到已删项；失败/取消块的目标不算已删。
+  Future<DeleteChunkResult> deleteSmsBatchChunked(
+    List<SmsItem> items, {
+    void Function(int done, int total)? onProgress,
+    bool Function()? shouldCancel,
+    int chunkSize = deleteChunkSize,
+  }) async {
+    final targets = [for (final e in items) if (e.id != null) e];
+    final total = targets.length;
+    if (total == 0) return const DeleteChunkResult(deleted: 0, total: 0);
+    var done = 0;
+    onProgress?.call(done, total);
+    for (var offset = 0; offset < total; offset += chunkSize) {
+      if (shouldCancel?.call() ?? false) {
+        return DeleteChunkResult(
+          deleted: done,
+          total: total,
+          reason: DeleteStopReason.cancelled,
+        );
+      }
+      final end = (offset + chunkSize).clamp(0, total);
+      final chunk = targets.sublist(offset, end);
+      final r = await deleteSmsBatch(chunk);
+      if (!r.ok) {
+        return DeleteChunkResult(
+          deleted: done,
+          total: total,
+          reason: DeleteStopReason.failed,
+        );
+      }
+      // 整块视为完成：已删或本就不在库中的行都应从列表消失。
+      done += chunk.length;
+      onProgress?.call(done, total);
+      // 让出事件循环：驱动进度帧绘制，并给「停止」点击生效的机会
+      //（连续快速回包时整段循环会挤在同一轮微任务里，UI 与取消都插不进来）。
+      if (offset + chunkSize < total) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+    return DeleteChunkResult(deleted: done, total: total);
   }
 
   /// 批量插入（导入 CSV）。仅新增，不删不改。见 [InsertBatchResult]。

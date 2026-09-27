@@ -226,6 +226,39 @@ class DeleteBatchResult {
   bool get ok => failure == null;
 }
 
+/// 分块删除停止原因（[DeleteChunkResult.reason]）。
+enum DeleteStopReason {
+  /// 全部块已发出并完成。
+  none,
+
+  /// 某块失败，其后块未发出。
+  failed,
+
+  /// 用户取消，其后块未发出（已发出的不撤回）。
+  cancelled,
+}
+
+/// `deleteSmsBatchChunked` 结果：顺序前缀式进度，中断后已删的可安全移出列表。
+class DeleteChunkResult {
+  const DeleteChunkResult({
+    required this.deleted,
+    required this.total,
+    this.reason = DeleteStopReason.none,
+  });
+
+  /// 已成功完成块的条数。块按目标列表原序发出，故等于入参可删列表的前缀长。
+  final int deleted;
+
+  /// 目标总数（已滤掉无 id 行）。
+  final int total;
+
+  /// 停止原因；[DeleteStopReason.none] 且 deleted==total 为完整成功。
+  final DeleteStopReason reason;
+
+  /// 是否完整删完。
+  bool get complete => reason == DeleteStopReason.none && deleted >= total;
+}
+
 /// `insertSmsBatch` 结果。
 ///
 /// 线协议 Map `{ok, inserted, failed, errors}`；兼容旧 `int?`（int=全成条数，

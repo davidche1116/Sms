@@ -100,8 +100,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('删除短信？'), findsOneWidget);
+    // 4 行里 1 行无 id 不可删，文案只计 3 条可删目标
     expect(
-      find.text('将删除 4 条短信。删除后不可恢复。'),
+      find.text('将删除 3 条短信。删除后不可恢复。'),
       findsOneWidget,
     );
     await tester.tap(find.text('取消'));

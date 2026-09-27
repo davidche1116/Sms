@@ -308,11 +308,41 @@ abstract class AppLocalizations {
   /// **'已完成 {progress} / {count}'**
   String deleteProgress(int progress, int count);
 
+  /// No description provided for @deleteCannotUndo.
+  ///
+  /// In zh, this message translates to:
+  /// **'已删 {count}，不可撤销'**
+  String deleteCannotUndo(int count);
+
+  /// No description provided for @deletePartialFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'已删除 {deleted} / {total} 条后失败'**
+  String deletePartialFailed(int deleted, int total);
+
+  /// No description provided for @deleteCancelled.
+  ///
+  /// In zh, this message translates to:
+  /// **'已取消，已删除 {count} 条'**
+  String deleteCancelled(int count);
+
   /// No description provided for @cancel.
   ///
   /// In zh, this message translates to:
   /// **'取消'**
   String get cancel;
+
+  /// No description provided for @stopDelete.
+  ///
+  /// In zh, this message translates to:
+  /// **'停止'**
+  String get stopDelete;
+
+  /// No description provided for @stoppingDelete.
+  ///
+  /// In zh, this message translates to:
+  /// **'停止中…'**
+  String get stoppingDelete;
 
   /// No description provided for @deleting.
   ///

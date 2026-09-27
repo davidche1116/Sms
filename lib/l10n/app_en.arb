@@ -37,7 +37,12 @@
   "deleteSmsBody": "Delete {count} message(s)? This cannot be undone.",
   "deleteLargeWarn": "Large batch (>3000). Deletion may take longer.",
   "deleteProgress": "{progress} / {count} done",
+  "deleteCannotUndo": "{count} deleted, cannot be undone",
+  "deletePartialFailed": "Failed after deleting {deleted} / {total}",
+  "deleteCancelled": "Cancelled after deleting {count}",
   "cancel": "Cancel",
+  "stopDelete": "Stop",
+  "stoppingDelete": "Stopping…",
   "deleting": "Deleting…",
   "confirmDelete": "Delete",
 

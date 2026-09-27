@@ -74,7 +74,28 @@
       "count": {"type": "int"}
     }
   },
+  "deleteCannotUndo": "已删 {count}，不可撤销",
+  "@deleteCannotUndo": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "deletePartialFailed": "已删除 {deleted} / {total} 条后失败",
+  "@deletePartialFailed": {
+    "placeholders": {
+      "deleted": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "deleteCancelled": "已取消，已删除 {count} 条",
+  "@deleteCancelled": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
   "cancel": "取消",
+  "stopDelete": "停止",
+  "stoppingDelete": "停止中…",
   "deleting": "删除中…",
   "confirmDelete": "确认删除",
 

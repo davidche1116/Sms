@@ -129,7 +129,28 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String deleteCannotUndo(int count) {
+    return '已删 $count，不可撤销';
+  }
+
+  @override
+  String deletePartialFailed(int deleted, int total) {
+    return '已删除 $deleted / $total 条后失败';
+  }
+
+  @override
+  String deleteCancelled(int count) {
+    return '已取消，已删除 $count 条';
+  }
+
+  @override
   String get cancel => '取消';
+
+  @override
+  String get stopDelete => '停止';
+
+  @override
+  String get stoppingDelete => '停止中…';
 
   @override
   String get deleting => '删除中…';
