@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../generated/app_localizations.dart';
 import '../../models/sms_item.dart';
 
 /// 列表项卡片：左滑删除（确认 + 失败回弹）、单击/长按回调、多选态左侧勾选（UI_DESIGN §6.1）。
@@ -25,6 +26,7 @@ class SmsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
     final e = item;
     return Padding(
@@ -93,7 +95,7 @@ class SmsCard extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(999),
                               ),
                               child: Text(
-                                '卡${e.sim}',
+                                l10n.simBadge(e.sim),
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,

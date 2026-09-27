@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../generated/app_localizations.dart';
 import '../models/sms_item.dart';
 
 /// 导出结果：文件与条数。
@@ -58,9 +59,9 @@ class CsvExporter {
   }
 
   /// 拉起系统分享面板。
-  static Future<void> share(CsvExportResult r) async {
+  static Future<void> share(CsvExportResult r, AppLocalizations l10n) async {
     await SharePlus.instance.share(
-      ShareParams(files: [XFile(r.file.path)], text: '已导出 ${r.count} 条短信'),
+      ShareParams(files: [XFile(r.file.path)], text: l10n.exportedShareText(r.count)),
     );
   }
 

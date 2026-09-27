@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../generated/app_localizations.dart';
 import '../../services/sms_repository.dart';
 import 'miui_notif_guide.dart';
 
@@ -70,16 +71,17 @@ class _PermissionPageState extends State<PermissionPage> {
   });
 
   Future<void> _setDefault() => _run(() async {
+    final l10n = AppLocalizations.of(context);
     final r = await widget.repo.setDefaultSms();
     await _refresh();
     if (!mounted) return;
     switch (r) {
       case DefaultSmsResult.alreadyDefault:
-        _toast('已是默认短信应用');
+        _toast(l10n.alreadyDefaultSms);
       case DefaultSmsResult.requested:
-        _toast('请在系统弹窗中点「设为默认应用」');
+        _toast(l10n.confirmSetDefaultInDialog);
       case DefaultSmsResult.timeout:
-        _toast('系统未返回结果，可在设置中手动开启');
+        _toast(l10n.systemNoResult);
       case DefaultSmsResult.error:
         await widget.repo.openDefaultSmsSettings();
     }
@@ -87,13 +89,14 @@ class _PermissionPageState extends State<PermissionPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('短信权限'),
+        title: Text(l10n.smsPermission),
         actions: [
           IconButton(
-            tooltip: '刷新状态',
+            tooltip: l10n.refreshStatus,
             onPressed: _busy ? null : _refresh,
             icon: const Icon(Icons.refresh),
           ),
@@ -115,13 +118,13 @@ class _PermissionPageState extends State<PermissionPage> {
                         ? scheme.primary
                         : const Color(0xFFE6A23C),
                   ),
-                  title: const Text('读取短信'),
+                  title: Text(l10n.readSms),
                   subtitle: Text(
                     _hasRead == true
-                        ? '已授予 · AppOps 正常'
+                        ? l10n.readGrantedAppOps
                         : _hasRead == false
-                        ? '未授予 · 无法读取短信列表'
-                        : '检查中…',
+                        ? l10n.readDeniedList
+                        : l10n.checking,
                   ),
                 ),
                 const Divider(height: 1),
@@ -134,13 +137,13 @@ class _PermissionPageState extends State<PermissionPage> {
                         ? scheme.primary
                         : const Color(0xFFE6A23C),
                   ),
-                  title: const Text('默认短信应用'),
+                  title: Text(l10n.defaultSmsApp),
                   subtitle: Text(
                     _isDefault == true
-                        ? '本应用 · 删除功能可用'
+                        ? l10n.defaultSmsDeleteOk
                         : _isDefault == false
-                        ? '非本应用 · 删除短信需要设为默认'
-                        : '检查中…',
+                        ? l10n.defaultSmsDeleteNeed
+                        : l10n.checking,
                   ),
                 ),
                 if (_isMiui) ...[
@@ -154,14 +157,14 @@ class _PermissionPageState extends State<PermissionPage> {
                           ? scheme.primary
                           : const Color(0xFFE6A23C),
                     ),
-                    title: const Text('MIUI 通知类短信'),
+                    title: Text(l10n.miuiNotifSms),
                     subtitle: Text(
                       switch (_miuiNotif) {
-                        MiuiNotifState.allow => '已允许 · 通知类短信可见',
-                        MiuiNotifState.likelyOff => '可能未开通 · 10086 等可能读不到',
+                        MiuiNotifState.allow => l10n.miuiNotifAllowed,
+                        MiuiNotifState.likelyOff => l10n.miuiNotifLikelyOff,
                         MiuiNotifState.deny ||
-                        MiuiNotifState.ignore => '未开通 · 只能读到点对点短信',
-                        MiuiNotifState.unknown => 'MIUI 附加权限 · 建议开通',
+                        MiuiNotifState.ignore => l10n.miuiNotifOff,
+                        MiuiNotifState.unknown => l10n.miuiNotifSuggest,
                       },
                     ),
                   ),
@@ -171,12 +174,7 @@ class _PermissionPageState extends State<PermissionPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            _isMiui
-                ? '读取与删除相互独立：读列表只需短信权限；删除必须是默认短信应用。'
-                    'MIUI 额外有「通知类短信」开关，不开通时 10086/银行等通知类会读不到。'
-                    '在系统中改掉默认短信后，系统可能同时收回读权限，回到本页重新申请即可。'
-                : '读取与删除相互独立：读列表只需短信权限；删除必须是默认短信应用。'
-                    '在系统中改掉默认短信后，系统可能同时收回读权限，回到本页重新申请即可。',
+            _isMiui ? l10n.permExplainMiui : l10n.permExplain,
             style: Theme.of(context).textTheme.bodyMedium
                 ?.copyWith(color: scheme.onSurfaceVariant),
           ),
@@ -184,14 +182,14 @@ class _PermissionPageState extends State<PermissionPage> {
           if (_hasRead != true) ...[
             FilledButton(
               onPressed: _busy ? null : _requestRead,
-              child: const Text('申请短信权限'),
+              child: Text(l10n.requestSmsPermission),
             ),
             const SizedBox(height: 12),
           ],
           if (_isDefault != true) ...[
             FilledButton.tonal(
               onPressed: _busy ? null : _setDefault,
-              child: const Text('设为默认短信应用'),
+              child: Text(l10n.setDefaultSms),
             ),
             const SizedBox(height: 12),
           ],
@@ -203,14 +201,16 @@ class _PermissionPageState extends State<PermissionPage> {
                       final action = await showMiuiNotificationSmsSheet(context);
                       if (action == MiuiGuideAction.openMiui) {
                         final ok = await widget.repo.openMiuiPermissionEditor();
-                        if (!ok && mounted) _toast('打开 MIUI 权限页失败');
+                        if (!ok && mounted) {
+                          _toast(l10n.openMiuiPermFailed);
+                        }
                       }
                     }),
-              child: const Text('开启 MIUI 通知类短信'),
+              child: Text(l10n.openMiuiNotifSmsBtn),
             ),
             const SizedBox(height: 12),
             Text(
-              '路径：应用信息 → 权限管理 → 其他权限 → 通知类短信',
+              l10n.miuiPath,
               style: Theme.of(context).textTheme.bodySmall
                   ?.copyWith(color: scheme.onSurfaceVariant),
             ),
@@ -221,9 +221,9 @@ class _PermissionPageState extends State<PermissionPage> {
                 ? null
                 : () => _run(() async {
                     final ok = await widget.repo.openAppSettings();
-                    if (!ok && mounted) _toast('打开应用设置失败');
+                    if (!ok && mounted) _toast(l10n.openAppSettingsFailed);
                   }),
-            child: const Text('打开应用设置'),
+            child: Text(l10n.openAppSettings),
           ),
           const SizedBox(height: 12),
           TextButton(
@@ -231,9 +231,9 @@ class _PermissionPageState extends State<PermissionPage> {
                 ? null
                 : () => _run(() async {
                     final ok = await widget.repo.openDefaultSmsSettings();
-                    if (!ok && mounted) _toast('打开默认应用设置失败');
+                    if (!ok && mounted) _toast(l10n.openDefaultSettingsFailed);
                   }),
-            child: const Text('打开系统默认应用设置'),
+            child: Text(l10n.openDefaultSmsSettings),
           ),
         ],
       ),

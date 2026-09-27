@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'features/list/home_page.dart';
+import 'generated/app_localizations.dart';
 import 'services/theme_store.dart';
 
 class SmsApp extends StatefulWidget {
-  const SmsApp({super.key});
+  const SmsApp({super.key, this.locale});
+
+  /// 强制界面语言；null 跟随系统（不支持时回退中文）。
+  final Locale? locale;
 
   @override
   State<SmsApp> createState() => _SmsAppState();
@@ -47,8 +52,26 @@ class _SmsAppState extends State<SmsApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '短信清理',
+      locale: widget.locale,
+      onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
+      localeListResolutionCallback: (deviceLocales, supported) {
+        if (widget.locale != null) return widget.locale;
+        for (final l in deviceLocales ?? const <Locale>[]) {
+          for (final s in supported) {
+            if (s.languageCode == l.languageCode) return s;
+          }
+        }
+        // 产品默认中文。
+        return const Locale('zh');
+      },
       themeMode: mode,
       theme: _theme(Brightness.light, seed),
       darkTheme: _theme(Brightness.dark, seed),

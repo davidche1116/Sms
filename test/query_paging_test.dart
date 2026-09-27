@@ -31,6 +31,12 @@ void main() {
 
   tearDown(clearAppChannelHandler);
 
+  /// 断言文案为中文，固定 locale。
+  Future<void> pumpSmsApp(WidgetTester tester) async {
+    await tester.pumpWidget(const SmsApp(locale: Locale('zh')));
+    await tester.pumpAndSettle();
+  }
+
   /// 返回每次 querySms 的 `{limit, offset}`，便于断言分页参数。
   List<Map<String, dynamic>> mockPaged({
     required List<Map<String, dynamic>> all,
@@ -71,8 +77,7 @@ void main() {
 
   testWidgets('启动加载第一页，顶栏显示已加载 X / total', (tester) async {
     final calls = mockPaged(all: buildRows(250));
-    await tester.pumpWidget(const SmsApp());
-    await tester.pumpAndSettle();
+    await pumpSmsApp(tester);
 
     expect(calls, [
       {'limit': 200, 'offset': 0},
@@ -92,8 +97,7 @@ void main() {
       all: buildRows(250),
       injectDup: (page) => page.length >= 200,
     );
-    await tester.pumpWidget(const SmsApp());
-    await tester.pumpAndSettle();
+    await pumpSmsApp(tester);
 
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -200000));
     await tester.pumpAndSettle();
@@ -108,8 +112,7 @@ void main() {
 
   testWidgets('筛选激活时补齐全量（querySms 不带 limit）', (tester) async {
     final calls = mockPaged(all: buildRows(250));
-    await tester.pumpWidget(const SmsApp());
-    await tester.pumpAndSettle();
+    await pumpSmsApp(tester);
 
     await tester.tap(find.byIcon(Icons.search));
     await tester.pumpAndSettle();

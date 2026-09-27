@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../generated/app_localizations.dart';
 import '../filter/filter_sheet.dart';
 
 /// MIUI「通知类短信」软提示横幅。
@@ -15,6 +16,7 @@ class MiuiNotifBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
@@ -33,14 +35,14 @@ class MiuiNotifBanner extends StatelessWidget {
                   size: 20,
                 ),
                 const SizedBox(width: 8),
-                const Expanded(
+                Expanded(
                   child: Text(
-                    '可能还看不到 10086 等通知短信，点此开启 MIUI「通知类短信」',
-                    style: TextStyle(fontSize: 13),
+                    l10n.miuiBanner,
+                    style: const TextStyle(fontSize: 13),
                   ),
                 ),
                 IconButton(
-                  tooltip: '不再提示',
+                  tooltip: l10n.dismissHint,
                   icon: const Icon(Icons.close, size: 18),
                   onPressed: onDismiss,
                 ),
@@ -66,6 +68,7 @@ class FilterChipsBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Wrap(
@@ -74,7 +77,7 @@ class FilterChipsBar extends StatelessWidget {
         children: [
           if (filter.sameAddress != null)
             Chip(
-              label: Text('同号 ${filter.sameAddress}'),
+              label: Text(l10n.sameAddressChip(filter.sameAddress!)),
               onDeleted: () {
                 filter.sameAddress = null;
                 onChanged();
@@ -83,7 +86,7 @@ class FilterChipsBar extends StatelessWidget {
             ),
           if (filter.sameSim != null)
             Chip(
-              label: Text('同卡 ${filter.sameSim}'),
+              label: Text(l10n.sameSimChip(filter.sameSim!)),
               onDeleted: () {
                 filter.sameSim = null;
                 onChanged();
@@ -92,7 +95,7 @@ class FilterChipsBar extends StatelessWidget {
             ),
           if (filter.keyword.isNotEmpty)
             Chip(
-              label: Text('“${filter.keyword}”'),
+              label: Text(l10n.keywordChip(filter.keyword)),
               onDeleted: () {
                 filter.keyword = '';
                 onChanged();
@@ -114,7 +117,9 @@ class FilterChipsBar extends StatelessWidget {
             ),
           if (filter.type != 0)
             Chip(
-              label: Text(filter.type == 1 ? '仅收件箱' : '仅已发送'),
+              label: Text(
+                filter.type == 1 ? l10n.typeInbox : l10n.typeSent,
+              ),
               onDeleted: () {
                 filter.type = 0;
                 onChanged();
@@ -122,7 +127,7 @@ class FilterChipsBar extends StatelessWidget {
               deleteIcon: const Icon(Icons.close, size: 18),
             ),
           ActionChip(
-            label: const Text('清除全部'),
+            label: Text(l10n.clearAllFilters),
             onPressed: () {
               filter.reset();
               onChanged();

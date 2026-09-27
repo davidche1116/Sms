@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../generated/app_localizations.dart';
 import '../../theme/tokens.dart';
 
 /// 主题色选择页：预设 8 色 + 自定义 hex + 实时换肤（UI_DESIGN §6.5）。
@@ -43,29 +44,35 @@ class _ThemePageState extends State<ThemePage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('主题色')),
+      appBar: AppBar(title: Text(l10n.themeColor)),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
           Text(
-            '选择强调色，立即作用于主按钮、选中项与图标。',
+            l10n.themeHint,
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 16),
-          Text('预设', style: Theme.of(context).textTheme.labelLarge),
+          Text(l10n.preset, style: Theme.of(context).textTheme.labelLarge),
           const SizedBox(height: 12),
           Wrap(
             spacing: 14,
             runSpacing: 14,
             children: [
               for (final (name, color) in kSeedPresets)
-                _swatch(name, color, color.toARGB32() == _color.toARGB32()),
+                _swatch(
+                  l10n,
+                  name,
+                  color,
+                  color.toARGB32() == _color.toARGB32(),
+                ),
             ],
           ),
           const SizedBox(height: 24),
-          Text('自定义', style: Theme.of(context).textTheme.labelLarge),
+          Text(l10n.custom, style: Theme.of(context).textTheme.labelLarge),
           const SizedBox(height: 12),
           Card(
             margin: EdgeInsets.zero,
@@ -88,8 +95,8 @@ class _ThemePageState extends State<ThemePage> {
                       Expanded(
                         child: TextField(
                           controller: _hex,
-                          decoration: const InputDecoration(
-                            labelText: '颜色值',
+                          decoration: InputDecoration(
+                            labelText: l10n.colorValue,
                             hintText: '#2BAE67',
                           ),
                           onChanged: (v) {
@@ -109,20 +116,20 @@ class _ThemePageState extends State<ThemePage> {
                       final c = _parseHex(_hex.text);
                       if (c == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('请输入合法颜色值，如 #2BAE67')),
+                          SnackBar(content: Text(l10n.invalidColor)),
                         );
                         return;
                       }
                       _set(c);
                     },
-                    child: const Text('应用自定义颜色'),
+                    child: Text(l10n.applyCustomColor),
                   ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 24),
-          Text('预览', style: Theme.of(context).textTheme.labelLarge),
+          Text(l10n.preview, style: Theme.of(context).textTheme.labelLarge),
           const SizedBox(height: 12),
           Card(
             margin: EdgeInsets.zero,
@@ -131,13 +138,13 @@ class _ThemePageState extends State<ThemePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  FilledButton(onPressed: () {}, child: const Text('主按钮示例')),
+                  FilledButton(onPressed: () {}, child: Text(l10n.primaryButtonSample)),
                   const SizedBox(height: 12),
-                  const Wrap(
+                  Wrap(
                     spacing: 8,
                     children: [
-                      Chip(label: Text('筛选 Chip')),
-                      Chip(label: Text('同号 10086')),
+                      Chip(label: Text(l10n.filterChipSample)),
+                      Chip(label: Text(l10n.sameAddressSample)),
                     ],
                   ),
                 ],
@@ -149,9 +156,14 @@ class _ThemePageState extends State<ThemePage> {
     );
   }
 
-  Widget _swatch(String name, Color color, bool selected) {
+  Widget _swatch(
+    AppLocalizations l10n,
+    String name,
+    Color color,
+    bool selected,
+  ) {
     return Tooltip(
-      message: name,
+      message: seedDisplayName(l10n, name),
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: () => _set(color),

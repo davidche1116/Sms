@@ -1,33 +1,34 @@
+import '../generated/app_localizations.dart';
 import '../models/sms_item.dart';
 import 'csv_exporter.dart';
 import 'csv_importer.dart';
 import 'sms_repository.dart';
 
-/// 导出失败 / 空列表的统一 toast 文案。
-const kExportFailedMessage = '导出失败，请重试';
-const kExportEmptyMessage = '没有可导出的短信';
-
 /// 导出全量短信 CSV 并拉起系统分享。
 ///
 /// 必须覆盖全库，不能只用已加载分页。返回 null=成功（分享面板即反馈）；
 /// 否则为统一 toast 文案。不外抛。
-Future<String?> exportAll(SmsRepository repo) async {
+Future<String?> exportAll(SmsRepository repo, AppLocalizations l10n) async {
   try {
-    return await exportItems(await repo.queryAll());
+    return await exportItems(await repo.queryAll(), l10n);
   } catch (_) {
-    return kExportFailedMessage;
+    return l10n.exportFailedRetry;
   }
 }
 
 /// 导出指定条目并分享（多选导出用）。返回值语义同 [exportAll]。
-Future<String?> exportItems(List<SmsItem> items, {String tag = 'all'}) async {
+Future<String?> exportItems(
+  List<SmsItem> items,
+  AppLocalizations l10n, {
+  String tag = 'all',
+}) async {
   try {
-    if (items.isEmpty) return kExportEmptyMessage;
+    if (items.isEmpty) return l10n.exportEmpty;
     final r = await CsvExporter.export(items, tag: tag);
-    await CsvExporter.share(r);
+    await CsvExporter.share(r, l10n);
     return null;
   } catch (_) {
-    return kExportFailedMessage;
+    return l10n.exportFailedRetry;
   }
 }
 
@@ -49,17 +50,17 @@ Future<CsvImportResult> importCsv(SmsRepository repo) async {
 /// 导入结果 → toast 文案的唯一出口。
 ///
 /// 部分成功：「已导入 16 / 18 条（2 条失败）」；全成：「已导入 18 / 18 条」。
-String importMessage(CsvImportResult r) {
-  if (r.error == CsvImportError.cancelled) return '已取消导入';
-  if (r.notDefault) return '导入需先设为默认短信应用';
+String importMessage(CsvImportResult r, AppLocalizations l10n) {
+  if (r.error == CsvImportError.cancelled) return l10n.importCancelled;
+  if (r.notDefault) return l10n.importNeedDefault;
   if (!r.ok) {
     // 未知/意外失败给可重试提示，其余用枚举自带文案。
     return r.error == null || r.error == CsvImportError.unknown
-        ? '导入失败，请重试'
-        : '导入失败：${r.error!.message}';
+        ? l10n.importFailedRetry
+        : l10n.importFailedWith(r.error!.messageOf(l10n));
   }
   if (r.failed > 0) {
-    return '已导入 ${r.inserted} / ${r.parsed} 条（${r.failed} 条失败）';
+    return l10n.importedPartial(r.inserted, r.parsed, r.failed);
   }
-  return '已导入 ${r.inserted} / ${r.parsed} 条';
+  return l10n.importedAll(r.inserted, r.parsed);
 }

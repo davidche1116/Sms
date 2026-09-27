@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../generated/app_localizations.dart';
+
 /// 空态三态：需要权限 / 筛选无果 / 没有短信（UI_DESIGN §6.6）。
 class EmptyView extends StatelessWidget {
   const EmptyView({
@@ -17,6 +19,7 @@ class EmptyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
@@ -44,19 +47,19 @@ class EmptyView extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               needPermission
-                  ? '需要短信权限'
+                  ? l10n.needPermissionTitle
                   : filterActive
-                  ? '没有匹配的短信'
-                  : '没有短信',
+                  ? l10n.noMatchTitle
+                  : l10n.emptyTitle,
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
             Text(
               needPermission
-                  ? '授予读取短信权限后可浏览、搜索与导出；删除还需设为默认短信应用。'
+                  ? l10n.needPermissionBody
                   : filterActive
-                  ? '可以清除筛选后重试。'
-                  : '下拉可重新加载。',
+                  ? l10n.noMatchBody
+                  : l10n.emptyBody,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium
                   ?.copyWith(color: scheme.onSurfaceVariant),
@@ -66,17 +69,17 @@ class EmptyView extends StatelessWidget {
               onPressed: onAction,
               child: Text(
                 needPermission
-                    ? '申请短信权限'
+                    ? l10n.requestSmsPermission
                     : filterActive
-                    ? '清除筛选条件'
-                    : '重新加载',
+                    ? l10n.clearFilters
+                    : l10n.reload,
               ),
             ),
             if (needPermission && onSecondary != null) ...[
               const SizedBox(height: 12),
               OutlinedButton(
                 onPressed: onSecondary,
-                child: const Text('设为默认短信应用（删除需要）'),
+                child: Text(l10n.setDefaultForDelete),
               ),
             ],
           ],

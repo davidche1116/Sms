@@ -1,0 +1,287 @@
+{
+  "@@locale": "zh",
+  "appTitle": "短信清理",
+  "homeTitle": "短信",
+  "selectedCount": "已选 {count}",
+  "@selectedCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "loadedPartial": "已加载 {loaded} / {total} 条",
+  "@loadedPartial": {
+    "placeholders": {
+      "loaded": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "loadedCount": "已加载 {loaded} 条",
+  "@loadedCount": {
+    "placeholders": {
+      "loaded": {"type": "int"}
+    }
+  },
+  "messageCount": "{count} 条",
+  "@messageCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "selectAll": "全选",
+  "searchFilter": "搜索 / 筛选",
+  "settings": "设置",
+  "more": "更多",
+  "exportSelected": "导出选中",
+  "deleteSelected": "删除选中",
+  "queryFailedRetry": "查询失败，下拉或点重试",
+  "deleteFailedNeedDefault": "删除失败：请先设为默认短信应用",
+  "deletedCount": "已删除 {count} 条",
+  "@deletedCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "alreadyDefaultSms": "已是默认短信应用",
+  "confirmInSystemDialog": "请在系统弹窗中确认",
+  "confirmSetDefaultInDialog": "请在系统弹窗中点「设为默认应用」",
+  "systemNoResult": "系统未返回结果，可在设置中手动开启",
+  "removedFromList": "已移出列表",
+  "nothingToDelete": "没有可删除的短信",
+
+  "needPermissionTitle": "需要短信权限",
+  "noMatchTitle": "没有匹配的短信",
+  "emptyTitle": "没有短信",
+  "needPermissionBody": "授予读取短信权限后可浏览、搜索与导出；删除还需设为默认短信应用。",
+  "noMatchBody": "可以清除筛选后重试。",
+  "emptyBody": "下拉可重新加载。",
+  "requestSmsPermission": "申请短信权限",
+  "clearFilters": "清除筛选条件",
+  "reload": "重新加载",
+  "setDefaultForDelete": "设为默认短信应用（删除需要）",
+
+  "deleteSmsTitle": "删除短信？",
+  "deleteSmsBody": "将删除 {count} 条短信。删除后不可恢复。",
+  "@deleteSmsBody": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "deleteLargeWarn": "数量较大（>3000），删除可能需要更久。",
+  "deleteProgress": "已完成 {progress} / {count}",
+  "@deleteProgress": {
+    "placeholders": {
+      "progress": {"type": "int"},
+      "count": {"type": "int"}
+    }
+  },
+  "cancel": "取消",
+  "deleting": "删除中…",
+  "confirmDelete": "确认删除",
+
+  "keywordLabel": "关键词",
+  "startDate": "开始日期",
+  "endDate": "结束日期",
+  "typeLabel": "类型",
+  "typeAll": "全部",
+  "typeInbox": "仅收件箱",
+  "typeSent": "仅已发送",
+  "reset": "重置",
+  "done": "完成",
+  "sameAddressChip": "同号 {address}",
+  "@sameAddressChip": {
+    "placeholders": {
+      "address": {"type": "String"}
+    }
+  },
+  "sameSimChip": "同卡 {sim}",
+  "@sameSimChip": {
+    "placeholders": {
+      "sim": {"type": "int"}
+    }
+  },
+  "keywordChip": "“{keyword}”",
+  "@keywordChip": {
+    "placeholders": {
+      "keyword": {"type": "String"}
+    }
+  },
+  "clearAllFilters": "清除全部",
+
+  "exportAllCsv": "导出全部 CSV",
+  "importCsv": "导入 CSV",
+  "importCsvHint": "写入系统短信库（需设为默认）",
+  "multiSelect": "多选",
+
+  "simTime": "卡{sim} · {time}",
+  "@simTime": {
+    "placeholders": {
+      "sim": {"type": "int"},
+      "time": {"type": "String"}
+    }
+  },
+  "simBadge": "卡{sim}",
+  "@simBadge": {
+    "placeholders": {
+      "sim": {"type": "int"}
+    }
+  },
+  "sameAddressSms": "同号短信",
+  "sameAddressHint": "只看这个号码的全部短信",
+  "sameSimSms": "同卡短信",
+  "copyAddress": "复制号码",
+  "copiedAddress": "已复制号码",
+  "copyBody": "复制正文",
+  "copiedBody": "已复制正文",
+  "delete": "删除",
+  "deleteOneHint": "删除这一条，删除前确认",
+  "hideFromList": "移出列表",
+  "hideFromListHint": "仅本地隐藏；悬浮球删除不会带上它们",
+
+  "miuiBanner": "可能还看不到 10086 等通知短信，点此开启 MIUI「通知类短信」",
+  "dismissHint": "不再提示",
+  "miuiGuideTitle": "还要开启「通知类短信」",
+  "miuiGuideBody": "MIUI 将 10086、银行等通知短信单独管控。请在下一页打开：权限管理 → 其他权限 → 通知类短信。",
+  "openMiuiNotifSms": "去开启通知类短信",
+  "later": "稍后再说",
+  "stillNoPermission": "仍未获得权限，可到系统设置开启",
+  "smsReadable": "已可读取短信",
+  "openMiuiPermFailed": "打开 MIUI 权限页失败",
+
+  "sectionAppearance": "外观",
+  "themeColor": "主题色",
+  "darkMode": "深色模式",
+  "themeSystem": "跟随系统",
+  "themeLight": "浅色",
+  "themeDark": "深色",
+  "sectionPermissions": "权限",
+  "smsPermission": "短信权限",
+  "smsPermissionGranted": "已授予 · 用于读取与导出",
+  "smsPermissionDenied": "未授予 · 点击查看与申请",
+  "checking": "检查中…",
+  "defaultSmsApp": "默认短信应用",
+  "defaultSmsIsThisApp": "本应用 · 点击可还原系统短信",
+  "defaultSmsNotThisApp": "非本应用 · 点击设为默认（删除需要）",
+  "autoRepair": "一键检查并修复",
+  "autoRepairHint": "依次申请读权限、设为默认短信",
+  "sectionData": "数据",
+  "exportSmsCsv": "导出短信 CSV",
+  "exporting": "导出中…",
+  "exportSmsHint": "导出全部短信到文件并分享",
+  "importSmsCsv": "导入短信 CSV",
+  "importing": "导入中…",
+  "importSmsHint": "只新增入库，需设为默认短信应用",
+  "resetHiddenList": "重置本地隐藏列表",
+  "noHidden": "暂无已移出的短信",
+  "hiddenCountLabel": "已移出 {count} 条，重置后重新显示",
+  "@hiddenCountLabel": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "sectionAbout": "关于",
+  "version": "版本",
+  "privacy": "隐私说明",
+  "privacyHint": "数据仅在本机处理",
+  "privacyToast": "数据仅在本机处理，不上传、不收集",
+  "footerTagline": "短信清理 · 本地工具",
+
+  "deleteAvailable": "删除短信功能可用",
+  "restoreSystemSms": "还原为系统短信",
+  "restoreSystemSmsHint": "打开系统「默认应用」设置，手动选择「信息」",
+  "keepAsIs": "保持现状",
+  "openedDefaultSettingsPickOther": "已打开系统默认应用设置，请选择其他短信应用",
+  "notDefaultNow": "当前不是默认短信应用",
+  "openSettingsFailed": "打开设置失败",
+  "openedDefaultSettings": "已打开系统默认应用设置",
+  "autoRepairReady": "已就绪：可读可删",
+  "autoRepairIncomplete": "仍有项目未就绪，请检查上方状态",
+  "hiddenListReset": "已重置本地隐藏列表",
+
+  "refreshStatus": "刷新状态",
+  "readSms": "读取短信",
+  "readGrantedAppOps": "已授予 · AppOps 正常",
+  "readDeniedList": "未授予 · 无法读取短信列表",
+  "defaultSmsDeleteOk": "本应用 · 删除功能可用",
+  "defaultSmsDeleteNeed": "非本应用 · 删除短信需要设为默认",
+  "miuiNotifSms": "MIUI 通知类短信",
+  "miuiNotifAllowed": "已允许 · 通知类短信可见",
+  "miuiNotifLikelyOff": "可能未开通 · 10086 等可能读不到",
+  "miuiNotifOff": "未开通 · 只能读到点对点短信",
+  "miuiNotifSuggest": "MIUI 附加权限 · 建议开通",
+  "permExplainMiui": "读取与删除相互独立：读列表只需短信权限；删除必须是默认短信应用。MIUI 额外有「通知类短信」开关，不开通时 10086/银行等通知类会读不到。在系统中改掉默认短信后，系统可能同时收回读权限，回到本页重新申请即可。",
+  "permExplain": "读取与删除相互独立：读列表只需短信权限；删除必须是默认短信应用。在系统中改掉默认短信后，系统可能同时收回读权限，回到本页重新申请即可。",
+  "setDefaultSms": "设为默认短信应用",
+  "openMiuiNotifSmsBtn": "开启 MIUI 通知类短信",
+  "miuiPath": "路径：应用信息 → 权限管理 → 其他权限 → 通知类短信",
+  "openAppSettings": "打开应用设置",
+  "openDefaultSmsSettings": "打开系统默认应用设置",
+  "openAppSettingsFailed": "打开应用设置失败",
+  "openDefaultSettingsFailed": "打开默认应用设置失败",
+
+  "themeHint": "选择强调色，立即作用于主按钮、选中项与图标。",
+  "preset": "预设",
+  "custom": "自定义",
+  "colorValue": "颜色值",
+  "invalidColor": "请输入合法颜色值，如 #2BAE67",
+  "applyCustomColor": "应用自定义颜色",
+  "preview": "预览",
+  "primaryButtonSample": "主按钮示例",
+  "filterChipSample": "筛选 Chip",
+  "sameAddressSample": "同号 10086",
+
+  "seedGreen": "绿",
+  "seedBlue": "蓝",
+  "seedPurple": "紫",
+  "seedOrange": "橙",
+  "seedRed": "红",
+  "seedCyan": "青",
+  "seedPink": "粉",
+  "seedGraphite": "石墨",
+
+  "dayUnknown": "未知",
+  "dayToday": "今天",
+  "dayYesterday": "昨天",
+
+  "exportFailedRetry": "导出失败，请重试",
+  "exportEmpty": "没有可导出的短信",
+  "exportedShareText": "已导出 {count} 条短信",
+  "@exportedShareText": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "importCancelled": "已取消导入",
+  "importReadFailed": "读取文件失败",
+  "importEmptyFile": "文件中没有可导入的短信",
+  "importUnknown": "未知错误",
+  "importNeedDefault": "导入需先设为默认短信应用",
+  "importFailedRetry": "导入失败，请重试",
+  "importFailedWith": "导入失败：{error}",
+  "@importFailedWith": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+  "importedPartial": "已导入 {inserted} / {parsed} 条（{failed} 条失败）",
+  "@importedPartial": {
+    "placeholders": {
+      "inserted": {"type": "int"},
+      "parsed": {"type": "int"},
+      "failed": {"type": "int"}
+    }
+  },
+  "importedAll": "已导入 {inserted} / {parsed} 条",
+  "@importedAll": {
+    "placeholders": {
+      "inserted": {"type": "int"},
+      "parsed": {"type": "int"}
+    }
+  },
+  "errorSummaryMore": " 等 {count} 条",
+  "@errorSummaryMore": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "errorSummarySeparator": "；"
+}

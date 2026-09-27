@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 
+import '../generated/app_localizations.dart';
 import '../models/sms_item.dart';
 import 'sms_repository.dart';
 
@@ -48,11 +49,11 @@ enum CsvImportError {
   /// 其他未知失败。
   unknown;
 
-  String get message => switch (this) {
-    CsvImportError.cancelled => '已取消导入',
-    CsvImportError.readFailed => '读取文件失败',
-    CsvImportError.empty => '文件中没有可导入的短信',
-    CsvImportError.unknown => '未知错误',
+  String messageOf(AppLocalizations l10n) => switch (this) {
+    CsvImportError.cancelled => l10n.importCancelled,
+    CsvImportError.readFailed => l10n.importReadFailed,
+    CsvImportError.empty => l10n.importEmptyFile,
+    CsvImportError.unknown => l10n.importUnknown,
   };
 }
 
@@ -84,13 +85,15 @@ class CsvImportResult {
   bool get ok => error == null && !notDefault;
 
   /// 失败摘要（最多 3 条），供 toast/日志；无失败时为空串。
-  String get errorSummary {
+  String errorSummaryOf(AppLocalizations l10n) {
     if (rowErrors.isEmpty) return '';
     final shown = rowErrors.take(3).map((e) {
       final msg = e.message?.trim();
       return (msg == null || msg.isEmpty) ? e.code : '${e.code}: $msg';
-    }).join('；');
-    final more = rowErrors.length > 3 ? ' 等 ${rowErrors.length} 条' : '';
+    }).join(l10n.errorSummarySeparator);
+    final more = rowErrors.length > 3
+        ? l10n.errorSummaryMore(rowErrors.length)
+        : '';
     return shown + more;
   }
 }

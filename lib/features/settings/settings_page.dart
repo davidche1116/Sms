@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../../generated/app_localizations.dart';
 import '../../services/hidden_store.dart';
 import '../../services/sms_data_service.dart';
 import '../../services/sms_repository.dart';
@@ -86,32 +87,36 @@ class _SettingsPageState extends State<SettingsPage> {
 
   /// 已是默认时：明确提供「去系统设置换回系统短信」。
   Future<void> _onDefaultSmsRow() async {
+    final l10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     if (_isDefault == true) {
       final go = await showModalBottomSheet<bool>(
         context: context,
         showDragHandle: true,
-        builder: (ctx) => SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const ListTile(
-                title: Text('已是默认短信应用'),
-                subtitle: Text('删除短信功能可用'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.settings_backup_restore),
-                title: const Text('还原为系统短信'),
-                subtitle: const Text('打开系统「默认应用」设置，手动选择「信息」'),
-                onTap: () => Navigator.pop(ctx, true),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('保持现状'),
-              ),
-            ],
-          ),
-        ),
+        builder: (ctx) {
+          final sheetL10n = AppLocalizations.of(ctx);
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  title: Text(sheetL10n.alreadyDefaultSms),
+                  subtitle: Text(sheetL10n.deleteAvailable),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.settings_backup_restore),
+                  title: Text(sheetL10n.restoreSystemSms),
+                  subtitle: Text(sheetL10n.restoreSystemSmsHint),
+                  onTap: () => Navigator.pop(ctx, true),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: Text(sheetL10n.keepAsIs),
+                ),
+              ],
+            ),
+          );
+        },
       );
       if (go != true) return;
       final r = await widget.repo.restoreDefaultSms();
@@ -121,9 +126,9 @@ class _SettingsPageState extends State<SettingsPage> {
           SnackBar(
             content: Text(switch (r) {
               RestoreDefaultResult.openedSettings =>
-                '已打开系统默认应用设置，请选择其他短信应用',
-              RestoreDefaultResult.notDefault => '当前不是默认短信应用',
-              RestoreDefaultResult.error => '打开设置失败',
+                l10n.openedDefaultSettingsPickOther,
+              RestoreDefaultResult.notDefault => l10n.notDefaultNow,
+              RestoreDefaultResult.error => l10n.openSettingsFailed,
             }),
           ),
         );
@@ -134,10 +139,10 @@ class _SettingsPageState extends State<SettingsPage> {
         ..showSnackBar(
           SnackBar(
             content: Text(switch (r) {
-              DefaultSmsResult.alreadyDefault => '已是默认短信应用',
-              DefaultSmsResult.requested => '请在系统弹窗中点「设为默认应用」',
-              DefaultSmsResult.timeout => '系统未返回结果，可在设置中手动开启',
-              DefaultSmsResult.error => '已打开系统默认应用设置',
+              DefaultSmsResult.alreadyDefault => l10n.alreadyDefaultSms,
+              DefaultSmsResult.requested => l10n.confirmSetDefaultInDialog,
+              DefaultSmsResult.timeout => l10n.systemNoResult,
+              DefaultSmsResult.error => l10n.openedDefaultSettings,
             }),
           ),
         );
@@ -149,6 +154,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   /// 一键检查并修复：缺读权限先申请（MIUI 自动跟通知类短信引导），非默认再拉起角色申请。
   Future<void> _autoRepair() async {
+    final l10n = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     if (_hasRead != true) {
       await requestReadSmsWithMiuiGuide(context, widget.repo);
@@ -172,7 +178,7 @@ class _SettingsPageState extends State<SettingsPage> {
       ..clearSnackBars()
       ..showSnackBar(
         SnackBar(
-          content: Text(ok ? '已就绪：可读可删' : '仍有项目未就绪，请检查上方状态'),
+          content: Text(ok ? l10n.autoRepairReady : l10n.autoRepairIncomplete),
         ),
       );
   }
@@ -180,9 +186,10 @@ class _SettingsPageState extends State<SettingsPage> {
   /// 导出全部短信 CSV（查库 → 写文件 → 分享）。
   Future<void> _exportAll() async {
     if (_exporting) return;
+    final l10n = AppLocalizations.of(context);
     setState(() => _exporting = true);
     try {
-      final msg = await exportAll(widget.repo);
+      final msg = await exportAll(widget.repo, l10n);
       if (mounted && msg != null) _toast(msg);
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -192,11 +199,12 @@ class _SettingsPageState extends State<SettingsPage> {
   /// 导入 CSV：只新增写入系统短信库。
   Future<void> _importCsv() async {
     if (_exporting) return;
+    final l10n = AppLocalizations.of(context);
     setState(() => _exporting = true);
     try {
       final r = await importCsv(widget.repo);
       if (!mounted) return;
-      _toast(importMessage(r));
+      _toast(importMessage(r, l10n));
       if (r.ok) await widget.onDataChanged?.call();
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -205,27 +213,30 @@ class _SettingsPageState extends State<SettingsPage> {
 
   /// 清空本地隐藏列表，被移出的短信重新显示。
   Future<void> _resetHidden() async {
+    final l10n = AppLocalizations.of(context);
     await widget.hiddenStore.clear();
     await _refreshHiddenCount();
     await widget.onDataChanged?.call();
-    _toast('已重置本地隐藏列表');
+    if (!mounted) return;
+    _toast(l10n.hiddenListReset);
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('设置')),
+      appBar: AppBar(title: Text(l10n.settings)),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          _section(context, '外观'),
+          _section(context, l10n.sectionAppearance),
           _group([
             _row(
               icon: Icons.palette_outlined,
               iconBg: scheme.primary,
-              title: '主题色',
-              value: _seedName(widget.seed),
+              title: l10n.themeColor,
+              value: _seedName(l10n, widget.seed),
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -239,26 +250,26 @@ class _SettingsPageState extends State<SettingsPage> {
             _row(
               icon: Icons.dark_mode_outlined,
               iconBg: const Color(0xFF546E7A),
-              title: '深色模式',
+              title: l10n.darkMode,
               value: switch (widget.mode) {
-                ThemeMode.system => '跟随系统',
-                ThemeMode.light => '浅色',
-                ThemeMode.dark => '深色',
+                ThemeMode.system => l10n.themeSystem,
+                ThemeMode.light => l10n.themeLight,
+                ThemeMode.dark => l10n.themeDark,
               },
               onTap: () => _pickMode(context),
             ),
           ]),
-          _section(context, '权限'),
+          _section(context, l10n.sectionPermissions),
           _group([
             _row(
               icon: Icons.lock_outline,
               iconBg: const Color(0xFFE6A23C),
-              title: '短信权限',
+              title: l10n.smsPermission,
               subtitle: _hasRead == true
-                  ? '已授予 · 用于读取与导出'
+                  ? l10n.smsPermissionGranted
                   : _hasRead == false
-                  ? '未授予 · 点击查看与申请'
-                  : '检查中…',
+                  ? l10n.smsPermissionDenied
+                  : l10n.checking,
               trailing: Icon(
                 _hasRead == true
                     ? Icons.check_circle
@@ -279,12 +290,12 @@ class _SettingsPageState extends State<SettingsPage> {
             _row(
               icon: Icons.sms_outlined,
               iconBg: scheme.primary,
-              title: '默认短信应用',
+              title: l10n.defaultSmsApp,
               subtitle: _isDefault == true
-                  ? '本应用 · 点击可还原系统短信'
+                  ? l10n.defaultSmsIsThisApp
                   : _isDefault == false
-                  ? '非本应用 · 点击设为默认（删除需要）'
-                  : '检查中…',
+                  ? l10n.defaultSmsNotThisApp
+                  : l10n.checking,
               trailing: Icon(
                 _isDefault == true
                     ? Icons.check_circle
@@ -297,57 +308,57 @@ class _SettingsPageState extends State<SettingsPage> {
             _row(
               icon: Icons.build_outlined,
               iconBg: const Color(0xFF42A5F5),
-              title: '一键检查并修复',
-              subtitle: '依次申请读权限、设为默认短信',
+              title: l10n.autoRepair,
+              subtitle: l10n.autoRepairHint,
               onTap: _autoRepair,
             ),
           ]),
-          _section(context, '数据'),
+          _section(context, l10n.sectionData),
           _group([
             _row(
               icon: Icons.ios_share,
               iconBg: const Color(0xFF42A5F5),
-              title: '导出短信 CSV',
-              subtitle: _exporting ? '导出中…' : '导出全部短信到文件并分享',
+              title: l10n.exportSmsCsv,
+              subtitle: _exporting ? l10n.exporting : l10n.exportSmsHint,
               onTap: _exporting ? null : _exportAll,
             ),
             _row(
               icon: Icons.upload_file_outlined,
               iconBg: const Color(0xFF66BB6A),
-              title: '导入短信 CSV',
-              subtitle: _exporting ? '导入中…' : '只新增入库，需设为默认短信应用',
+              title: l10n.importSmsCsv,
+              subtitle: _exporting ? l10n.importing : l10n.importSmsHint,
               onTap: _exporting ? null : _importCsv,
             ),
             _row(
               icon: Icons.visibility_off_outlined,
               iconBg: const Color(0xFF8D6E63),
-              title: '重置本地隐藏列表',
+              title: l10n.resetHiddenList,
               subtitle: _hiddenCount == 0
-                  ? '暂无已移出的短信'
-                  : '已移出 $_hiddenCount 条，重置后重新显示',
+                  ? l10n.noHidden
+                  : l10n.hiddenCountLabel(_hiddenCount),
               onTap: _hiddenCount == 0 ? null : _resetHidden,
             ),
           ]),
-          _section(context, '关于'),
+          _section(context, l10n.sectionAbout),
           _group([
             _row(
               icon: Icons.info_outline,
               iconBg: const Color(0xFF8D6E63),
-              title: '版本',
+              title: l10n.version,
               value: _version,
             ),
             _row(
               icon: Icons.privacy_tip_outlined,
               iconBg: const Color(0xFF7E57C2),
-              title: '隐私说明',
-              subtitle: '数据仅在本机处理',
-              onTap: () => _toast('数据仅在本机处理，不上传、不收集'),
+              title: l10n.privacy,
+              subtitle: l10n.privacyHint,
+              onTap: () => _toast(l10n.privacyToast),
             ),
           ]),
           const SizedBox(height: 24),
           Center(
             child: Text(
-              '短信清理 · 本地工具',
+              l10n.footerTagline,
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
@@ -356,10 +367,10 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  String _seedName(Color c) {
+  String _seedName(AppLocalizations l10n, Color c) {
     final argb = c.toARGB32();
     for (final p in kSeedPresets) {
-      if (p.$2.toARGB32() == argb) return p.$1;
+      if (p.$2.toARGB32() == argb) return seedDisplayName(l10n, p.$1);
     }
     return '#${argb.toRadixString(16).substring(2).toUpperCase()}';
   }
@@ -368,23 +379,26 @@ class _SettingsPageState extends State<SettingsPage> {
     final m = await showModalBottomSheet<ThemeMode>(
       context: context,
       showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final (label, value) in [
-              ('跟随系统', ThemeMode.system),
-              ('浅色', ThemeMode.light),
-              ('深色', ThemeMode.dark),
-            ])
-              ListTile(
-                title: Text(label),
-                trailing: widget.mode == value ? const Icon(Icons.check) : null,
-                onTap: () => Navigator.pop(ctx, value),
-              ),
-          ],
-        ),
-      ),
+      builder: (ctx) {
+        final sheetL10n = AppLocalizations.of(ctx);
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final (label, value) in [
+                (sheetL10n.themeSystem, ThemeMode.system),
+                (sheetL10n.themeLight, ThemeMode.light),
+                (sheetL10n.themeDark, ThemeMode.dark),
+              ])
+                ListTile(
+                  title: Text(label),
+                  trailing: widget.mode == value ? const Icon(Icons.check) : null,
+                  onTap: () => Navigator.pop(ctx, value),
+                ),
+            ],
+          ),
+        );
+      },
     );
     if (m != null) widget.onThemeChanged(null, m);
   }

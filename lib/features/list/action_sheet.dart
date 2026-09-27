@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../generated/app_localizations.dart';
 import '../../models/sms_item.dart';
 
 /// 列表项动作 Sheet（UI_DESIGN §6.1b）。
@@ -16,6 +17,7 @@ Future<void> showSmsActionSheet(
     context: context,
     isScrollControlled: true,
     builder: (ctx) {
+      final l10n = AppLocalizations.of(ctx);
       final pad = MediaQuery.paddingOf(ctx).bottom;
       void toast(String msg) {
         ScaffoldMessenger.of(ctx)
@@ -52,14 +54,14 @@ Future<void> showSmsActionSheet(
                       e.address,
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
-                    subtitle: Text('卡${e.sim} · ${e.time}'),
+                    subtitle: Text(l10n.simTime(e.sim, e.time)),
                   ),
                   const Divider(height: 1),
                   ListTile(
                     dense: true,
                     leading: const Icon(Icons.tag),
-                    title: const Text('同号短信'),
-                    subtitle: const Text('只看这个号码的全部短信'),
+                    title: Text(l10n.sameAddressSms),
+                    subtitle: Text(l10n.sameAddressHint),
                     onTap: () {
                       Navigator.pop(ctx);
                       onSameAddress(e.address);
@@ -68,7 +70,7 @@ Future<void> showSmsActionSheet(
                   ListTile(
                     dense: true,
                     leading: const Icon(Icons.sim_card_outlined),
-                    title: const Text('同卡短信'),
+                    title: Text(l10n.sameSimSms),
                     onTap: () {
                       Navigator.pop(ctx);
                       onSameSim(e.sim);
@@ -77,21 +79,21 @@ Future<void> showSmsActionSheet(
                   ListTile(
                     dense: true,
                     leading: const Icon(Icons.copy_outlined),
-                    title: const Text('复制号码'),
+                    title: Text(l10n.copyAddress),
                     onTap: () {
                       Navigator.pop(ctx);
                       Clipboard.setData(ClipboardData(text: e.address));
-                      toast('已复制号码');
+                      toast(l10n.copiedAddress);
                     },
                   ),
                   ListTile(
                     dense: true,
                     leading: const Icon(Icons.copy_all_outlined),
-                    title: const Text('复制正文'),
+                    title: Text(l10n.copyBody),
                     onTap: () {
                       Navigator.pop(ctx);
                       Clipboard.setData(ClipboardData(text: e.body));
-                      toast('已复制正文');
+                      toast(l10n.copiedBody);
                     },
                   ),
                   ListTile(
@@ -101,10 +103,10 @@ Future<void> showSmsActionSheet(
                       color: Theme.of(ctx).colorScheme.error,
                     ),
                     title: Text(
-                      '删除',
+                      l10n.delete,
                       style: TextStyle(color: Theme.of(ctx).colorScheme.error),
                     ),
-                    subtitle: const Text('删除这一条，删除前确认'),
+                    subtitle: Text(l10n.deleteOneHint),
                     onTap: () {
                       Navigator.pop(ctx);
                       onDelete();
@@ -113,8 +115,8 @@ Future<void> showSmsActionSheet(
                   ListTile(
                     dense: true,
                     leading: const Icon(Icons.visibility_off_outlined),
-                    title: const Text('移出列表'),
-                    subtitle: const Text('仅本地隐藏；悬浮球删除不会带上它们'),
+                    title: Text(l10n.hideFromList),
+                    subtitle: Text(l10n.hideFromListHint),
                     onTap: () {
                       Navigator.pop(ctx);
                       onHide();

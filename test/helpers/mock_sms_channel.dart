@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -136,6 +137,7 @@ void mockMiuiChannel({
 /// 首页 widget 标准夹具：空 Prefs + 默认通道 mock，测试结束清 handler。
 ///
 /// 需在 `main()` 顶部调用一次；Prefs 每条用例重置，避免主题/隐藏列表泄漏。
+/// 默认把测试 locale 固定为 `zh`，与既有中文断言一致；用例可自行覆盖。
 void setUpHomeHarness() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
@@ -145,8 +147,10 @@ void setUpHomeHarness() {
 }
 
 /// 挂载首页并走完首帧/主题动画（勿用 pumpAndSettle，首页可能有待机动画）。
-Future<void> pumpHome(WidgetTester tester) async {
-  await tester.pumpWidget(const SmsApp());
+///
+/// 默认中文；英文用例传 `locale: Locale('en')`。
+Future<void> pumpHome(WidgetTester tester, {Locale locale = const Locale('zh')}) async {
+  await tester.pumpWidget(SmsApp(locale: locale));
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 300));
 }

@@ -1,4 +1,6 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sms/generated/app_localizations.dart';
 import 'package:sms/services/csv_importer.dart';
 import 'package:sms/services/sms_data_service.dart';
 import 'package:sms/services/sms_repository.dart';
@@ -10,6 +12,9 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   tearDown(clearAppChannelHandler);
+
+  final zh = lookupAppLocalizations(const Locale('zh'));
+  final en = lookupAppLocalizations(const Locale('en'));
 
   void mockInsert(Object? Function() respond) {
     setAppChannelHandler((call) async {
@@ -40,11 +45,11 @@ void main() {
       expect(r.inserted, 3);
       expect(r.failed, 0);
       expect(r.rowErrors, isEmpty);
-      expect(r.errorSummary, isEmpty);
-      expect(importMessage(r), '已导入 3 / 3 条');
+      expect(r.errorSummaryOf(zh), isEmpty);
+      expect(importMessage(r, zh), '已导入 3 / 3 条');
     });
 
-    test('部分成功：已导入 16 / 18 条（2 条失败）+ 错误摘要', () async {
+    test('部分成功：已导入 1 / 3 条（2 条失败）+ 错误摘要', () async {
       mockInsert(() {
         return {
           ChannelCodes.keyOk: true,
@@ -72,9 +77,9 @@ void main() {
       expect(r.rowErrors, hasLength(2));
       expect(r.rowErrors[0].index, 1);
       expect(r.rowErrors[1].code, ChannelCodes.insertErrorUnknown);
-      expect(importMessage(r), '已导入 1 / 3 条（2 条失败）');
-      expect(r.errorSummary, contains('insert returned null'));
-      expect(r.errorSummary, contains('batch failed'));
+      expect(importMessage(r, zh), '已导入 1 / 3 条（2 条失败）');
+      expect(r.errorSummaryOf(zh), contains('insert returned null'));
+      expect(r.errorSummaryOf(zh), contains('batch failed'));
     });
 
     test('非默认：toast 引导设默认，errorSummary 带 not_default', () async {
@@ -98,7 +103,7 @@ void main() {
       expect(r.error, isNull);
       expect(r.inserted, 0);
       expect(r.failed, 3);
-      expect(importMessage(r), '导入需先设为默认短信应用');
+      expect(importMessage(r, zh), '导入需先设为默认短信应用');
     });
 
     test('原生整批失败（非 not_default）：可重试文案', () async {
@@ -120,7 +125,7 @@ void main() {
       expect(r.ok, isFalse);
       expect(r.notDefault, isFalse);
       expect(r.error, CsvImportError.unknown);
-      expect(importMessage(r), '导入失败，请重试');
+      expect(importMessage(r, zh), '导入失败，请重试');
     });
 
     test('空 CSV → empty；错误摘要超 3 条截断', () async {
@@ -129,7 +134,7 @@ void main() {
         'address,body,date,kind,sub_id\n',
       );
       expect(empty.error, CsvImportError.empty);
-      expect(importMessage(empty), '导入失败：文件中没有可导入的短信');
+      expect(importMessage(empty, zh), '导入失败：文件中没有可导入的短信');
 
       final many = CsvImportResult(
         parsed: 5,
@@ -140,10 +145,27 @@ void main() {
             InsertRowError(index: i, code: 'failed', message: 'm$i'),
         ],
       );
-      expect(many.errorSummary, contains('m0'));
-      expect(many.errorSummary, contains('m2'));
-      expect(many.errorSummary, isNot(contains('m3')));
-      expect(many.errorSummary, contains('等 5 条'));
+      expect(many.errorSummaryOf(zh), contains('m0'));
+      expect(many.errorSummaryOf(zh), contains('m2'));
+      expect(many.errorSummaryOf(zh), isNot(contains('m3')));
+      expect(many.errorSummaryOf(zh), contains('等 5 条'));
+    });
+
+    test('英文 locale 关键 toast 文案', () {
+      expect(
+        importMessage(
+          const CsvImportResult(parsed: 3, inserted: 3),
+          en,
+        ),
+        'Imported 3 / 3',
+      );
+      expect(
+        importMessage(
+          const CsvImportResult(parsed: 0, inserted: 0, error: CsvImportError.empty),
+          en,
+        ),
+        'Import failed: No messages to import in this file',
+      );
     });
   });
 }

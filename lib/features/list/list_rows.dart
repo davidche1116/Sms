@@ -1,3 +1,4 @@
+import '../../generated/app_localizations.dart';
 import '../../models/sms_item.dart';
 
 /// 列表扁平行：日分组头或短信卡片（`SliverList.builder` 懒加载）。
@@ -16,13 +17,13 @@ final class SmsRow extends ListRow {
 }
 
 /// 扁平行：日头 + 卡片。构建前一次扫完，避免 builder 内 indexOf 的 O(n²)。
-List<ListRow> buildListRows(List<SmsItem> visible) {
+List<ListRow> buildListRows(List<SmsItem> visible, AppLocalizations l10n) {
   final rows = <ListRow>[];
   String? prevDay;
   for (final e in visible) {
-    if (prevDay != e.dayLabel) {
-      rows.add(DayRow(e.dayLabel));
-      prevDay = e.dayLabel;
+    if (prevDay != e.dayKey) {
+      rows.add(DayRow(e.dayLabelOf(l10n)));
+      prevDay = e.dayKey;
     }
     rows.add(SmsRow(e));
   }

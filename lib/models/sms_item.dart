@@ -1,6 +1,8 @@
 /// 短信条目模型：字段与通道契约对齐（QUERY_DELETE_DESIGN §10）。
 library;
 
+import '../generated/app_localizations.dart';
+
 enum SmsKind { received, sent, draft }
 
 class SmsItem {
@@ -55,16 +57,23 @@ class SmsItem {
     return '${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
   }
 
-  /// 今天 / 昨天 / YYYY-MM-DD（按自然日差值，正确处理跨月跨年）。
-  String get dayLabel {
+  /// 日分组键（与 locale 无关，保证同一天唯一）。
+  String get dayKey {
     final d = date;
-    if (d == null) return '未知';
+    if (d == null) return 'unknown';
+    return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  }
+
+  /// 今天 / 昨天 / YYYY-MM-DD（按自然日差值，正确处理跨月跨年）。
+  String dayLabelOf(AppLocalizations l10n) {
+    final d = date;
+    if (d == null) return l10n.dayUnknown;
     final now = DateTime.now();
     final diff = DateTime(now.year, now.month, now.day)
         .difference(DateTime(d.year, d.month, d.day))
         .inDays;
-    if (diff == 0) return '今天';
-    if (diff == 1) return '昨天';
+    if (diff == 0) return l10n.dayToday;
+    if (diff == 1) return l10n.dayYesterday;
     return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
   }
 }

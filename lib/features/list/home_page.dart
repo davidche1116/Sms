@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../generated/app_localizations.dart';
 import '../../models/sms_item.dart';
 import '../../services/hidden_store.dart';
 import '../../services/sms_data_service.dart';
@@ -145,7 +146,7 @@ class _HomePageState extends State<HomePage> {
         _hasMore = false;
         _loading = false;
       });
-      _toast('查询失败，下拉或点重试');
+      _toast(AppLocalizations.of(context).queryFailedRetry);
     }
   }
 
@@ -221,6 +222,7 @@ class _HomePageState extends State<HomePage> {
 
   /// 删除并同步本地列表；返回是否真正删掉（失败不改 UI）。
   Future<bool> _deleteIds(List<SmsItem> targets) async {
+    final l10n = AppLocalizations.of(context);
     final ids = [
       for (final e in targets)
         if (e.id != null) e.id!,
@@ -230,7 +232,7 @@ class _HomePageState extends State<HomePage> {
     if (!mounted) return false;
     if (!r.ok) {
       // 失败不改 UI，列表保持原样
-      _toast('删除失败：请先设为默认短信应用');
+      _toast(l10n.deleteFailedNeedDefault);
       return false;
     }
     setState(() {
@@ -242,7 +244,7 @@ class _HomePageState extends State<HomePage> {
       _selectMode = false;
     });
     _hiddenStore.save(_hiddenIds);
-    _toast('已删除 ${r.deleted} 条');
+    _toast(l10n.deletedCount(r.deleted));
     _load();
     return true;
   }
@@ -265,8 +267,9 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final visible = _visible;
-    final rows = buildListRows(visible);
+    final rows = buildListRows(visible, l10n);
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -281,18 +284,18 @@ class _HomePageState extends State<HomePage> {
               )
             : null,
         title: _selectMode
-            ? Text('已选 ${_selected.length}')
+            ? Text(l10n.selectedCount(_selected.length))
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('短信'),
+                  Text(l10n.homeTitle),
                   Text(
                     _hasMore
                         ? (_total != null
-                              ? '已加载 ${visible.length} / $_total 条'
-                              : '已加载 ${visible.length} 条')
-                        : '${visible.length} 条',
+                              ? l10n.loadedPartial(visible.length, _total!)
+                              : l10n.loadedCount(visible.length))
+                        : l10n.messageCount(visible.length),
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w400,
@@ -319,21 +322,21 @@ class _HomePageState extends State<HomePage> {
                   }
                 });
               },
-              child: const Text('全选', style: TextStyle(color: Colors.white)),
+              child: Text(l10n.selectAll, style: const TextStyle(color: Colors.white)),
             )
           else ...[
             IconButton(
-              tooltip: '搜索 / 筛选',
+              tooltip: l10n.searchFilter,
               icon: const Icon(Icons.search),
               onPressed: _openFilter,
             ),
             IconButton(
-              tooltip: '设置',
+              tooltip: l10n.settings,
               icon: const Icon(Icons.settings_outlined),
               onPressed: _openSettings,
             ),
             IconButton(
-              tooltip: '更多',
+              tooltip: l10n.more,
               icon: const Icon(Icons.more_vert),
               onPressed: _openMenu,
             ),
@@ -357,7 +360,7 @@ class _HomePageState extends State<HomePage> {
                         onPressed: _selected.isEmpty || _exporting
                             ? null
                             : _exportSelected,
-                        child: const Text('导出选中'),
+                        child: Text(l10n.exportSelected),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -369,7 +372,7 @@ class _HomePageState extends State<HomePage> {
                         onPressed: _selected.isEmpty
                             ? null
                             : () => _confirmAndDelete(_selectedItems()),
-                        child: const Text('删除选中'),
+                        child: Text(l10n.deleteSelected),
                       ),
                     ),
                   ],
@@ -495,15 +498,16 @@ class _HomePageState extends State<HomePage> {
       },
       onSecondary: () async {
         // 引导设为默认，便于删除
+        final l10n = AppLocalizations.of(context);
         final r = await _repo.setDefaultSms();
         if (!mounted) return;
         switch (r) {
           case DefaultSmsResult.alreadyDefault:
-            _toast('已是默认短信应用');
+            _toast(l10n.alreadyDefaultSms);
           case DefaultSmsResult.requested:
-            _toast('请在系统弹窗中确认');
+            _toast(l10n.confirmInSystemDialog);
           case DefaultSmsResult.timeout:
-            _toast('系统未返回结果，可在设置中手动开启');
+            _toast(l10n.systemNoResult);
           case DefaultSmsResult.error:
             await _repo.openDefaultSmsSettings();
         }
@@ -551,7 +555,7 @@ class _HomePageState extends State<HomePage> {
     if (id == null) return;
     setState(() => _hiddenIds.add(id));
     _hiddenStore.save(_hiddenIds);
-    _toast('已移出列表');
+    _toast(AppLocalizations.of(context).removedFromList);
   }
 
   /// 当前选中项（按 `_id` 匹配，不依赖下标）。
@@ -561,9 +565,10 @@ class _HomePageState extends State<HomePage> {
   ];
 
   Future<void> _exportSelected() async {
+    final l10n = AppLocalizations.of(context);
     setState(() => _exporting = true);
     try {
-      final msg = await exportItems(_selectedItems(), tag: 'selected');
+      final msg = await exportItems(_selectedItems(), l10n, tag: 'selected');
       if (mounted && msg != null) _toast(msg);
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -582,9 +587,10 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _exportAll() async {
     if (_exporting) return;
+    final l10n = AppLocalizations.of(context);
     setState(() => _exporting = true);
     try {
-      final msg = await exportAll(_repo);
+      final msg = await exportAll(_repo, l10n);
       if (mounted && msg != null) _toast(msg);
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -594,11 +600,12 @@ class _HomePageState extends State<HomePage> {
   /// 导入 CSV：只新增写入系统短信库，不覆盖、不删除。
   Future<void> _importCsv() async {
     if (_exporting) return;
+    final l10n = AppLocalizations.of(context);
     setState(() => _exporting = true);
     try {
       final r = await importCsv(_repo);
       if (!mounted) return;
-      _toast(importMessage(r));
+      _toast(importMessage(r, l10n));
       if (r.ok) await _load();
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -616,7 +623,7 @@ class _HomePageState extends State<HomePage> {
   /// 统一删除入口：确认弹层 → 删除。返回「确认且删除成功」，滑删据此决定回弹。
   Future<bool> _confirmAndDelete(List<SmsItem> targets) async {
     if (targets.isEmpty) {
-      _toast('没有可删除的短信');
+      _toast(AppLocalizations.of(context).nothingToDelete);
       return false;
     }
     return showConfirmDeleteSheet(

@@ -7,13 +7,22 @@
 
 ### Added
 
+- **i18n 基建**（P3-15）：`flutter_localizations` + `intl` + ARB/`flutter gen-l10n`（`l10n.yaml`，模板 `lib/l10n/app_zh.arb`，生成 `lib/generated/`）
+- 中文（默认）+ 英文两套文案，覆盖首页/筛选/删除/空态/toast/设置/权限/MIUI 引导/主题页/CSV 导入导出
+- `test/i18n/i18n_smoke_test.dart`：中英文 locale 关键文案冒烟
 - GitHub Actions CI（`.github/workflows/ci.yml`）：push / PR 到 `main`、`dev` 时跑 `flutter analyze` → `flutter test` → `flutter build apk --debug`
 - 发布签名配置：`android/key.properties`（已 gitignore）或 `RELEASE_*` 环境变量驱动 release 签名；README 新增「发布签名」一节
 
 ### Changed
 
+- UI 文案改为 `AppLocalizations`，主路径不再硬编码中文；`SmsItem.dayLabel` → `dayLabelOf(l10n)`，`importMessage` / `errorSummary` / 导出分享文案改为接收 `AppLocalizations`
 - **Breaking**：`applicationId` / `namespace` 从 `com.dc16.sms` 改为 `com.davidche1116.sms`，MethodChannel 由 `com.dc16.sms/smsApp` 改为 `com.davidche1116.sms/smsApp`，QA Intent action 前缀同步为 `com.davidche1116.sms.QA_*`。已装旧包无法覆盖升级，需卸载重装
 - release 构建不再无条件使用 debug 签名：有 `key.properties` / `RELEASE_*` 时用正式签名；否则回退 debug 签名并在 Gradle 日志明确警告（禁止上架）
+
+### TODO
+
+- Kotlin 侧字符串（通道/原生 toast）本次未抽取
+- 设置页暂无手动语言切换（跟随系统；不支持时回退中文）；后续可加 in-app locale 选择
 
 ### Security
 
