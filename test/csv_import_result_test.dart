@@ -1,26 +1,21 @@
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sms/services/csv_importer.dart';
 import 'package:sms/services/sms_data_service.dart';
 import 'package:sms/services/sms_repository.dart';
 
+import 'helpers/app_channel.dart';
+
 /// CSV 导入端到端：mock 通道新线协议 → CsvImportResult 字段与 toast 文案。
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const appChannel = MethodChannel('com.davidche1116.sms/smsApp');
-
-  tearDown(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(appChannel, null);
-  });
+  tearDown(clearAppChannelHandler);
 
   void mockInsert(Object? Function() respond) {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(appChannel, (call) async {
-          if (call.method != 'insertSmsBatch') return null;
-          return respond();
-        });
+    setAppChannelHandler((call) async {
+      if (call.method != 'insertSmsBatch') return null;
+      return respond();
+    });
   }
 
   /// 3 行可导入 CSV（表头 + 3 数据行）。

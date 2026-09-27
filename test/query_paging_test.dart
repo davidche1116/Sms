@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sms/app.dart';
+
+import 'helpers/app_channel.dart';
 
 /// 分页/增量加载：启动第一页、触底追加、按 _id 去重、筛选补全量。
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const appChannel = MethodChannel('com.davidche1116.sms/smsApp');
   final base = DateTime(2026, 9, 26, 12, 0);
 
   List<Map<String, dynamic>> buildRows(int n) => [
@@ -29,10 +29,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  tearDown(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(appChannel, null);
-  });
+  tearDown(clearAppChannelHandler);
 
   /// 返回每次 querySms 的 `{limit, offset}`，便于断言分页参数。
   List<Map<String, dynamic>> mockPaged({
@@ -40,8 +37,7 @@ void main() {
     bool Function(List<Map<String, dynamic>> page)? injectDup,
   }) {
     final calls = <Map<String, dynamic>>[];
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(appChannel, (call) async {
+    setAppChannelHandler((call) async {
           switch (call.method) {
             case 'hasReadSmsPermission':
               return true;

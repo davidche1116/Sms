@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sms/app.dart';
 import 'package:sms/services/theme_store.dart';
+
+import 'helpers/app_channel.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -72,16 +73,10 @@ void main() {
   });
 
   group('SmsApp 启动加载', () {
-    const appChannel = MethodChannel('com.davidche1116.sms/smsApp');
-
-    tearDown(() {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(appChannel, null);
-    });
+    tearDown(clearAppChannelHandler);
 
     void mockChannel() {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(appChannel, (call) async {
+      setAppChannelHandler((call) async {
             switch (call.method) {
               case 'hasReadSmsPermission':
               case 'isDefaultSms':

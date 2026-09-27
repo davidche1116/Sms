@@ -1,24 +1,19 @@
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sms/services/sms_repository.dart';
+
+import 'helpers/app_channel.dart';
 
 /// 通道协议契约测试：每个已知线字符串 → 正确枚举；未知字符串 → 安全默认。
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const appChannel = MethodChannel('com.davidche1116.sms/smsApp');
-
-  tearDown(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(appChannel, null);
-  });
+  tearDown(clearAppChannelHandler);
 
   void mockChannel(String method, Object? Function() respond) {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(appChannel, (call) async {
-          if (call.method != method) return null;
-          return respond();
-        });
+    setAppChannelHandler((call) async {
+      if (call.method != method) return null;
+      return respond();
+    });
   }
 
   group('DefaultSmsResult.fromWire（setDefaultSms: had|no|error）', () {
@@ -371,8 +366,7 @@ void main() {
         for (var i = 0; i < 250; i++) {'address': '$i', 'body': 'b$i'},
       ];
       var calls = 0;
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(appChannel, (call) async {
+      setAppChannelHandler((call) async {
             if (call.method != 'insertSmsBatch') return null;
             calls++;
             final n = (call.arguments as List).length;

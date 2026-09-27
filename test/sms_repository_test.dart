@@ -4,15 +4,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sms/services/sms_repository.dart';
 
+import 'helpers/app_channel.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const appChannel = MethodChannel('com.davidche1116.sms/smsApp');
-
-  tearDown(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(appChannel, null);
-  });
+  tearDown(clearAppChannelHandler);
 
   Map<String, dynamic> row(int id, int dateMs) => {
     '_id': id,
@@ -26,11 +23,10 @@ void main() {
   };
 
   void mockQuery(Object? Function(Map args) respond) {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(appChannel, (call) async {
-          if (call.method != 'querySms') return null;
-          return respond(Map<Object?, Object?>.from(call.arguments as Map? ?? {}));
-        });
+    setAppChannelHandler((call) async {
+      if (call.method != 'querySms') return null;
+      return respond(Map<Object?, Object?>.from(call.arguments as Map? ?? {}));
+    });
   }
 
   group('SmsRepository.queryPage（分页契约）', () {
@@ -139,8 +135,7 @@ void main() {
   group('系统申请防悬挂（Future.timeout + 可注入超时）', () {
     /// 让指定 method 永不回包（模拟系统弹窗久置 / 进程被杀前的悬挂）。
     void mockHang(String method, {Object? Function(String other)? others}) {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(appChannel, (call) async {
+      setAppChannelHandler((call) async {
             if (call.method == method) {
               return Completer<Object?>().future; // 永不完成
             }
@@ -153,8 +148,7 @@ void main() {
       Object error, {
       Object? Function(String other)? others,
     }) {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(appChannel, (call) async {
+      setAppChannelHandler((call) async {
             if (call.method == method) throw error;
             return others?.call(call.method);
           });
@@ -200,8 +194,7 @@ void main() {
     });
 
     test('requestReadSms：用户拒绝（回 false）→ denied，不误报 timeout', () async {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(appChannel, (call) async {
+      setAppChannelHandler((call) async {
             if (call.method == 'requestReadSms') return false;
             if (call.method == 'hasReadSmsPermission') return false;
             return null;
@@ -251,8 +244,7 @@ void main() {
     });
 
     test('setDefaultSms：正常回包不受超时影响', () async {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(appChannel, (call) async {
+      setAppChannelHandler((call) async {
             if (call.method == 'setDefaultSms') return 'had';
             return null;
           });
