@@ -40,6 +40,12 @@ jobs:
       - name: Test
         run: flutter test
 
+      # Kotlin/Robolectric-or-JUnit 原生单测（ChannelCodes / SmsAccess / OnceResult）。
+      - name: Android unit tests
+        run: |
+          cd android
+          ./gradlew :app:testDebugUnitTest
+
       # --debug 会走 Android 工具链（含 compileDebugKotlin），验证 Kotlin 侧能编过。
       # release 构建依赖签名配置，不在 CI 强制。
       - name: Build debug APK

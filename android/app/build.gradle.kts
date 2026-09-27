@@ -85,6 +85,21 @@ android {
             }
         }
     }
+
+    testOptions {
+        unitTests {
+            // android.util.Log 等桩方法返回默认值而不是抛 Stub!，便于纯 JVM 单测。
+            // 不开 includeAndroidResources：会与 Flutter 的 copyFlutterAssetsDebug
+            // 产生任务依赖校验冲突，而本套测试用 FakeCursor/Mock 并不需要资源。
+            isReturnDefaultValues = true
+        }
+    }
+}
+
+dependencies {
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.mockito:mockito-core:5.14.2")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:5.4.0")
 }
 
 kotlin {

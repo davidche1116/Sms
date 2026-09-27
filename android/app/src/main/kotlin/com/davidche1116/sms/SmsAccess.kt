@@ -147,7 +147,8 @@ class SmsAccess(private val context: Context) {
   }
 
   /** 10086 / 95566 / 106xxx 等服务号，或非手机号格式。 */
-  private fun looksLikeServiceAddress(addr: String): Boolean {
+  @androidx.annotation.VisibleForTesting
+  internal fun looksLikeServiceAddress(addr: String): Boolean {
     val a = addr.trim()
     if (a.isEmpty()) return false
     if (a.startsWith("106")) return true
@@ -440,7 +441,8 @@ class SmsAccess(private val context: Context) {
     ChannelCodes.KEY_MESSAGE to message,
   )
 
-  private fun readRow(c: Cursor): Map<String, Any?> {
+  @androidx.annotation.VisibleForTesting
+  internal fun readRow(c: Cursor): Map<String, Any?> {
     fun col(n: String) = c.getColumnIndex(n)
     fun long(i: Int): Long? = if (i >= 0 && !c.isNull(i)) c.getLong(i) else null
     fun int(i: Int): Int? = if (i >= 0 && !c.isNull(i)) c.getInt(i) else null

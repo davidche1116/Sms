@@ -17,7 +17,7 @@ import io.flutter.plugin.common.MethodChannel
  * 防止「系统弹窗回调 + Activity 销毁收尾」或「handler catch + 销毁收尾」
  * 对同一个 Result 二次回包（Flutter 会抛 IllegalStateException）。
  */
-private class OnceResult(private val raw: MethodChannel.Result) : MethodChannel.Result {
+internal class OnceResult(private val raw: MethodChannel.Result) : MethodChannel.Result {
   @Volatile
   private var done = false
 
