@@ -150,6 +150,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final visible = _visible;
+    final rows = _buildListRows(visible);
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -260,176 +261,211 @@ class _HomePageState extends State<HomePage> {
         onRefresh: _load,
         child: _loading
             ? const Center(child: CircularProgressIndicator())
-            : ListView(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 88),
-                children: [
-                  if (_miuiNotifHint && !_miuiHintDismissed && !_needPermission)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Material(
-                        color: const Color(0xFFE6A23C).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(12),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(12),
-                          onTap: () async {
-                            await showMiuiNotificationSmsSheet(context);
-                            await _load();
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.info_outline,
-                                  color: Color(0xFFE6A23C),
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 8),
-                                const Expanded(
-                                  child: Text(
-                                    '可能还看不到 10086 等通知短信，点此开启 MIUI「通知类短信」',
-                                    style: TextStyle(fontSize: 13),
-                                  ),
-                                ),
-                                IconButton(
-                                  tooltip: '不再提示',
-                                  icon: const Icon(Icons.close, size: 18),
-                                  onPressed: () => setState(
-                                    () => _miuiHintDismissed = true,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+            : CustomScrollView(
+                slivers: [
+                  if (_showMiuiHint || _filter.active)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (_showMiuiHint) _buildMiuiHint(),
+                            if (_filter.active) _buildFilterChips(),
+                          ],
                         ),
                       ),
                     ),
-                  if (_filter.active)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          if (_filter.sameAddress != null)
-                            Chip(
-                              label: Text('同号 ${_filter.sameAddress}'),
-                              onDeleted: () =>
-                                  setState(() => _filter.sameAddress = null),
-                              deleteIcon: const Icon(Icons.close, size: 18),
-                            ),
-                          if (_filter.sameSim != null)
-                            Chip(
-                              label: Text('同卡 ${_filter.sameSim}'),
-                              onDeleted: () =>
-                                  setState(() => _filter.sameSim = null),
-                              deleteIcon: const Icon(Icons.close, size: 18),
-                            ),
-                          if (_filter.keyword.isNotEmpty)
-                            Chip(
-                              label: Text('“${_filter.keyword}”'),
-                              onDeleted: () =>
-                                  setState(() => _filter.keyword = ''),
-                              deleteIcon: const Icon(Icons.close, size: 18),
-                            ),
-                          if (_filter.start != null || _filter.end != null)
-                            Chip(
-                              label: Text(
-                                '${SmsFilter.fmtDate(_filter.start)} – ${SmsFilter.fmtDate(_filter.end)}',
-                              ),
-                              onDeleted: () => setState(() {
-                                _filter.start = null;
-                                _filter.end = null;
-                              }),
-                              deleteIcon: const Icon(Icons.close, size: 18),
-                            ),
-                          if (_filter.type != 0)
-                            Chip(
-                              label: Text(
-                                _filter.type == 1 ? '仅收件箱' : '仅已发送',
-                              ),
-                              onDeleted: () => setState(() => _filter.type = 0),
-                              deleteIcon: const Icon(Icons.close, size: 18),
-                            ),
-                          ActionChip(
-                            label: const Text('清除全部'),
-                            onPressed: () => setState(_filter.reset),
-                          ),
-                        ],
-                      ),
-                    ),
                   if (visible.isEmpty)
-                    SizedBox(
-                      height: MediaQuery.sizeOf(context).height * 0.55,
-                      child: EmptyView(
-                        filterActive: _filter.active,
-                        needPermission: _needPermission,
-                        onAction: () async {
-                          if (_filter.active) {
-                            setState(_filter.reset);
-                          } else if (_needPermission) {
-                            await _requestPermission();
-                          } else {
-                            await _load();
-                          }
-                        },
-                        onSecondary: () async {
-                          // 引导设为默认，便于删除
-                          final r = await _repo.setDefaultSms();
-                          if (!mounted) return;
-                          if (r == 'had') {
-                            _toast('已是默认短信应用');
-                          } else if (r == 'no') {
-                            _toast('请在系统弹窗中确认');
-                          } else {
-                            await _repo.openDefaultSmsSettings();
-                          }
-                          await _load();
-                        },
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          12,
+                          (_showMiuiHint || _filter.active) ? 0 : 8,
+                          12,
+                          88,
+                        ),
+                        child: SizedBox(
+                          height: MediaQuery.sizeOf(context).height * 0.55,
+                          child: _buildEmptyView(),
+                        ),
                       ),
                     )
                   else
-                    for (final e in visible)
-                      Builder(
-                        builder: (context) {
-                          final index = visible.indexOf(e);
-                          final showDay =
-                              index == 0 ||
-                              visible[index - 1].dayLabel != e.dayLabel;
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              if (showDay)
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    4,
-                                    12,
-                                    4,
-                                    8,
-                                  ),
-                                  child: Text(
-                                    e.dayLabel,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelLarge,
-                                  ),
-                                ),
-                              SmsCard(
-                                item: e,
-                                selectMode: _selectMode,
-                                selected:
-                                    e.id != null && _selected.contains(e.id),
-                                onDelete: () => _confirmAndDelete([e]),
-                                onTap: () => _onItemTap(e),
-                                onLongPress: () => _onItemLongPress(e),
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(
+                        12,
+                        (_showMiuiHint || _filter.active) ? 0 : 8,
+                        12,
+                        88,
+                      ),
+                      sliver: SliverList.builder(
+                        itemCount: rows.length,
+                        itemBuilder: (context, index) {
+                          final row = rows[index];
+                          return switch (row) {
+                            _DayRow(:final dayLabel) => Padding(
+                              padding: const EdgeInsets.fromLTRB(4, 12, 4, 8),
+                              child: Text(
+                                dayLabel,
+                                style: Theme.of(context).textTheme.labelLarge,
                               ),
-                            ],
-                          );
+                            ),
+                            _SmsRow(:final item) => SmsCard(
+                              item: item,
+                              selectMode: _selectMode,
+                              selected:
+                                  item.id != null &&
+                                  _selected.contains(item.id),
+                              onDelete: () => _confirmAndDelete([item]),
+                              onTap: () => _onItemTap(item),
+                              onLongPress: () => _onItemLongPress(item),
+                            ),
+                          };
                         },
                       ),
+                    ),
                 ],
               ),
       ),
+    );
+  }
+
+  bool get _showMiuiHint =>
+      _miuiNotifHint && !_miuiHintDismissed && !_needPermission;
+
+  /// 扁平行：日头 + 卡片。构建前一次扫完，避免 builder 内 indexOf 的 O(n²)。
+  List<_ListRow> _buildListRows(List<SmsItem> visible) {
+    final rows = <_ListRow>[];
+    String? prevDay;
+    for (final e in visible) {
+      if (prevDay != e.dayLabel) {
+        rows.add(_DayRow(e.dayLabel));
+        prevDay = e.dayLabel;
+      }
+      rows.add(_SmsRow(e));
+    }
+    return rows;
+  }
+
+  Widget _buildMiuiHint() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: const Color(0xFFE6A23C).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () async {
+            await showMiuiNotificationSmsSheet(context);
+            await _load();
+          },
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.info_outline,
+                  color: Color(0xFFE6A23C),
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    '可能还看不到 10086 等通知短信，点此开启 MIUI「通知类短信」',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                ),
+                IconButton(
+                  tooltip: '不再提示',
+                  icon: const Icon(Icons.close, size: 18),
+                  onPressed: () => setState(() => _miuiHintDismissed = true),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterChips() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          if (_filter.sameAddress != null)
+            Chip(
+              label: Text('同号 ${_filter.sameAddress}'),
+              onDeleted: () => setState(() => _filter.sameAddress = null),
+              deleteIcon: const Icon(Icons.close, size: 18),
+            ),
+          if (_filter.sameSim != null)
+            Chip(
+              label: Text('同卡 ${_filter.sameSim}'),
+              onDeleted: () => setState(() => _filter.sameSim = null),
+              deleteIcon: const Icon(Icons.close, size: 18),
+            ),
+          if (_filter.keyword.isNotEmpty)
+            Chip(
+              label: Text('“${_filter.keyword}”'),
+              onDeleted: () => setState(() => _filter.keyword = ''),
+              deleteIcon: const Icon(Icons.close, size: 18),
+            ),
+          if (_filter.start != null || _filter.end != null)
+            Chip(
+              label: Text(
+                '${SmsFilter.fmtDate(_filter.start)} – ${SmsFilter.fmtDate(_filter.end)}',
+              ),
+              onDeleted: () => setState(() {
+                _filter.start = null;
+                _filter.end = null;
+              }),
+              deleteIcon: const Icon(Icons.close, size: 18),
+            ),
+          if (_filter.type != 0)
+            Chip(
+              label: Text(_filter.type == 1 ? '仅收件箱' : '仅已发送'),
+              onDeleted: () => setState(() => _filter.type = 0),
+              deleteIcon: const Icon(Icons.close, size: 18),
+            ),
+          ActionChip(
+            label: const Text('清除全部'),
+            onPressed: () => setState(_filter.reset),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyView() {
+    return EmptyView(
+      filterActive: _filter.active,
+      needPermission: _needPermission,
+      onAction: () async {
+        if (_filter.active) {
+          setState(_filter.reset);
+        } else if (_needPermission) {
+          await _requestPermission();
+        } else {
+          await _load();
+        }
+      },
+      onSecondary: () async {
+        // 引导设为默认，便于删除
+        final r = await _repo.setDefaultSms();
+        if (!mounted) return;
+        if (r == 'had') {
+          _toast('已是默认短信应用');
+        } else if (r == 'no') {
+          _toast('请在系统弹窗中确认');
+        } else {
+          await _repo.openDefaultSmsSettings();
+        }
+        await _load();
+      },
     );
   }
 
@@ -634,4 +670,19 @@ class _HomePageState extends State<HomePage> {
       await _load();
     }
   }
+}
+
+/// 列表扁平行：日分组头或短信卡片（`SliverList.builder` 懒加载）。
+sealed class _ListRow {
+  const _ListRow();
+}
+
+final class _DayRow extends _ListRow {
+  const _DayRow(this.dayLabel);
+  final String dayLabel;
+}
+
+final class _SmsRow extends _ListRow {
+  const _SmsRow(this.item);
+  final SmsItem item;
 }
