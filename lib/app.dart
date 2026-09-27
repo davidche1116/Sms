@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'features/list/home_page.dart';
+import 'services/theme_store.dart';
 
 class SmsApp extends StatefulWidget {
   const SmsApp({super.key});
@@ -10,8 +11,38 @@ class SmsApp extends StatefulWidget {
 }
 
 class _SmsAppState extends State<SmsApp> {
-  Color seed = const Color(0xFF2BAE67);
-  ThemeMode mode = ThemeMode.system;
+  final _store = ThemeStore();
+
+  /// 递增代际：用户在加载完成前改主题时，丢弃在途的加载结果。
+  int _themeGen = 0;
+
+  Color seed = ThemeStore.defaultSeed;
+  ThemeMode mode = ThemeStore.defaultMode;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTheme();
+  }
+
+  Future<void> _loadTheme() async {
+    final gen = ++_themeGen;
+    final (s, m) = await _store.load();
+    if (!mounted || gen != _themeGen) return;
+    setState(() {
+      seed = s;
+      mode = m;
+    });
+  }
+
+  void _onThemeChanged(Color? c, ThemeMode? m) {
+    _themeGen++;
+    setState(() {
+      if (c != null) seed = c;
+      if (m != null) mode = m;
+    });
+    _store.save(seed: c, mode: m);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,10 +55,7 @@ class _SmsAppState extends State<SmsApp> {
       home: HomePage(
         seed: seed,
         mode: mode,
-        onThemeChanged: (c, m) => setState(() {
-          if (c != null) seed = c;
-          if (m != null) mode = m;
-        }),
+        onThemeChanged: _onThemeChanged,
       ),
     );
   }
