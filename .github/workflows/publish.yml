@@ -9,6 +9,10 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 
+# 默认 GITHUB_TOKEN 只读，创建 Release 需要 contents: write。
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
