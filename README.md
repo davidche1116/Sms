@@ -1,3 +1,5 @@
+![LOGO](android/app/src/main/res/mipmap-xhdpi/ic_launcher.png)
+
 # SMS Cleaner
 
 English | [简体中文](README_zh.md) | [繁體中文](README_zh_TW.md)
@@ -22,6 +24,10 @@ Local-first Android SMS / MMS cleanup tool (Flutter + Kotlin). Browse, filter, m
 Covered by the unified data plane: **browse / filter / delete / export**. Body summary is taken from text parts (`content://mms/part`); placeholder “[MMS]” when empty, “attachment” hint when media parts exist. No full rendering (smil / image / audio playback).
 
 **New MMS while this app is the default**: `MmsReceiver` stores notification metadata (sender / time / subject / Message-ID / Content-Location) into `content://mms/inbox` + `addr`, so messages are not lost. Full smil/media is **not** downloaded (depends on non-public `PduPersister`). For complete MMS content, temporarily switch the default SMS app back to the system “Messages”.
+
+## Screenshots
+
+![UI](assets/screenshot/ui.jpg)
 
 ## Permissions & system requirements
 

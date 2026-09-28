@@ -1,3 +1,5 @@
+![LOGO](android/app/src/main/res/mipmap-xhdpi/ic_launcher.png)
+
 # 短信清理
 
 [English](README.md) | 简体中文 | [繁體中文](README_zh_TW.md)
@@ -22,6 +24,10 @@
 纳入统一数据面：**浏览 / 筛选 / 删除 / 导出**。正文摘要取 `content://mms/part` 的文本 part（text/plain、vcard 等）；无文本时显示「[彩信]」占位，含图片/音频/视频附件时另标「含附件」。不做完整渲染（smil 布局 / 图片音频播放）。
 
 **默认短信应用时的新彩信**：`MmsReceiver` 会把 `WAP_PUSH_DELIVER` 通知 **元数据入库**（发件人 / 时间 / 主题 / Message-ID / Content-Location）到 `content://mms/inbox` + `addr`，避免新彩信整条丢失。完整 smil / 图片 / 音频正文**不会下载重建**（依赖非公开 `PduPersister`，本应用不实现 MMS 客户端）；列表正文为占位「[彩信]」或主题摘要。需要完整彩信内容时，请在系统设置里把默认短信应用改回系统「信息」后再接收（或用系统应用收下后回到本工具清理）。
+
+## 界面预览
+
+![UI](assets/screenshot/ui.jpg)
 
 ## 权限与系统要求
 

@@ -1,3 +1,5 @@
+![LOGO](android/app/src/main/res/mipmap-xhdpi/ic_launcher.png)
+
 # 簡訊清理
 
 [English](README.md) | [简体中文](README_zh.md) | 繁體中文
@@ -23,6 +25,10 @@
 納入統一資料面：**瀏覽 / 篩選 / 刪除 / 匯出**。正文摘要取 `content://mms/part` 的文本 part（text/plain、vcard 等）；無文本時顯示「[多媒體簡訊]」占位，含圖片/音频/視频附件時另標「含附件」。不做完整渲染（smil 布局 / 圖片音频播放）。
 
 **預設簡訊應用程式時的新多媒體簡訊**：`MmsReceiver` 會把 `WAP_PUSH_DELIVER` 通知 **元資料入庫**（發件人 / 時間 / 主題 / Message-ID / Content-Location）到 `content://mms/inbox` + `addr`，避免新多媒體簡訊整條丟失。完整 smil / 圖片 / 音频正文**不會下載重建**（依賴非公開 `PduPersister`，本應用不實現 MMS 客戶端）；列表正文為占位「[多媒體簡訊]」或主題摘要。需要完整多媒體簡訊內容時，請在系統設定里把預設簡訊應用程式改回系統「信息」後再接收（或用系統應用收下後回到本工具清理）。
+
+## 介面預覽
+
+![UI](assets/screenshot/ui.jpg)
 
 ## 權限與系統要求
 
