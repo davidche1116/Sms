@@ -9,7 +9,7 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 
-# 默认 GITHUB_TOKEN 只读，创建 Release 需要 contents: write。
+# 使用自动注入的 GITHUB_TOKEN 创建 Release；需 contents: write（默认只读会 403）。
 permissions:
   contents: write
 
