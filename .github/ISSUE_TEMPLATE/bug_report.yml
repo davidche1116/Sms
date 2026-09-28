@@ -6,7 +6,8 @@ body:
     attributes:
       value: |
         提交前请先确认：应用已被设为**默认短信应用**且已授予短信权限——
-        绝大多数"删除失败"都源于这两项。
+        绝大多数「删除失败」都源于这两项。
+        MIUI 另需开通「通知类短信」（见 README）。
   - type: textarea
     id: what-happened
     attributes:
@@ -28,7 +29,7 @@ body:
     id: version
     attributes:
       label: 应用版本
-      description: 见 AppBar 菜单或 Release 标签
+      description: 见设置页「关于」或 Release 标签
     validations:
       required: true
   - type: input
@@ -48,12 +49,22 @@ body:
         - 不确定
     validations:
       required: true
+  - type: dropdown
+    id: mms
+    attributes:
+      label: 是否涉及彩信（MMS）
+      options:
+        - 否
+        - 是
+        - 不确定
+    validations:
+      required: true
   - type: checkboxes
     id: data-loss
     attributes:
       label: 数据影响
       options:
-        - label: 涉及短信丢失（系统短信应用里也查不到了）
+        - label: 涉及短信/彩信丢失（系统短信应用里也查不到了）
   - type: textarea
     id: logs
     attributes:

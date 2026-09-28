@@ -27,7 +27,6 @@ migrate_working_dir/
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
-.flutter-plugins
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
@@ -44,4 +43,18 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-/dist/
+
+# Widget Preview related
+.widget_preview/
+
+# 发布签名随仓库分发（与 1.x 一致）：android/key.properties + android/app/key/sms.keystore
+# 不忽略 keystore / key.properties
+keystore.properties
+*.p12
+*.pem
+
+# 真机测试截图与 UI dump（含隐私，勿提交）
+test/device/shots/
+test/device/*.xml
+test/device/ui_*.xml
+

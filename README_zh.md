@@ -1,94 +1,98 @@
-![LOGO](android/app/src/main/res/mipmap-xhdpi/ic_launcher.png)
-
 # 短信清理
 
-简体中文 | [繁體中文](README_zh_TW.md) | [English](README.md)
+[English](README.md) | 简体中文 | [繁體中文](README_zh_TW.md)
 
-- 短信清理是Flutter框架编写的在Android上读取、批量删除短信的短信清理工具。
-- 虽然UI框架Flutter支持跨平台，但仅实现了Android短信删除功能。
+本地优先的 Android 短信 / 彩信清理工具（Flutter + Kotlin）。浏览、筛选、多选、导出、删除短信与彩信，数据只在本机处理，不上传、不收集。
 
-## 功能描述
+## 功能
 
-- 获取短信权限
-- 复制短信到剪切板
-- 设置/恢复默认短信应用
-- 关键字过滤短信信息
-- 按日期范围筛选短信
-- 同号码/同卡短信搜索
-- 从搜索结果移除/直接删除短信
-- 一键批量删除查询结果短信
-- 一键导出所有短信到csv文件
+- 消息列表：按日期分组，卡片展示号码 / 正文 / 时间 / SIM；彩信带「彩信」徽章，含附件时标注
+- 筛选搜索：关键词、日期范围、类型（收件箱 / 已发送 / 仅彩信）、同号、同卡
+- 多选操作：长按进入多选，按 `uid` 对齐（SMS/MMS 同号不冲突），筛选后不错位；支持全选当前可见项
+- 删除：单条滑删 / 动作 Sheet 删除 / 多选删除 / FAB 批量删除（均有确认）；按 `is_mms` 路由，不会误删对方同号行
+- 移出列表：本地隐藏，不删系统数据，可重置
+- 导出 CSV：全部或选中，RFC 4180 转义 + BOM，系统分享；含 `is_mms` 列
+- 导入 CSV：与导出同格式；**只新增**写入系统短信库（需设为默认短信应用），不覆盖、不删除；**彩信行跳过**（无法简单重建）
+- 权限中心：读短信、默认短信应用、一键检查修复；MIUI 附带「通知类短信」引导
+- 主题：8 色色盘 + 浅色 / 深色 / 跟随系统
+- 多语言：简体中文、繁体中文、English
 
-## 界面截图
-![UI](assets/screenshot/ui.jpg)
+### 彩信支持范围
 
-## 隐私说明
+纳入统一数据面：**浏览 / 筛选 / 删除 / 导出**。正文摘要取 `content://mms/part` 的文本 part（text/plain、vcard 等）；无文本时显示「[彩信]」占位，含图片/音频/视频附件时另标「含附件」。不做完整渲染（smil 布局 / 图片音频播放）。
 
-- 所有短信数据仅保存在**本机**。应用不发起任何网络请求，不会上传、同步或自动分享任何数据。
-- 导出的 CSV 文件仅写入应用临时目录，只在主动触发导出时通过系统分享面板分享。
-- 删除短信不可恢复，批量删除前请确认过滤条件。
-- AndroidManifest 中声明的权限及用途：
-  - `READ_SMS` / `RECEIVE_SMS` / `RECEIVE_MMS` / `RECEIVE_WAP_PUSH`：读取与管理短信/彩信。
-  - `SEND_SMS`：默认短信应用角色所需（应用本身不发送短信）。
-  - `READ_PHONE_STATE`：部分 Android 版本上默认短信应用角色所需。
-  - `READ_CONTACTS` / `READ_PROFILE` / `QUERY_ALL_PACKAGES`：随短信插件一并带入但从未使用，已在 manifest 合并阶段用 `tools:node="remove"` 剔除。
-  - 默认短信应用：Android 仅允许默认短信应用删除短信，应用会引导临时切换，并可恢复原默认应用。
+**默认短信应用时的新彩信**：`MmsReceiver` 会把 `WAP_PUSH_DELIVER` 通知 **元数据入库**（发件人 / 时间 / 主题 / Message-ID / Content-Location）到 `content://mms/inbox` + `addr`，避免新彩信整条丢失。完整 smil / 图片 / 音频正文**不会下载重建**（依赖非公开 `PduPersister`，本应用不实现 MMS 客户端）；列表正文为占位「[彩信]」或主题摘要。需要完整彩信内容时，请在系统设置里把默认短信应用改回系统「信息」后再接收（或用系统应用收下后回到本工具清理）。
 
-## 开发环境
+## 权限与系统要求
 
-- Flutter 3.47.5 (stable)
-- Dart 3.13.4
-- Gradle 9.3.1
-- Android Gradle Plugin 9.1.0
-- Kotlin 2.4.10
-- compileSdk 37 / minSdk 26
-- JDK 17
+| 能力 | 依赖 | 说明 |
+|------|------|------|
+| 读取短信/彩信 | `READ_SMS` | 列表、搜索、导出；彩信读取同权限，无需额外申请 |
+| 删除短信/彩信 | 默认短信应用（`ROLE_SMS`） | Android 10+ 走 RoleManager |
+| 写入 / 新短信入库 | 默认短信应用 | `SmsReceiver` 在默认时收信入库 |
+| 新彩信入库 | 默认短信应用 | `MmsReceiver` 写通知元数据骨架（见「彩信支持范围」） |
 
-下面的命令假设 `flutter` / `dart` 已在 `PATH` 中。本项目开发时使用 [fvm](https://fvm.app) 管理的 stable 渠道 SDK；若你的 SDK 装在别处，可参考 `AGENTS.md` 里的 PATH 前缀。
+冷启动不弹系统权限框；在设置或空态里主动申请。
 
-## 构建与发布
+### MIUI 注意
 
-使用 fastforge 打包 release：
+MIUI 在 `READ_SMS` 之外还有私有 **「通知类短信」** 开关（应用信息 → 权限管理 → 其他权限）。不开通时只能读到点对点短信，10086 / 银行等通知类会全部不可见。
+
+该开关**无法用系统 API 代为授权**。应用在申请到读短信权限后会自动弹出引导，一键跳转 MIUI 权限页；首页也会在「可能未开通」时给出可关闭提示。
+
+## 构建与运行
 
 ```bash
-dart pub global activate fastforge
-fastforge release --name apk
+flutter pub get
+flutter run
+flutter test
+flutter analyze
+cd android && ./gradlew :app:testDebugUnitTest
+flutter build apk --debug
+flutter build apk --release
 ```
 
-产物输出到 `dist/` 目录。APK 使用 release 签名，且仅打包 **arm64-v8a** 单 ABI。debug 构建使用标准调试签名；缺少 `android/key.properties` 时 release 构建回退为调试签名。
+需要 Flutter 3.47+（Dart 3.13+），Android minSdk 29。
 
-### CI 工作流
+## 发布签名
 
-| 工作流 | 触发时机 | Flutter 渠道 | 内容 |
-| --- | --- | --- | --- |
-| `build.yml` | push main（版本 tag 除外）/ PR 新建或更新 | stable | `dart analyze` + `flutter test` + 构建 APK + 上传 artifact |
-| `manual.yml` | 手动触发 | beta / master / stable 可选（默认 stable） | `dart analyze` + `flutter test` + 构建 APK + 上传 artifact |
-| `publish.yml` | 版本 tag（如 `1.6.1+250725`） | stable | 构建 APK + 创建草稿 Release |
+release 使用随仓库分发的签名材料（与 1.x 一致）：
 
-### 构建注意事项
+- `android/key.properties` — 口令与别名
+- `android/app/key/sms.keystore` — 密钥库（`storeFile` 相对 `android/app/`）
 
-- `permission_handler` 已升级到 `13.0.2`：v13 要求 compileSdk 37，因此 `android/app/build.gradle.kts` 硬编码 `compileSdk = 37`（高于 Flutter 3.47 模板的 36），配合 AGP 9.1.0 + Android SDK Platform 37。权限代码遵循 v13 request-driven 模式（不从 `status` 推导 `permanentlyDenied`）。
-- 老插件（如 `sms_advanced 1.1.0`，AGP 4.1 时代产物）缺少 `namespace` 且写死 `compileSdk 31`，根 `android/build.gradle.kts` 中自动用 `project.group` 补全 namespace，并把旧库模块的 compileSdk 抬升到 37。
-- lint 相关任务在 `android/build.gradle.kts` 中被跳过：旧插件的 buildscript 钉老版本 AGP，与根工程 AGP 9.1.0 混载会导致 lint worker（`AndroidLintWorkAction`）崩溃，因此统一禁用 lint 系列任务，并为 `extract*Annotations` 任务生成占位产物。
-- `android/gradle.properties` 中设置了 `kotlin.incremental=false`：Windows 上 Kotlin 增量编译无法处理源码（C: 盘 pub 缓存）与构建产物（D: 盘工程）跨盘符的情况。
-- `sms_advanced` 插件自身应用了 Kotlin Gradle Plugin，未来版本 Flutter 将拒绝构建，需留意替代方案。
-- 代码质量由 CI 中的 `dart analyze` + `flutter test` 保证。
-- 本地运行测试：`flutter test`（平台通道已 mock，无需真机）。
+```bash
+flutter build apk --release
+```
+
+若缺少 `key.properties`，release 会回退 debug 签名（仅本地自测）。
 
 ## 项目结构
 
 ```
-Sms
-├─android              # Android工程配置
-├─assets               # 资源文件目录
-├─lib                  # Flutter源代码目录
-│  ├─main.dart         # APP入口与短信列表页界面
-│  ├─controllers       # SmsListController：列表状态与业务规则
-│  ├─l10n              # 国际化（ARB源文件与生成代码）
-│  ├─services          # 数据访问与纯逻辑（短信仓库 / 过滤 / CSV导出）
-│  ├─utils             # 小型纯函数（日期格式化）
-│  └─widgets           # 可复用界面组件（短信列表项）
-├─test                 # 单元测试与widget测试
-├─.github/workflows    # CI 工作流
-└─dist                 # 构建产物目录
+lib/
+  main.dart                 # 入口
+  app.dart                  # 主题与 MaterialApp
+  theme/tokens.dart         # 色盘
+  models/sms_item.dart      # 短信模型
+  services/                 # 通道封装 / CSV / 隐藏列表
+  features/
+    list/                   # 首页、卡片、动作 Sheet
+    filter/                 # 筛选模型与弹层
+    delete/                 # 删除确认
+    settings/               # 设置 / 主题 / 权限
+    widgets/                # 空态
+android/app/src/main/kotlin/com/dc16/sms/
+  MainActivity.kt           # MethodChannel 分发
+  SmsAccess.kt              # 查询 / 删除 / 权限 / MIUI
+  SmsReceiver.kt            # 默认短信时收信入库
 ```
+
+
+## 隐私
+
+短信内容仅用于本机展示、筛选与导出；无网络上传，无统计上报。
+
+## 许可
+
+本项目采用 [MIT License](LICENSE) 开源。

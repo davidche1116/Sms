@@ -4,13 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       flutter_channel:
-        default: 'stable'
+        default: "stable"
         required: true
         type: choice
         options:
           - beta
           - master
           - stable
+      build_release:
+        description: "Build release APK (uses repo signing)"
+        default: false
+        required: false
+        type: boolean
 
 # 防止同一分支的多次手动触发并行执行。
 concurrency:
@@ -21,74 +26,49 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@v7
 
-      - name: Set Up Java
-        uses: actions/setup-java@v6.0.1
+      - name: Setup Java 17
+        uses: actions/setup-java@v6
         with:
-          distribution: "oracle"
-          cache: 'gradle'
+          distribution: temurin
+          cache: gradle
           java-version: "17"
 
-      - name: Set Up Flutter
-        uses: subosito/flutter-action@v2.23.0
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           channel: ${{ inputs.flutter_channel }}
           cache: true
 
-      - name: Setup Android SDK Platform 37
-        # compileSdk=37 需要 android-37 目录；sdkmanager 只提供版本化目录（如 android-37.1）。
-        # 镜像若已自带有效的 android-37 则跳过，否则取最新已安装的 37.x（排除 beta）做软链。
-        # yes 在 sdkmanager 退出后写 stdin 会收 SIGPIPE，在 pipefail 下导致整步失败，用 || true 忽略。
-        run: |
-          if [ ! -f "$ANDROID_HOME/platforms/android-37/android.jar" ]; then
-            LATEST_37=$(ls -d "$ANDROID_HOME/platforms/android-37".* 2>/dev/null | grep -v beta | sort -V | tail -n 1)
-            if [ -z "$LATEST_37" ]; then
-              yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.1" "build-tools;37.0.0" || true
-              LATEST_37="$ANDROID_HOME/platforms/android-37.1"
-            fi
-            ln -sfnT "$LATEST_37" "$ANDROID_HOME/platforms/android-37"
-          fi
-          ls "$ANDROID_HOME/platforms"
-        shell: bash
-
-      - name: Accept Android licenses
-        run: yes | flutter doctor --android-licenses || true
-        shell: bash
-
-      - name: Install Dependencies
-        run: flutter pub get
-        shell: bash
-
-      - name: Install fastforge
-        run: dart pub global activate fastforge
-        shell: bash
-
-      - name: Checking flutter
+      - name: Flutter doctor
         run: flutter doctor --verbose
-        shell: bash
 
-      - name: Check formatting
-        run: dart format --output=none --set-exit-if-changed lib test
-        shell: bash
+      - name: Pub get
+        run: flutter pub get
 
-      - name: Analyze project source
-        run: dart analyze
-        shell: bash
+      - name: Analyze
+        run: flutter analyze
 
-      - name: Run widget tests
+      - name: Test
         run: flutter test
-        shell: bash
 
-      - name: Build APK
-        run: fastforge release --name apk
-        shell: bash
+      - name: Android unit tests
+        run: |
+          cd android
+          ./gradlew :app:testDebugUnitTest
+
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Build release APK
+        if: ${{ inputs.build_release }}
+        run: flutter build apk --release
 
       - name: Archive APK
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7
         with:
-          name: sms
+          name: sms-${{ inputs.flutter_channel }}
           path: |
-            dist/**
-          overwrite: true
-          compression-level: 9
+            build/app/outputs/flutter-apk/*.apk
+          retention-days: 7

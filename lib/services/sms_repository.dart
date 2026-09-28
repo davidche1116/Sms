@@ -1,217 +1,471 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:sms_advanced/sms_advanced.dart';
 
-/// 平台拒绝读取短信（无 READ_SMS 等）。
-///
-/// 与"查询失败"区分开：调用方应提示去授权，而不是笼统的"操作失败"。
+import '../models/sms_item.dart';
+import 'channel_codes.dart';
+
+export 'channel_codes.dart';
+
 class SmsQueryPermissionException implements Exception {
   const SmsQueryPermissionException();
-
-  @override
-  String toString() => 'SmsQueryPermissionException';
 }
 
-/// 短信数据访问层：统一封装 sms_advanced 插件与默认短信应用平台通道，
-/// UI 层不直接接触 MethodChannel 与插件查询/删除 API，便于替换底层实现
-/// （如未来用自写 platform channel 替换 sms_advanced 时只改这里）。
+/// `requestReadSms` 结果：区分「用户拒绝」与「系统未返回」，供 UI 给出不同提示。
+enum RequestReadSmsResult {
+  /// 已真正可读。
+  granted,
+
+  /// 系统明确返回且仍无权限（用户拒绝 / 未授）。
+  denied,
+
+  /// 超时或 Activity 被销毁，系统没给结果；回查后仍不可读。
+  /// UI 应提示可去设置手动开启，不要当成用户拒绝。
+  timeout,
+}
+
+/// `queryPage` 结果：本页 items + 库内去重总数 + 部分失败标记。
+class SmsQueryPage {
+  const SmsQueryPage({
+    required this.items,
+    this.total,
+    this.partial = false,
+    this.warnings = const [],
+  });
+
+  final List<SmsItem> items;
+  final int? total;
+
+  /// 有数据但某路子查询失败（SMS/MMS 某 URI 或 addr/part 富化）。
+  /// `true` 时 [warnings] 非空，列表可能不完整，UI 应轻提示并可重试。
+  /// 与整批失败互斥：`error` 非空时本字段必为 `false`。
+  final bool partial;
+
+  /// 部分失败明细（[QueryWarning]）；`partial=false` 时为空。
+  final List<QueryWarning> warnings;
+
+  /// 是否还有下一页。`total` 未知（旧原生）时用「本页是否写满」估算。
+  bool hasMore(int loadedCount, int pageSize) =>
+      total != null ? loadedCount < total! : items.length >= pageSize;
+}
+
+/// 薄封装原生通道 `com.dc16.sms/smsApp`。
 class SmsRepository {
-  static const MethodChannel _platform = MethodChannel('com.dc16.sms/smsApp');
-  static const String defaultPackageId = 'com.dc16.sms';
+  /// [systemResponseTimeout]：等待系统权限弹窗 / 角色页返回的最长时限。
+  /// 超时后回退再查一次真实状态，绝不让 `invokeMethod` 永久 pending。
+  /// 测试可注入更短的 Duration。
+  SmsRepository({this.systemResponseTimeout = defaultSystemResponseTimeout});
 
-  /// 读取设备上的全部短信。
-  Future<List<SmsMessage>> getAllSms() => _querySms();
+  /// 默认等系统回包时限（2 分钟）。
+  static const Duration defaultSystemResponseTimeout = Duration(minutes: 2);
 
-  /// 按号码查询该地址的全部短信。
+  /// `insertSmsBatch` 单次通道分片行数。
   ///
-  /// 必须覆盖全部类型（Sent+Inbox+Draft）：插件 `querySms` 的 kinds 默认是
-  /// `[SmsQueryKind.Inbox]`，不传就只回收件箱，与"全部短信"口径不一致。
-  Future<List<SmsMessage>> queryByAddress(String? address) =>
-      _querySms(address: address);
+  /// 单条 platform message 受 Binder ~1MB 限制；短信行很小，200 行足够安全，
+  /// 也给原生侧 applyBatch 同量级分片（见 Kotlin `INSERT_CHUNK`）留了余量。
+  static const int insertChunkSize = 200;
 
-  /// 统一查询入口：只走原生多 URI；原生通道缺失时才回退插件。
+  /// `deleteSmsBatchChunked` 单次通道分片条数（UI 级进度粒度）。
   ///
-  /// 刻意不「原生 + 插件合并」：sms_advanced 的 `readSms` 会对任意列
-  /// `getInt`，碰到 `creator` 等文本列抛出的异常没有被它自己接住，会直接
-  /// 把进程打崩（掉默认短信后该列更容易有值，表现为闪退）。插件只作
-  /// MissingPluginException 时的兜底，平时不调用。
-  Future<List<SmsMessage>> _querySms({String? address}) async {
-    try {
-      return await _querySmsNative(address);
-    } on MissingPluginException catch (e) {
-      debugPrint('querySms native missing, fall back to plugin: $e');
-      return _querySmsViaPlugin(address);
-    }
-  }
+  /// 小于 Kotlin 内部 900 分片，保证大批次也能看到真实进度步进；
+  /// 单条 platform message 载荷很小，200 条远低于 Binder ~1MB 上限。
+  static const int deleteChunkSize = 200;
 
-  Future<List<SmsMessage>> _querySmsNative(String? address) async {
-    final dynamic raw = await _platform.invokeMethod<dynamic>(
-      'querySms',
-      address == null || address.isEmpty
-          ? null
-          : <String, dynamic>{'address': address},
-    );
-    if (raw is! Map) {
-      throw StateError('querySms returned unexpected payload: $raw');
-    }
-    final dynamic error = raw['error'];
-    if (error == 'permission') {
-      throw const SmsQueryPermissionException();
-    }
-    if (error != null) {
-      throw PlatformException(code: 'querySms', message: '$error');
-    }
-    final List<dynamic> rows =
-        (raw['messages'] as List<dynamic>?) ?? const <dynamic>[];
-    return rows
-        .map(
-          (dynamic row) =>
-              _fromNativeRow(Map<dynamic, dynamic>.from(row as Map)),
-        )
-        .toList(growable: false);
-  }
+  /// 见构造参数。
+  final Duration systemResponseTimeout;
 
-  /// 安全解析原生行：不用 `SmsMessage.fromJson`。
-  ///
-  /// `fromJson` 在 `containsKey('date')` 且值为 null 时会
-  /// `DateTime.fromMillisecondsSinceEpoch(null)` 直接抛错；原生侧会把
-  /// 空列以 null 放进 map，必须自己判空。
-  static SmsMessage _fromNativeRow(Map<dynamic, dynamic> data) {
-    return SmsMessage(
-      data['address'] as String?,
-      data['body'] as String?,
-      id: (data['_id'] as num?)?.toInt(),
-      threadId: (data['thread_id'] as num?)?.toInt(),
-      sim: (data['sub_id'] as num?)?.toInt(),
-      read: (data['read'] as num?) == 1,
-      date: _dateFrom(data['date']),
-      dateSent: _dateFrom(data['date_sent']),
-      kind: _kindFromType((data['type'] as num?)?.toInt()),
-    );
-  }
+  static const _ch = MethodChannel('com.dc16.sms/smsApp');
 
-  static DateTime? _dateFrom(Object? value) {
-    if (value is num) return DateTime.fromMillisecondsSinceEpoch(value.toInt());
-    return null;
-  }
+  /// 等系统回包并套超时；超时抛 [TimeoutException]，由调用方回退再查状态。
+  Future<T> _awaitSystem<T>(Future<T> future) =>
+      future.timeout(systemResponseTimeout);
 
-  /// 插件兜底：按类型分次查询且不排序，避免
-  /// 1) 单类失败拖垮整次 getAllSms；
-  /// 2) 插件 `SmsMessage.compareTo` 对 null id 强解包崩溃。
-  Future<List<SmsMessage>> _querySmsViaPlugin(String? address) async {
-    final List<SmsMessage> result = <SmsMessage>[];
-    Object? lastError;
-    for (final SmsQueryKind kind in SmsQueryKind.values) {
-      try {
-        result.addAll(
-          await SmsQuery().querySms(
-            address: address,
-            kinds: <SmsQueryKind>[kind],
-            sort: false,
-          ),
-        );
-      } catch (e) {
-        lastError = e;
-        debugPrint('querySms plugin $kind failed: $e');
-      }
-    }
-    if (result.isEmpty && lastError != null) {
-      if (lastError is PlatformException &&
-          (lastError.code == '#01' ||
-              (lastError.message ?? '').toLowerCase().contains('permission'))) {
-        throw const SmsQueryPermissionException();
-      }
-      // 保底抛出，让上层走"操作失败"而不是静默空列表。
-      throw lastError is Exception ? lastError : Exception('$lastError');
-    }
-    return result;
-  }
-
-  /// Telephony.Sms.TYPE → 插件语义的 kind（收件箱/已发送/草稿）。
-  static SmsMessageKind _kindFromType(int? type) {
-    // 1=INBOX 2=SENT 3=DRAFT 4=OUTBOX 5=FAILED 6=QUEUED
-    switch (type) {
-      case 2:
-      case 4:
-      case 5:
-      case 6:
-        return SmsMessageKind.Sent;
-      case 3:
-        return SmsMessageKind.Draft;
-      default:
-        return SmsMessageKind.Received;
-    }
-  }
-
-  /// 按 id + threadId 删除单条短信，返回 null/true/false 由插件语义决定。
-  Future<bool?> removeSmsById(int id, int threadId) =>
-      SmsRemover().removeSmsById(id, threadId);
-
-  /// 批量删除短信，返回实际删除条数。
-  ///
-  /// 原生侧按 `_id IN (...)` 分批删除，把 N 次跨进程调用降到
-  /// ceil(N / 900) 次。返回 `null` 表示平台侧不支持或删除失败，
-  /// 调用方应回退到逐条删除。
-  Future<int?> deleteSmsBatch(List<int> ids) async {
-    try {
-      return await _platform.invokeMethod<int>('deleteSmsBatch', ids);
-    } on PlatformException catch (e) {
-      debugPrint('deleteSmsBatch failed: ${e.message}');
-      return null;
-    } on MissingPluginException catch (e) {
-      debugPrint('deleteSmsBatch missing: $e');
-      return null;
-    }
-  }
-
-  /// 系统真实 READ_SMS 状态（原生 checkSelfPermission）。
-  ///
-  /// 勿用 `Permission.sms.isGranted` 代替：掉默认短信角色并被系统强停后
-  /// 插件可能仍缓存为 true，导致「申请权限」被短路成假成功。
   Future<bool> hasReadSmsPermission() async {
     try {
-      final dynamic ok = await _platform.invokeMethod<dynamic>(
-        'hasReadSmsPermission',
-      );
-      return ok == true;
-    } on MissingPluginException catch (e) {
-      debugPrint('hasReadSmsPermission missing: $e');
-      return false;
-    } on PlatformException catch (e) {
-      debugPrint('hasReadSmsPermission failed: ${e.message}');
+      return await _ch.invokeMethod<bool>('hasReadSmsPermission') ?? false;
+    } catch (e) {
+      debugPrint('hasReadSmsPermission: $e');
       return false;
     }
   }
 
-  /// 当前是否默认短信应用。
+  /// 等待系统弹窗结束并返回是否真正可读。
   ///
-  /// 返回 `true` = 是默认；`false` = 明确不是默认（默认应用是别的包）；
-  /// `null` = 无法判定（默认应用不可知，或平台调用缺失/异常）。
-  /// 调用方据此区分提示，不把"拿不到"静默当成"不是默认"。
-  Future<bool?> isDefaultSmsApp() async {
+  /// 通道挂起 / 超时 / Activity 被销毁（`lifecycle`）时回退再查一次
+  /// [hasReadSmsPermission]，绝不永久 pending。超时且仍无权限时返回
+  /// [RequestReadSmsResult.timeout]，UI 可提示「系统未返回结果，可在设置中手动开启」。
+  Future<RequestReadSmsResult> requestReadSms() async {
     try {
-      final smsApp = await _platform.invokeMethod<String>('getDefaultSmsApp');
-      if (smsApp == null || smsApp.isEmpty) return null;
-      return smsApp == defaultPackageId;
+      final ok = await _awaitSystem(_ch.invokeMethod<bool>('requestReadSms'));
+      return (ok == true || await hasReadSmsPermission())
+          ? RequestReadSmsResult.granted
+          : RequestReadSmsResult.denied;
+    } on TimeoutException {
+      debugPrint('requestReadSms: timeout after $systemResponseTimeout');
+      return _readAfterNoResult();
     } on PlatformException catch (e) {
-      debugPrint('getDefaultSmsApp failed: ${e.message}');
-      return null;
-    } on MissingPluginException catch (e) {
-      // 方法缺失（如 iOS 或原生未注册该通道）属于"无法判定"，不是"不是默认"。
-      debugPrint('getDefaultSmsApp missing: $e');
+      if (e.code == ChannelCodes.errorLifecycle) {
+        debugPrint('requestReadSms: cancelled by activity lifecycle');
+        return _readAfterNoResult();
+      }
+      debugPrint('requestReadSms: $e');
+      return (await hasReadSmsPermission())
+          ? RequestReadSmsResult.granted
+          : RequestReadSmsResult.denied;
+    } catch (e) {
+      debugPrint('requestReadSms: $e');
+      return (await hasReadSmsPermission())
+          ? RequestReadSmsResult.granted
+          : RequestReadSmsResult.denied;
+    }
+  }
+
+  /// 系统未回包（超时 / 销毁）后：回查一次是否已可读，否则报 timeout。
+  Future<RequestReadSmsResult> _readAfterNoResult() async {
+    if (await hasReadSmsPermission()) return RequestReadSmsResult.granted;
+    return RequestReadSmsResult.timeout;
+  }
+
+  /// true=默认 / false=非默认 / null=无法判定
+  Future<bool?> isDefaultSms() async {
+    try {
+      return await _ch.invokeMethod<bool>('isDefaultSms');
+    } catch (e) {
+      debugPrint('isDefaultSms: $e');
       return null;
     }
   }
 
-  /// 发起"设为默认短信应用"的系统流程。
-  Future<String?> setDefaultSmsApp() =>
-      _platform.invokeMethod<String>('setDefaultSmsApp');
+  /// 见 [DefaultSmsResult]。
+  ///
+  /// 超时 / Activity 销毁时返回 [DefaultSmsResult.timeout]（或已在系统页
+  /// 完成切换则 [DefaultSmsResult.alreadyDefault]），绝不永久 pending。
+  Future<DefaultSmsResult> setDefaultSms() async {
+    try {
+      return DefaultSmsResult.fromWire(
+        await _awaitSystem(_ch.invokeMethod<String>('setDefaultSms')),
+      );
+    } on TimeoutException {
+      debugPrint('setDefaultSms: timeout after $systemResponseTimeout');
+      return _defaultSmsAfterNoResult();
+    } on PlatformException catch (e) {
+      if (e.code == ChannelCodes.errorLifecycle) {
+        debugPrint('setDefaultSms: cancelled by activity lifecycle');
+        return _defaultSmsAfterNoResult();
+      }
+      debugPrint('setDefaultSms: $e');
+      return DefaultSmsResult.error;
+    } catch (e) {
+      debugPrint('setDefaultSms: $e');
+      return DefaultSmsResult.error;
+    }
+  }
 
-  /// 读取当前默认短信应用的包名。
-  Future<String?> getDefaultSmsApp() =>
-      _platform.invokeMethod<String>('getDefaultSmsApp');
+  /// 系统未回包（超时 / 销毁）后：回查一次是否已成为默认，否则报 timeout。
+  Future<DefaultSmsResult> _defaultSmsAfterNoResult() async {
+    if (await isDefaultSms() == true) return DefaultSmsResult.alreadyDefault;
+    return DefaultSmsResult.timeout;
+  }
 
-  /// 恢复系统默认短信应用。
-  Future<String?> resetDefaultSmsApp() =>
-      _platform.invokeMethod<String>('resetDefaultSmsApp');
+  /// 见 [RestoreDefaultResult]。
+  Future<RestoreDefaultResult> restoreDefaultSms() async {
+    try {
+      return RestoreDefaultResult.fromWire(
+        await _ch.invokeMethod<String>('restoreDefaultSms'),
+      );
+    } catch (e) {
+      debugPrint('restoreDefaultSms: $e');
+      return RestoreDefaultResult.error;
+    }
+  }
+
+  Future<bool> openDefaultSmsSettings() async {
+    try {
+      return await _ch.invokeMethod<bool>('openDefaultSmsSettings') ?? false;
+    } catch (e) {
+      debugPrint('openDefaultSmsSettings: $e');
+      return false;
+    }
+  }
+
+  /// 打开本应用系统设置（权限被长期拒绝时手动开启）。
+  Future<bool> openAppSettings() async {
+    try {
+      return await _ch.invokeMethod<bool>('openAppSettings') ?? false;
+    } catch (e) {
+      debugPrint('openAppSettings: $e');
+      return false;
+    }
+  }
+
+  Future<bool> isMiui() async {
+    try {
+      return await _ch.invokeMethod<bool>('isMiui') ?? false;
+    } catch (e) {
+      debugPrint('isMiui: $e');
+      return false;
+    }
+  }
+
+  /// 见 [MiuiNotifState]。
+  Future<MiuiNotifState> miuiNotificationSmsState() async {
+    try {
+      return MiuiNotifState.fromWire(
+        await _ch.invokeMethod<String>('miuiNotificationSmsState'),
+      );
+    } catch (e) {
+      debugPrint('miuiNotificationSmsState: $e');
+      return MiuiNotifState.unknown;
+    }
+  }
+
+  Future<bool> openMiuiPermissionEditor() async {
+    try {
+      return await _ch.invokeMethod<bool>('openMiuiPermissionEditor') ?? false;
+    } catch (e) {
+      debugPrint('openMiuiPermissionEditor: $e');
+      return false;
+    }
+  }
+
+  /// QA：插入带前缀的测试短信（仅 debug 包 + 当前为默认短信时有效）。
+  /// 成功返回 id 列表；失败（非默认 / 非 debug / 异常）返回 null。
+  Future<List<int>?> insertTestSms({
+    int count = 3,
+    String bodyPrefix = 'SMSCLEANUP_TEST',
+  }) async {
+    try {
+      final raw = await _ch.invokeMethod<dynamic>('insertTestSms', {
+        'count': count,
+        'bodyPrefix': bodyPrefix,
+      });
+      if (raw is! Map || raw[ChannelCodes.keyOk] != true) return null;
+      return [
+        for (final x in (raw[ChannelCodes.keyIds] as List? ?? const []))
+          (x as num).toInt(),
+      ];
+    } catch (e) {
+      debugPrint('insertTestSms: $e');
+      return null;
+    }
+  }
+
+  Future<List<SmsItem>> queryAll() => _query(null);
+
+  Future<List<SmsItem>> queryByAddress(String address) => _query(address);
+
+  /// 分页查询：`limit`/`offset` 与原生契约一致。
+  /// 都不传则等价全量（兼容旧调用）；`total` 为去重后的库内总数。
+  ///
+  /// [QueryError.permission] 抛 [SmsQueryPermissionException]；
+  /// [QueryError.unknown] 抛普通异常；[QueryError.none] 正常返回。
+  /// 有数据但部分子查询失败时返回 `partial=true` + `warnings`（不抛）。
+  Future<SmsQueryPage> queryPage({
+    String? address,
+    int? limit,
+    int? offset,
+  }) async {
+    List<SmsItem> list;
+    int? total;
+    var partial = false;
+    List<QueryWarning> warnings = const [];
+    try {
+      final raw = await _ch.invokeMethod<dynamic>('querySms', {
+        if (address != null && address.isNotEmpty) 'address': address,
+        'limit': ?limit,
+        'offset': ?offset,
+      });
+      if (raw is! Map) return const SmsQueryPage(items: []);
+      switch (QueryError.fromWire(raw[ChannelCodes.keyError])) {
+        case QueryError.none:
+          break;
+        case QueryError.permission:
+          throw const SmsQueryPermissionException();
+        case QueryError.unknown:
+          throw Exception('querySms: ${raw[ChannelCodes.keyError]}');
+      }
+      final rows = (raw[ChannelCodes.keyMessages] as List?) ?? const [];
+      total = (raw[ChannelCodes.keyTotal] as num?)?.toInt();
+      partial = raw[ChannelCodes.keyPartial] == true;
+      warnings = [
+        for (final w in (raw[ChannelCodes.keyWarnings] as List? ?? const []))
+          QueryWarning.fromWire(w),
+      ];
+      list = rows.map(_mapRow).toList();
+    } on MissingPluginException {
+      return const SmsQueryPage(items: []);
+    }
+    // 与 Kotlin 同序：date 降序（null 最早），_id 降序作稳定次键。
+    list.sort(_dateDesc);
+    return SmsQueryPage(
+      items: list,
+      total: total,
+      partial: partial,
+      warnings: warnings,
+    );
+  }
+
+  Future<List<SmsItem>> _query(String? address) async {
+    final page = await queryPage(address: address);
+    return page.items;
+  }
+
+  static SmsItem _mapRow(Object? e) {
+    final m = Map<String, dynamic>.from(e as Map);
+    return SmsItem(
+      body: m['body']?.toString() ?? '',
+      address: m['address']?.toString() ?? '',
+      dateMs: (m['date'] as num?)?.toInt(),
+      type: (m['type'] as num?)?.toInt() ?? 1,
+      sim: (m['sub_id'] as num?)?.toInt() ?? 1,
+      read: (m['read'] as num?)?.toInt() == 1,
+      id: (m['_id'] as num?)?.toInt(),
+      threadId: (m['thread_id'] as num?)?.toInt(),
+      isMms: (m['is_mms'] as num?)?.toInt() == 1,
+      hasMedia: (m['has_media'] as num?)?.toInt() == 1,
+    );
+  }
+
+  static int _dateDesc(SmsItem a, SmsItem b) {
+    final d = (b.dateMs ?? 0).compareTo(a.dateMs ?? 0);
+    if (d != 0) return d;
+    // 与 Kotlin 同序：is_mms 降序（uid 已把 MMS 抬到高位）+ id 降序。
+    return (b.uid ?? 0).compareTo(a.uid ?? 0);
+  }
+
+  /// 见 [DeleteBatchResult]。按 `is_mms` 路由删除，SMS / MMS 不会误删对方同号行。
+  ///
+  /// 线协议 Map `{ok, deleted, failed, error, errors}`（见 CHANNEL_CONTRACT）；
+  /// 兼容旧 `int?`（int=全成、null=失败）。入参载荷 `[{id, is_mms}]`，
+  /// 原生兼容旧 `List<Int>`（纯 SMS）。
+  Future<DeleteBatchResult> deleteSmsBatch(List<SmsItem> items) async {
+    final targets = [
+      for (final e in items)
+        if (e.id != null) {'id': e.id, 'is_mms': e.isMms ? 1 : 0},
+    ];
+    if (targets.isEmpty) return const DeleteBatchResult.ok(0);
+    try {
+      final raw = await _ch.invokeMethod<Object?>('deleteSmsBatch', targets);
+      return DeleteBatchResult.fromWire(raw);
+    } catch (e) {
+      debugPrint('deleteSmsBatch: $e');
+      return const DeleteBatchResult.failed(BatchFailure.native);
+    }
+  }
+
+  /// 分块删除：按 [deleteChunkSize] 循环调用 [deleteSmsBatch]，每块完成回调
+  /// [onProgress]。混合 SMS/MMS 目标保持原序整块过通道，线协议不变。
+  ///
+  /// - 某块整批失败（非默认 / 原生异常）或块内部分失败：停止后续块，
+  ///   返回 [DeleteStopReason.failed]，[DeleteChunkResult.failure] 给出原因；
+  ///   该块目标不计入已删前缀（块内成功删除的行会在下次刷新时消失）。
+  /// - [shouldCancel] 置真：停止后续块（已发出的不撤回），
+  ///   返回 [DeleteStopReason.cancelled]。
+  /// - [DeleteChunkResult.deleted] 是**顺序前缀**长度，调用方可直接
+  ///   `targets.take(deleted)` 得到已删项；失败/取消块的目标不算已删。
+  Future<DeleteChunkResult> deleteSmsBatchChunked(
+    List<SmsItem> items, {
+    void Function(int done, int total)? onProgress,
+    bool Function()? shouldCancel,
+    int chunkSize = deleteChunkSize,
+  }) async {
+    final targets = [
+      for (final e in items)
+        if (e.id != null) e,
+    ];
+    final total = targets.length;
+    if (total == 0) return const DeleteChunkResult(deleted: 0, total: 0);
+    var done = 0;
+    onProgress?.call(done, total);
+    for (var offset = 0; offset < total; offset += chunkSize) {
+      if (shouldCancel?.call() ?? false) {
+        return DeleteChunkResult(
+          deleted: done,
+          total: total,
+          reason: DeleteStopReason.cancelled,
+        );
+      }
+      final end = (offset + chunkSize).clamp(0, total);
+      final chunk = targets.sublist(offset, end);
+      final r = await deleteSmsBatch(chunk);
+      if (!r.ok) {
+        return DeleteChunkResult(
+          deleted: done,
+          total: total,
+          reason: DeleteStopReason.failed,
+          failure: r.failure ?? BatchFailure.notDefaultOrError,
+        );
+      }
+      if (r.failed > 0) {
+        // 块内部分失败：本块不计入已删前缀，其后块不再发出。
+        return DeleteChunkResult(
+          deleted: done,
+          total: total,
+          reason: DeleteStopReason.failed,
+          failure: BatchFailure.native,
+        );
+      }
+      // 整块视为完成：已删或本就不在库中的行都应从列表消失。
+      done += chunk.length;
+      onProgress?.call(done, total);
+      // 让出事件循环：驱动进度帧绘制，并给「停止」点击生效的机会
+      //（连续快速回包时整段循环会挤在同一轮微任务里，UI 与取消都插不进来）。
+      if (offset + chunkSize < total) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+    return DeleteChunkResult(deleted: done, total: total);
+  }
+
+  /// 批量插入（导入 CSV）。仅新增，不删不改。见 [InsertBatchResult]。
+  ///
+  /// 线协议 Map `{ok, inserted, failed, errors}`；兼容旧 `int?` / 通道异常。
+  /// 大列表按 [insertChunkSize] 分片过通道：单条 platform message 不超过
+  /// Binder ~1MB 上限；errors[].index 始终是**全局**入参下标。
+  Future<InsertBatchResult> insertSmsBatch(
+    List<Map<String, Object?>> rows,
+  ) async {
+    if (rows.isEmpty) return const InsertBatchResult.ok(0);
+    var inserted = 0;
+    var failed = 0;
+    final errors = <InsertRowError>[];
+    for (var offset = 0; offset < rows.length; offset += insertChunkSize) {
+      final end = (offset + insertChunkSize).clamp(0, rows.length);
+      final chunk = rows.sublist(offset, end);
+      // 后续分片的全局下标偏移；-1（整批级）保持不变。
+      final base = offset;
+      InsertRowError remap(InsertRowError e) => InsertRowError(
+        index: e.index < 0 ? e.index : e.index + base,
+        code: e.code,
+        message: e.message,
+      );
+      try {
+        final raw = await _ch.invokeMethod<Object?>('insertSmsBatch', chunk);
+        final r = InsertBatchResult.fromWire(raw);
+        if (!r.ok) {
+          // 非默认/整批失败：其后分片无意义，直接汇总返回。
+          return InsertBatchResult(
+            inserted: inserted + r.inserted,
+            failed:
+                failed + (r.failed > 0 ? r.failed : chunk.length - r.inserted),
+            errors: [...errors, ...r.errors.map(remap)],
+            failure: r.failure,
+          );
+        }
+        inserted += r.inserted;
+        failed += r.failed;
+        errors.addAll(r.errors.map(remap));
+      } catch (e) {
+        debugPrint('insertSmsBatch: $e');
+        return InsertBatchResult(
+          inserted: inserted,
+          failed: failed + (rows.length - offset),
+          errors: errors,
+          failure: BatchFailure.notDefaultOrError,
+        );
+      }
+    }
+    return InsertBatchResult.ok(inserted, failed: failed, errors: errors);
+  }
 }

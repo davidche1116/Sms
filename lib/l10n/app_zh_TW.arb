@@ -1,100 +1,342 @@
 {
   "@@locale": "zh_TW",
-  "title": "簡訊清理",
-  "toast_default": "需要在系統設定中將本應用程式設定為預設簡訊應用程式才能刪除簡訊",
-  "toast_default_settings": "請在系統設定中切換預設簡訊應用程式",
-  "toast_default_confirm": "請在系統彈出視窗中確認",
-  "toast_permission": "需要申請簡訊權限或設定為預設簡訊應用程式",
-  "keyword": "關鍵字",
-  "b_confirm": "確定",
-  "t_confirm_delete": "確認刪除",
-  "delete_num": "是否刪除這{num}則簡訊？",
-  "@delete_num": {
-    "description": "帶有單個參數的訊息",
+  "appTitle": "簡訊清理",
+  "homeTitle": "簡訊",
+  "selectedCount": "已選 {count}",
+  "@selectedCount": {
     "placeholders": {
-      "num": {
-        "type": "String",
-        "example": "1"
-      }
+      "count": {"type": "int"}
     }
   },
-  "b_cancel": "取消",
-  "operation_failed": "操作失敗",
-  "toast_save_failed": "保存失敗，請檢查儲存空間或權限",
-  "operation_completed": "操作成功",
-  "toast_no": "沒有簡訊可分享",
-  "sms_list": "簡訊清單",
-  "toast_share": "分享成功",
-  "tips": "提示",
-  "delete_or_move": "是否要刪除或移出目前項目？",
-  "b_remove": "移出清單",
-  "b_delete": "直接刪除",
-  "b_same_number": "相同號碼簡訊",
-  "b_same_sim": "相同卡簡訊",
-  "toast_clipboard": "已複製到剪貼簿",
-  "b_copy": "複製",
-  "sms": "簡訊",
-  "num_sms": "{num}則簡訊",
-  "@num_sms": {
-    "description": "帶有單個參數的訊息",
+  "loadedPartial": "已載入 {loaded} / {total} 則",
+  "@loadedPartial": {
     "placeholders": {
-      "num": {
-        "type": "String",
-        "example": "1"
-      }
+      "loaded": {"type": "int"},
+      "total": {"type": "int"}
     }
   },
-  "t_all_sms": "所有簡訊清單",
-  "t_date_filter": "日期範圍過濾",
-  "t_keyword_filter": "關鍵字篩選",
-  "set_permission": "申請簡訊權限",
-  "set_settings": "應用程式權限設定",
-  "set_default": "設定為預設簡訊應用程式",
-  "set_restore": "還原預設簡訊應用程式",
-  "set_export": "匯出csv並分享",
-  "t_wait": "請稍候",
-  "t_no_sms": "沒有簡訊",
-  "b_remove_filter": "移除篩選條件",
-  "t_delete_all": "刪除目前清單中的所有簡訊",
-  "set_select": "多選",
-  "select_all": "全選",
-  "exit_select": "退出多選",
-  "selected_num": "已選 {num} 則",
-  "@selected_num": {
-    "description": "已選取的簡訊則數",
+  "loadedCount": "已載入 {loaded} 則",
+  "@loadedCount": {
     "placeholders": {
-      "num": {
-        "type": "String",
-        "example": "5"
-      }
+      "loaded": {"type": "int"}
     }
   },
-  "toast_no_selection": "未選取簡訊",
-  "t_deleting": "正在刪除...",
-  "delete_progress": "已刪除 {done} / {total}",
-  "@delete_progress": {
-    "description": "批次刪除進度",
+  "messageCount": "{count} 則",
+  "@messageCount": {
     "placeholders": {
-      "done": {
-        "type": "String",
-        "example": "120"
-      },
-      "total": {
-        "type": "String",
-        "example": "3000"
-      }
+      "count": {"type": "int"}
     }
   },
-  "sim": "卡",
-  "t_list_too_long": "清單較長，可能需要較多時間",
-  "delete_failed": "刪除完成，{num}則簡訊刪除失敗",
-  "@delete_failed": {
-    "description": "帶有單個參數的訊息",
+  "selectAll": "全選",
+  "searchFilter": "搜尋 / 篩選",
+  "settings": "設定",
+  "more": "更多",
+  "exportSelected": "匯出所選",
+  "deleteSelected": "刪除所選",
+  "queryFailedRetry": "查詢失敗，下拉或點重試",
+  "deleteFailedNeedDefault": "刪除失敗：請先設為預設簡訊應用程式",
+  "deleteFailedRetry": "刪除失敗，請重試",
+  "deletedCount": "已刪除 {count} 則",
+  "@deletedCount": {
     "placeholders": {
-      "num": {
-        "type": "String",
-        "example": "1"
-      }
+      "count": {"type": "int"}
     }
-  }
+  },
+  "alreadyDefaultSms": "已是預設簡訊應用程式",
+  "confirmInSystemDialog": "請在系統對話框中確認",
+  "confirmSetDefaultInDialog": "請在系統對話框中點「設為預設應用程式」",
+  "systemNoResult": "系統未回傳結果，可在設定中手動開啟",
+  "removedFromList": "已移出清單",
+  "nothingToDelete": "沒有可刪除的簡訊",
+
+  "needPermissionTitle": "需要簡訊權限",
+  "noMatchTitle": "沒有符合的簡訊",
+  "emptyTitle": "沒有簡訊",
+  "needPermissionBody": "授予讀取簡訊權限後可瀏覽、搜尋與匯出；刪除還需設為預設簡訊應用程式。",
+  "noMatchBody": "可以清除篩選後重試。",
+  "emptyBody": "下拉可重新載入。",
+  "requestSmsPermission": "申請簡訊權限",
+  "clearFilters": "清除篩選條件",
+  "reload": "重新載入",
+  "setDefaultForDelete": "設為預設簡訊應用程式（刪除需要）",
+
+  "deleteSmsTitle": "刪除簡訊？",
+  "deleteSmsBody": "將刪除 {count} 則簡訊。刪除後不可復原。",
+  "@deleteSmsBody": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "deleteLargeWarn": "數量較大（>3000），刪除可能需要更久。",
+  "deleteProgress": "已完成 {progress} / {count}",
+  "@deleteProgress": {
+    "placeholders": {
+      "progress": {"type": "int"},
+      "count": {"type": "int"}
+    }
+  },
+  "deleteCannotUndo": "已刪 {count}，不可撤銷",
+  "@deleteCannotUndo": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "deletePartialFailed": "已刪除 {deleted} / {total} 則後失敗",
+  "@deletePartialFailed": {
+    "placeholders": {
+      "deleted": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "deleteCancelled": "已取消，已刪除 {count} 則",
+  "@deleteCancelled": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "cancel": "取消",
+  "stopDelete": "停止",
+  "stoppingDelete": "停止中…",
+  "deleting": "刪除中…",
+  "confirmDelete": "確認刪除",
+
+  "keywordLabel": "關鍵字",
+  "startDate": "開始日期",
+  "endDate": "結束日期",
+  "typeLabel": "類型",
+  "typeAll": "全部",
+  "typeInbox": "僅收件匣",
+  "typeSent": "僅已傳送",
+  "typeMms": "僅多媒體簡訊",
+  "mmsBadge": "多媒體",
+  "mmsHasAttachment": "含附件",
+  "mmsBodyPlaceholder": "[多媒體簡訊]",
+  "mmsBodyWithAttachment": "[多媒體簡訊]·含附件",
+  "reset": "重設",
+  "done": "完成",
+  "sameAddressChip": "同號 {address}",
+  "@sameAddressChip": {
+    "placeholders": {
+      "address": {"type": "String"}
+    }
+  },
+  "sameSimChip": "同卡 {sim}",
+  "@sameSimChip": {
+    "placeholders": {
+      "sim": {"type": "int"}
+    }
+  },
+  "keywordChip": "「{keyword}」",
+  "@keywordChip": {
+    "placeholders": {
+      "keyword": {"type": "String"}
+    }
+  },
+  "clearAllFilters": "清除全部",
+
+  "exportAllCsv": "匯出全部 CSV",
+  "importCsv": "匯入 CSV",
+  "importCsvHint": "寫入系統簡訊庫（需設為預設）",
+  "multiSelect": "多選",
+
+  "simTime": "卡{sim} · {time}",
+  "@simTime": {
+    "placeholders": {
+      "sim": {"type": "int"},
+      "time": {"type": "String"}
+    }
+  },
+  "simBadge": "卡{sim}",
+  "@simBadge": {
+    "placeholders": {
+      "sim": {"type": "int"}
+    }
+  },
+  "sameAddressSms": "同號簡訊",
+  "sameAddressHint": "只看這個號碼的全部簡訊",
+  "sameSimSms": "同卡簡訊",
+  "copyAddress": "複製號碼",
+  "copiedAddress": "已複製號碼",
+  "copyBody": "複製內文",
+  "copiedBody": "已複製內文",
+  "delete": "刪除",
+  "deleteOneHint": "刪除這一則，刪除前確認",
+  "hideFromList": "移出清單",
+  "hideFromListHint": "僅本機隱藏；懸浮球刪除不會帶上它們",
+
+  "miuiBanner": "可能還看不到 10086 等通知簡訊，點此開啟 MIUI「通知類簡訊」",
+  "partialQueryBanner": "部分簡訊可能未載入",
+  "partialQueryBannerHint": "點此重試",
+  "dismissHint": "不再提示",
+  "miuiGuideTitle": "還要開啟「通知類簡訊」",
+  "miuiGuideBody": "MIUI 將 10086、銀行等通知簡訊單獨管控。請在下一頁開啟：權限管理 → 其他權限 → 通知類簡訊。",
+  "openMiuiNotifSms": "去開啟通知類簡訊",
+  "later": "稍後再說",
+  "stillNoPermission": "仍未取得權限，可到系統設定開啟",
+  "smsReadable": "已可讀取簡訊",
+  "openMiuiPermFailed": "開啟 MIUI 權限頁失敗",
+
+  "sectionAppearance": "外觀",
+  "themeColor": "主題色",
+  "darkMode": "深色模式",
+  "themeSystem": "跟隨系統",
+  "themeLight": "淺色",
+  "themeDark": "深色",
+  "sectionPermissions": "權限",
+  "smsPermission": "簡訊權限",
+  "smsPermissionGranted": "已授予 · 用於讀取與匯出",
+  "smsPermissionDenied": "未授予 · 點擊查看與申請",
+  "checking": "檢查中…",
+  "defaultSmsApp": "預設簡訊應用程式",
+  "defaultSmsIsThisApp": "本應用程式 · 點擊可還原系統簡訊",
+  "defaultSmsNotThisApp": "非本應用程式 · 點擊設為預設（刪除需要）",
+  "autoRepair": "一鍵檢查並修復",
+  "autoRepairHint": "依序申請讀取權限、設為預設簡訊",
+  "sectionData": "資料",
+  "exportSmsCsv": "匯出簡訊 CSV",
+  "exporting": "匯出中…",
+  "exportSmsHint": "匯出全部簡訊到檔案並分享",
+  "importSmsCsv": "匯入簡訊 CSV",
+  "importing": "匯入中…",
+  "importSmsHint": "只新增入庫，需設為預設簡訊應用程式",
+  "resetHiddenList": "重設本機隱藏清單",
+  "noHidden": "暫無已移出的簡訊",
+  "hiddenCountLabel": "已移出 {count} 則，重設後重新顯示",
+  "@hiddenCountLabel": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "sectionAbout": "關於",
+  "version": "版本",
+  "privacy": "隱私說明",
+  "privacyHint": "資料僅在本機處理",
+  "privacyToast": "資料僅在本機處理，不上傳、不收集",
+  "footerTagline": "簡訊清理 · 本機工具",
+
+  "deleteAvailable": "刪除簡訊功能可用",
+  "restoreSystemSms": "還原為系統簡訊",
+  "restoreSystemSmsHint": "開啟系統「預設應用程式」設定，手動選擇「訊息」",
+  "keepAsIs": "保持現狀",
+  "openedDefaultSettingsPickOther": "已開啟系統預設應用程式設定，請選擇其他簡訊應用程式",
+  "notDefaultNow": "目前不是預設簡訊應用程式",
+  "openSettingsFailed": "開啟設定失敗",
+  "openedDefaultSettings": "已開啟系統預設應用程式設定",
+  "autoRepairReady": "已就緒：可讀可刪",
+  "autoRepairIncomplete": "仍有項目未就緒，請檢查上方狀態",
+  "hiddenListReset": "已重設本機隱藏清單",
+
+  "refreshStatus": "重新整理狀態",
+  "readSms": "讀取簡訊",
+  "readGrantedAppOps": "已授予 · AppOps 正常",
+  "readDeniedList": "未授予 · 無法讀取簡訊清單",
+  "defaultSmsDeleteOk": "本應用程式 · 刪除功能可用",
+  "defaultSmsDeleteNeed": "非本應用程式 · 刪除簡訊需要設為預設",
+  "miuiNotifSms": "MIUI 通知類簡訊",
+  "miuiNotifAllowed": "已允許 · 通知類簡訊可見",
+  "miuiNotifLikelyOff": "可能未開通 · 10086 等可能讀不到",
+  "miuiNotifOff": "未開通 · 只能讀到點對點簡訊",
+  "miuiNotifSuggest": "MIUI 附加權限 · 建議開通",
+  "permExplainMiui": "讀取與刪除相互獨立：讀清單只需簡訊權限；刪除必須是預設簡訊應用程式。MIUI 額外有「通知類簡訊」開關，不開通時 10086/銀行等通知類會讀不到。在系統中改掉預設簡訊後，系統可能同時收回讀取權限，回到本頁重新申請即可。",
+  "permExplain": "讀取與刪除相互獨立：讀清單只需簡訊權限；刪除必須是預設簡訊應用程式。在系統中改掉預設簡訊後，系統可能同時收回讀取權限，回到本頁重新申請即可。",
+  "setDefaultSms": "設為預設簡訊應用程式",
+  "openMiuiNotifSmsBtn": "開啟 MIUI 通知類簡訊",
+  "miuiPath": "路徑：應用程式資訊 → 權限管理 → 其他權限 → 通知類簡訊",
+  "openAppSettings": "開啟應用程式設定",
+  "openDefaultSmsSettings": "開啟系統預設應用程式設定",
+  "openAppSettingsFailed": "開啟應用程式設定失敗",
+  "openDefaultSettingsFailed": "開啟預設應用程式設定失敗",
+
+  "themeHint": "選擇強調色，立即作用於主按鈕、所選項目與圖示。",
+  "preset": "預設",
+  "custom": "自訂",
+  "colorValue": "顏色值",
+  "invalidColor": "請輸入合法顏色值，如 #2BAE67",
+  "applyCustomColor": "套用自訂顏色",
+  "preview": "預覽",
+  "primaryButtonSample": "主按鈕範例",
+  "filterChipSample": "篩選 Chip",
+  "sameAddressSample": "同號 10086",
+
+  "seedGreen": "綠",
+  "seedBlue": "藍",
+  "seedPurple": "紫",
+  "seedOrange": "橙",
+  "seedRed": "紅",
+  "seedCyan": "青",
+  "seedPink": "粉",
+  "seedGraphite": "石墨",
+
+  "dayUnknown": "未知",
+  "dayToday": "今天",
+  "dayYesterday": "昨天",
+
+  "exportFailedRetry": "匯出失敗，請重試",
+  "exportEmpty": "沒有可匯出的簡訊",
+  "exportedShareText": "已匯出 {count} 則簡訊",
+  "@exportedShareText": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "importCancelled": "已取消匯入",
+  "importReadFailed": "讀取檔案失敗",
+  "importEmptyFile": "檔案中沒有可匯入的簡訊",
+  "importUnknown": "未知錯誤",
+  "importNeedDefault": "匯入需先設為預設簡訊應用程式",
+  "importFailedRetry": "匯入失敗，請重試",
+  "importFailedWith": "匯入失敗：{error}",
+  "@importFailedWith": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+  "importedPartial": "已匯入 {inserted} / {parsed} 則（{failed} 則失敗）",
+  "@importedPartial": {
+    "placeholders": {
+      "inserted": {"type": "int"},
+      "parsed": {"type": "int"},
+      "failed": {"type": "int"}
+    }
+  },
+  "importedAll": "已匯入 {inserted} / {parsed} 則",
+  "@importedAll": {
+    "placeholders": {
+      "inserted": {"type": "int"},
+      "parsed": {"type": "int"}
+    }
+  },
+  "errorSummaryMore": " 等 {count} 則",
+  "@errorSummaryMore": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "errorSummarySeparator": "；",
+  "insertErrNotDefault": "非預設簡訊應用程式",
+  "insertErrFailed": "寫入失敗",
+  "insertErrInvalid": "資料格式非法",
+  "insertErrUnknown": "未知錯誤",
+  "deleteErrNotDefault": "非預設簡訊應用程式",
+  "deleteErrFailed": "刪除失敗",
+  "deleteErrUnknown": "未知錯誤",
+
+  "language": "語言",
+  "languageSystem": "跟隨系統",
+  "languageZh": "简体中文",
+  "languageZhTw": "繁體中文",
+  "languageEn": "English",
+
+  "openSourceLicenses": "開源許可",
+  "openSourceLicensesHint": "第三方元件與授權條款",
+  "feedback": "問題回饋",
+  "feedbackHint": "GitHub Issues",
+  "feedbackOpenFailed": "無法開啟瀏覽器，請手動造訪專案倉庫",
+  "privacyDialogTitle": "隱私說明",
+  "privacyDialogBody": "簡訊內容僅用於本機顯示、篩選與匯出；無網路上傳，無統計回報。刪除不可復原，請在操作前確認。",
+
+  "defaultSmsMmsWarnTitle": "多媒體簡訊接收有限制",
+  "defaultSmsMmsWarnBody": "作為預設簡訊應用程式時，新多媒體簡訊只入庫發件人/時間/主題，不下載完整內文與附件。需要完整多媒體簡訊請改回系統「訊息」接收。",
+  "aboutMmsReceiveTitle": "多媒體簡訊接收說明",
+  "aboutMmsReceiveBody": "瀏覽/篩選/刪除/匯出系統庫中的多媒體簡訊。本應用程式為預設時，新多媒體簡訊僅入庫中繼資料骨架，不下載完整內文。"
 }

@@ -5,6 +5,45 @@
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-09-28
+
+1.9.0 在 1.8.0 之上做了一次结构性升级（界面 / 通道 / 彩信 / i18n / 分页），
+`applicationId` 仍为 `com.dc16.sms`，可从 1.x 覆盖升级。
+
+### Added
+
+- feat(ui): Material 3 界面重构——列表卡片、日分组、筛选 Chip、动作 Sheet、
+  删除确认与真实分块进度、设置 / 主题 / 权限子页、空态三态
+- feat(theme): 8 色主题色盘 + 浅色 / 深色 / 跟随系统，偏好持久化
+- feat(l10n): 简体 / 繁體 / English 三语，`flutter gen-l10n`；设置页可手动切换语言
+- feat(mms): 彩信纳入浏览 / 筛选 / 删除 / 导出；默认短信应用时通知元数据入库
+  （发件人 / 时间 / 主题），正文为文本 part 摘要或占位
+- feat(query): `querySms` 真分页（limit/offset）与 `total`；`partial`/`warnings`
+  上报子查询部分失败；列表触底增量加载
+- feat(import): CSV 导入写入系统短信库（与导出互逆，RFC4180 + BOM）；彩信行跳过
+- feat(permission): 权限中心 + RoleManager 默认短信 + MIUI「通知类短信」引导
+- feat(settings): 开源许可（showLicensePage）、问题反馈（GitHub Issues）、隐私说明
+
+### Changed
+
+- refactor: 架构拆为 `lib/features/{list,filter,delete,settings,widgets}` +
+  `lib/services` + `lib/models`；原生层重写为 `SmsAccess` + `ChannelCodes` 线协议
+- perf(query): 单 URI 优先 + 空表回落，去掉多 URI 重复扫描；分页只物化本页
+- perf(list): SliverList 懒加载，日分组预计算
+- build: ABI 仅 `arm64-v8a`；GitHub Actions 升级到最新主版本；
+  签名仍使用随仓库的 `android/key.properties` + `android/app/key/sms.keystore`
+- docs: 三语 README（en / zh / zh_TW）；通道契约与设计文档补齐
+
+### Fixed
+
+- fix(ui): 空态按钮在矮屏 / 横屏不再溢出裁切
+- fix(ui): 筛选弹层键盘弹起时「重置 / 完成」固定底栏可见可点
+- fix(ui): 弹层统一 SafeArea，适配手势导航底部非安全区
+- fix(ui): 导出 / 导入进行中状态互不串用
+- fix(i18n): `zh_TW` 不再被错配成简中；切换语言后设置行即时刷新
+- fix(delete): `deleteSmsBatch` Map 明细，区分非默认与原生失败；部分成功可报告
+- fix(query): 子查询失败不丢其它路已有行（`partial` + `warnings`）
+
 ## [1.8.0] - 2026-09-26
 
 ### Added

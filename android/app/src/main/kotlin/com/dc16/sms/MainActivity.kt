@@ -1,381 +1,295 @@
 package com.dc16.sms
 
-import android.app.AppOpsManager
-import android.app.role.RoleManager
-import android.content.Context
+import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.database.Cursor
-import android.os.Build
-import android.os.Process
-import android.provider.BaseColumns
-import android.provider.Settings
-import android.provider.Telephony
+import android.content.pm.ApplicationInfo
 import android.util.Log
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * MainActivity类负责处理SMS应用的主要功能
- * 包括获取、设置和重置默认短信应用
+ * MethodChannel.Result 一次性包装：success/error/notImplemented 只会发出一次。
+ *
+ * 防止「系统弹窗回调 + Activity 销毁收尾」或「handler catch + 销毁收尾」
+ * 对同一个 Result 二次回包（Flutter 会抛 IllegalStateException）。
  */
+internal class OnceResult(private val raw: MethodChannel.Result) : MethodChannel.Result {
+  private val done = AtomicBoolean(false)
+
+  override fun success(result: Any?) {
+    if (!done.compareAndSet(false, true)) return
+    try {
+      raw.success(result)
+    } catch (e: Exception) {
+      Log.w("OnceResult", "success", e)
+    }
+  }
+
+  override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) {
+    if (!done.compareAndSet(false, true)) return
+    try {
+      raw.error(errorCode, errorMessage, errorDetails)
+    } catch (e: Exception) {
+      Log.w("OnceResult", "error", e)
+    }
+  }
+
+  override fun notImplemented() {
+    if (!done.compareAndSet(false, true)) return
+    try {
+      raw.notImplemented()
+    } catch (e: Exception) {
+      Log.w("OnceResult", "notImplemented", e)
+    }
+  }
+}
+
 class MainActivity : FlutterFragmentActivity() {
-    private val CHANNEL = "com.dc16.sms/smsApp"
+  private val channelName = "com.dc16.sms/smsApp"
+  private lateinit var access: SmsAccess
 
-    /**
-     * 单次 SQL 的占位符上限：SQLite 默认 SQLITE_MAX_VARIABLE_NUMBER 为 999，
-     * 留出余量按 900 一批切分。
-     */
-    private val DELETE_CHUNK_SIZE = 900
+  /** 等待系统权限弹窗结果后再回包，Dart 才能刷新。取出即清空，保证只 complete 一次。 */
+  private var pendingRead: MethodChannel.Result? = null
+  private var pendingRole: MethodChannel.Result? = null
 
-    /**
-     * 查询用投影：只声明 Dart 侧真正消费的列。
-     *
-     * 不用 `null`（全列）是因为部分 ROM 会在结果里塞进 `creator` 等文本列；
-     * 也不把 `sub_id` 等可缺列写死进投影——某些 OEM 的 SMS provider 对
-     * 不存在的列会直接让整次 query 抛异常，表现为空列表。
-     * 读取侧一律走 [readSmsRow] 按列名安全取值。
-     */
-    private val SMS_QUERY_PROJECTION = arrayOf(
-        BaseColumns._ID,
-        Telephony.Sms.THREAD_ID,
-        Telephony.Sms.ADDRESS,
-        Telephony.Sms.BODY,
-        Telephony.Sms.DATE,
-        Telephony.Sms.DATE_SENT,
-        Telephony.Sms.READ,
-        Telephony.Sms.TYPE,
-    )
+  /** 原子取出并清空 pendingRead。 */
+  private fun takePendingRead(): MethodChannel.Result? {
+    val r = pendingRead
+    pendingRead = null
+    return r
+  }
 
-    /**
-     * 多 URI 合并查询。
-     *
-     * `content://sms`（整表）在「非默认短信应用」场景下，部分 OEM（含
-     * HyperOS/MIUI）会返回空游标或直接无数据；而 `content://sms/inbox|sent|draft`
-     * 在仅有 READ_SMS 时仍可读。这里把整表与分箱 URI 都查一遍并按 `_id` 去重，
-     * 覆盖掉默认前后两种访问路径。
-     */
-    private val SMS_QUERY_URIS = listOf(
-        Telephony.Sms.CONTENT_URI,
-        Telephony.Sms.Inbox.CONTENT_URI,
-        Telephony.Sms.Sent.CONTENT_URI,
-        Telephony.Sms.Draft.CONTENT_URI,
-    )
+  /** 原子取出并清空 pendingRole。 */
+  private fun takePendingRole(): MethodChannel.Result? {
+    val r = pendingRole
+    pendingRole = null
+    return r
+  }
 
-    // startActivityForResult 已废弃，改用 Activity Result API。
-    // 选择结果通过 onResume 后的 getDefaultSmsApp 重新读取，无需在此处理。
-    private val roleRequestLauncher =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
+  /**
+   * Activity 销毁 / 引擎换绑前收尾挂起的 Result，绝不丢包。
+   * 回 [ChannelCodes.ERROR_LIFECYCLE]，Dart 映射为 timeout 语义后再查一次状态。
+   */
+  private fun completePendingOnTeardown(reason: String) {
+    takePendingRead()?.let { r ->
+      Log.i("MainActivity", "completePendingRead on $reason")
+      r.error(ChannelCodes.ERROR_LIFECYCLE, "requestReadSms cancelled: $reason", null)
+    }
+    takePendingRole()?.let { r ->
+      Log.i("MainActivity", "completePendingRole on $reason")
+      r.error(ChannelCodes.ERROR_LIFECYCLE, "setDefaultSms cancelled: $reason", null)
+    }
+  }
 
-    override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
-        super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
-            // 通道回调里任何未捕获异常都会变成进程崩溃（用户看到的"闪退"）。
-            // 统一兜住后回 error，由 Dart 侧按失败处理。
-            try {
-                when (call.method) {
-                    "getDefaultSmsApp" -> result.success(getDefaultSmsApp())
-                    "setDefaultSmsApp" -> result.success(setDefaultSmsApp())
-                    "resetDefaultSmsApp" -> result.success(resetDefaultSmsApp())
-                    "deleteSmsBatch" -> result.success(deleteSmsBatch(call.arguments))
-                    "querySms" -> result.success(querySms(call.arguments))
-                    "hasReadSmsPermission" -> result.success(hasReadSmsPermission())
-                    else -> result.notImplemented()
-                }
-            } catch (e: Exception) {
-                Log.e("MainActivity", "method ${call.method} failed", e)
-                result.error("error", e.message, null)
-            }
-        }
+  private val requestRead =
+    registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+      val r = takePendingRead()
+      // 用户从系统弹窗返回后无论结果如何都回包，让 Dart 刷新
+      r?.success(access.hasReadSms())
     }
 
-    /**
-     * 获取当前默认短信应用
-     * @return 返回当前默认短信应用的包名，如果没有则返回空字符串
-     */
-    private fun getDefaultSmsApp(): String {
-        val defaultSmsApp = Telephony.Sms.getDefaultSmsPackage(this)
-        if (defaultSmsApp == null) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val roleManager = getSystemService(RoleManager::class.java)
-                val isRoleHeld = roleManager?.isRoleHeld(RoleManager.ROLE_SMS) ?: false
-                if (isRoleHeld) {
-                    return packageName
-                }
-                return ""
-            }
-        }
-        return defaultSmsApp ?: ""
+  private val requestRole =
+    registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+      val r = takePendingRole()
+      // 用户从角色页返回后无论结果如何都回包，让 Dart 刷新
+      r?.success(
+        if (access.isDefaultSms() == true) ChannelCodes.SET_DEFAULT_HAD
+        else ChannelCodes.SET_DEFAULT_NO,
+      )
     }
 
-    /**
-     * 设置当前应用为默认短信应用
-     * @return 返回设置状态："had"(已经是默认应用)，"ok"(设置成功)，"no"(需要用户确认)
-     */
-    private fun setDefaultSmsApp(): String {
-        val packageName = this.packageName
-        val defaultName = getDefaultSmsApp()
-        
-        if (defaultName.isEmpty() || packageName != defaultName) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val roleManager = getSystemService(RoleManager::class.java)
-                val isRoleHeld = roleManager?.isRoleHeld(RoleManager.ROLE_SMS) ?: false
-                if (isRoleHeld) {
-                    return "had"
-                }
-                val roleRequestIntent = roleManager?.createRequestRoleIntent(RoleManager.ROLE_SMS)
-                roleRequestIntent?.let {
-                    roleRequestLauncher.launch(it)
-                }
-            } else {
-                val intent = Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT)
-                intent.putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, packageName)
-                startActivity(intent)
-            }
-            return "no"
-        }
-        return "ok"
-    }
+  override fun onDestroy() {
+    completePendingOnTeardown("onDestroy")
+    super.onDestroy()
+  }
 
-    /**
-     * 批量删除短信。
-     *
-     * sms_advanced 只提供逐条删除，3000 条就是 3000 次跨进程调用，耗时可达
-     * 分钟级。这里在原生侧按 `_id IN (...)` 分批删除，次数降到
-     * ceil(n / 900) 次。
-     *
-     * @param arguments id 列表
-     * @return 实际删除的行数；`null` 表示参数非法或删除过程中抛出异常，
-     *         调用方应回退到逐条删除。
-     */
-    private fun deleteSmsBatch(arguments: Any?): Int? {
-        val ids = (arguments as? List<*>)?.mapNotNull { (it as? Number)?.toInt() }
-            ?: return null
-        if (ids.isEmpty()) return 0
-
-        return try {
-            var deleted = 0
-            ids.chunked(DELETE_CHUNK_SIZE).forEach { chunk ->
-                val placeholders = chunk.joinToString(",") { "?" }
-                deleted += contentResolver.delete(
-                    Telephony.Sms.CONTENT_URI,
-                    "_id IN ($placeholders)",
-                    chunk.map { it.toString() }.toTypedArray(),
-                )
-            }
-            deleted
-        } catch (e: Exception) {
-            Log.e("MainActivity", "deleteSmsBatch failed", e)
-            null
-        }
-    }
-
-    /**
-     * 系统真实 READ_SMS 状态。
-     *
-     * 必须同时看 checkSelfPermission **和** AppOps：
-     * 掉默认短信角色后（Flyme/Android），`checkSelfPermission` 仍返回
-     * granted，但 AppOps 会把 READ_SMS 置为 `ignore`。此时
-     * `request()` 不弹框（系统认为已有权限），`contentResolver.query`
-     * 只回空游标——用户看到「申请成功却读不到短信」。
-     */
-    private fun hasReadSmsPermission(): Boolean {
-        if (checkSelfPermission(android.Manifest.permission.READ_SMS) !=
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            return false
-        }
-        return isReadSmsAppOpAllowed()
-    }
-
-    /** AppOps 侧 READ_SMS 是否真正放行（MODE_ALLOWED）。 */
-    private fun isReadSmsAppOpAllowed(): Boolean {
-        return try {
-            val appOps = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
-            val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                appOps.unsafeCheckOpNoThrow(
-                    AppOpsManager.OPSTR_READ_SMS,
-                    Process.myUid(),
-                    packageName,
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                appOps.checkOpNoThrow(
-                    AppOpsManager.OPSTR_READ_SMS,
-                    Process.myUid(),
-                    packageName,
-                )
-            }
-            // MODE_IGNORED / MODE_ERRORED 都视为未放行。
-            mode == AppOpsManager.MODE_ALLOWED
-        } catch (e: Exception) {
-            Log.w("MainActivity", "isReadSmsAppOpAllowed failed", e)
-            true
-        }
-    }
-
-    /**
-     * 读取短信（收件箱 + 已发送 + 草稿）。
-     *
-     * 与 sms_advanced 插件查询路径并行提供一条自管通道：
-     * - 只按已知列名取值，避免插件对任意列 `getInt` 在 `creator` 等文本列上
-     *   抛异常导致 MethodChannel 回调崩溃（掉默认短信后更易触发）；
-     * - 同时查整表与分箱 URI 并按 `_id` 去重，覆盖非默认应用下整表 URI
-     *   被 OEM 返回空的情况；
-     * - 全路径 try/catch，SecurityException 映射为 permission，不让异常冒泡。
-     *
-     * @param arguments 可选 Map，`address` 非空时只返回该号码的短信。
-     * @return `{"messages": [...], "error": null|"permission"|"unknown"}`，
-     *         messages 为 Dart 侧可安全解析的 Map 列表。
-     */
-    private fun querySms(arguments: Any?): Map<String, Any?> {
-        // 无 READ_SMS 且不是默认短信应用时，provider 有的 OEM 会静默返回空游标，
-        // 有的才抛 SecurityException。这里显式判定，统一映射成 permission，
-        // 免得用户看到「申请成功却空列表」。
-        if (!hasReadSmsPermission() && getDefaultSmsApp() != packageName) {
-            return mapOf("messages" to emptyList<Any>(), "error" to "permission")
-        }
-
-        val address = (arguments as? Map<*, *>)?.get("address") as? String
-        val selection: String?
-        val selectionArgs: Array<String>?
-        if (address.isNullOrEmpty()) {
-            selection = null
-            selectionArgs = null
-        } else {
-            selection = "${Telephony.Sms.ADDRESS} = ?"
-            selectionArgs = arrayOf(address)
-        }
-
-        return try {
-            val byId = LinkedHashMap<Int, Map<String, Any?>>()
-            var sawSecurity = false
-            var sawOtherError = false
-
-            for (uri in SMS_QUERY_URIS) {
+  override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+    super.configureFlutterEngine(flutterEngine)
+    // 引擎换绑时旧 pending 的 Result 已无法被系统回调送达，先收尾
+    completePendingOnTeardown("configureFlutterEngine")
+    access = SmsAccess(applicationContext)
+    MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
+      .setMethodCallHandler { call, rawResult ->
+        // 一次性包装：系统回调 / 销毁收尾 / 异常 catch 对同一 Result 只回一次
+        val result = OnceResult(rawResult)
+        try {
+          when (call.method) {
+            "hasReadSmsPermission" -> result.success(access.hasReadSms())
+            "requestReadSms" -> {
+              if (access.hasReadSms()) {
+                result.success(true)
+              } else if (pendingRead != null) {
+                // 已有弹窗在途，不重复 launch；直接回 false，Dart 会再查权限
+                result.success(false)
+              } else {
+                pendingRead = result
                 try {
-                    contentResolver.query(
-                        uri,
-                        SMS_QUERY_PROJECTION,
-                        selection,
-                        selectionArgs,
-                        null,
-                    ).use { cursor ->
-                        if (cursor == null) return@use
-                        while (cursor.moveToNext()) {
-                            val row = readSmsRow(cursor)
-                            val id = row["_id"] as? Int ?: continue
-                            // 整表 URI 与分箱 URI 会重复，按 _id 去重即可。
-                            byId.putIfAbsent(id, row)
-                        }
-                    }
-                } catch (e: SecurityException) {
-                    sawSecurity = true
-                    Log.w("MainActivity", "querySms permission denied on $uri", e)
+                  requestRead.launch(Manifest.permission.READ_SMS)
                 } catch (e: Exception) {
-                    sawOtherError = true
-                    Log.e("MainActivity", "querySms failed on $uri", e)
+                  // launch 失败：收回 pending 交给外层 error，避免悬挂
+                  takePendingRead()
+                  throw e
                 }
+              }
             }
-
-            Log.i(
-                "MainActivity",
-                "querySms done unique=${byId.size} security=$sawSecurity other=$sawOtherError " +
-                    "hasRead=${hasReadSmsPermission()}",
-            )
-
-            when {
-                byId.isNotEmpty() -> mapOf("messages" to byId.values.toList(), "error" to null)
-                // 有数据就以数据为准；全空时才区分是被拒绝还是查询失败。
-                sawSecurity -> mapOf("messages" to emptyList<Any>(), "error" to "permission")
-                sawOtherError -> mapOf("messages" to emptyList<Any>(), "error" to "unknown")
-                else -> mapOf("messages" to emptyList<Any>(), "error" to null)
+            "isDefaultSms" -> result.success(access.isDefaultSms())
+            "setDefaultSms" -> {
+              // 唯一设默认路径在 SmsAccess.setDefaultSms；此处只挂 pending / 拉起角色页。
+              val settled = access.setDefaultSms(this) { intent ->
+                if (pendingRole != null) {
+                  false
+                } else {
+                  pendingRole = result
+                  try {
+                    requestRole.launch(intent)
+                    true
+                  } catch (e: Exception) {
+                    // launch 失败：收回 pending，交回 SmsAccess 走设置页 fallback
+                    takePendingRole()
+                    false
+                  }
+                }
+              }
+              if (settled != null) result.success(settled)
             }
+            "restoreDefaultSms" -> result.success(access.restoreDefaultSms(this))
+            "openDefaultSmsSettings" ->
+              result.success(access.openDefaultSmsSettings(this))
+            "openAppSettings" -> result.success(access.openAppSettings(this))
+            "isMiui" -> result.success(access.isMiui())
+            "miuiNotificationSmsState" -> result.success(access.miuiNotificationSmsState())
+            "openMiuiPermissionEditor" ->
+              result.success(access.openMiuiPermissionEditor(this))
+            "insertTestSms" -> {
+              val args = call.arguments as? Map<*, *>
+              val count = (args?.get("count") as? Number)?.toInt() ?: 3
+              val prefix = args?.get("bodyPrefix") as? String ?: "SMSCLEANUP_TEST"
+              val ids = access.insertTestSms(count, prefix)
+              if (ids == null) {
+                result.success(
+                  mapOf(ChannelCodes.KEY_OK to false, ChannelCodes.KEY_IDS to emptyList<Int>()),
+                )
+              } else {
+                result.success(mapOf(ChannelCodes.KEY_OK to true, ChannelCodes.KEY_IDS to ids))
+              }
+            }
+            "deleteTestSmsByPrefix" -> {
+              val prefix = (call.arguments as? Map<*, *>)?.get("bodyPrefix") as? String
+                ?: "SMSCLEANUP_TEST"
+              val n = access.deleteTestSmsByPrefix(prefix)
+              result.success(
+                mapOf(ChannelCodes.KEY_OK to (n != null), ChannelCodes.KEY_DELETED to (n ?: 0)),
+              )
+            }
+            "querySms" -> {
+              val args = call.arguments as? Map<*, *>
+              val addr = args?.get("address") as? String
+              val limit = (args?.get("limit") as? Number)?.toInt()
+              val offset = (args?.get("offset") as? Number)?.toInt() ?: 0
+              result.success(access.querySms(addr, limit, offset))
+            }
+            "deleteSmsBatch" -> {
+              // 兼容两种入参：List<Int>（纯 SMS）或 List<Map{id,is_mms}>（混合）
+              val targets = (call.arguments as? List<*>) ?: emptyList<Any?>()
+              result.success(access.deleteSmsBatch(targets))
+            }
+            "insertSmsBatch" -> {
+              // 原样透传（含非 Map 行）：SmsAccess 按入参下标 1:1 记 errors，避免 mapNotNull 错位。
+              val rows = (call.arguments as? List<*>) ?: emptyList<Any?>()
+              result.success(access.insertSmsBatch(rows))
+            }
+            else -> result.notImplemented()
+          }
         } catch (e: Exception) {
-            Log.e("MainActivity", "querySms failed", e)
-            mapOf("messages" to emptyList<Any>(), "error" to "unknown")
+          result.error("error", e.message, null)
         }
-    }
+      }
+    handleQaIntent(intent)
+  }
 
-    private fun readSmsRow(cursor: Cursor): Map<String, Any?> {
-        fun col(name: String): Int = cursor.getColumnIndex(name)
-        fun longOrNull(index: Int): Long? =
-            if (index >= 0 && !cursor.isNull(index)) cursor.getLong(index) else null
-        fun intOrNull(index: Int): Int? =
-            if (index >= 0 && !cursor.isNull(index)) cursor.getInt(index) else null
-        fun stringOrNull(name: String): String? {
-            val index = col(name)
-            return if (index >= 0 && !cursor.isNull(index)) cursor.getString(index) else null
-        }
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    handleQaIntent(intent)
+  }
 
-        return mapOf(
-            "_id" to longOrNull(col(BaseColumns._ID))?.toInt(),
-            "thread_id" to longOrNull(col(Telephony.Sms.THREAD_ID))?.toInt(),
-            "address" to stringOrNull(Telephony.Sms.ADDRESS),
-            "body" to stringOrNull(Telephony.Sms.BODY),
-            "date" to longOrNull(col(Telephony.Sms.DATE)),
-            "date_sent" to longOrNull(col(Telephony.Sms.DATE_SENT)),
-            "read" to intOrNull(col(Telephony.Sms.READ)),
-            "type" to intOrNull(col(Telephony.Sms.TYPE)),
-            // 未进投影，仅当 provider 意外带上该列时才读到。
-            "sub_id" to intOrNull(col(Telephony.Sms.SUBSCRIPTION_ID)),
+  /**
+   * debug 包 QA 入口：adb 跳转触发，只操作带测试前缀的短信。
+   *  - action=com.dc16.sms.QA_INSERT_TEST   extra count=3 bodyPrefix=SMSCLEANUP_TEST
+   *  - action=com.dc16.sms.QA_DELETE_TEST   extra bodyPrefix=SMSCLEANUP_TEST
+   * 结果写入 filesDir/qa_result.txt，便于 run-as 回读。
+   */
+  private fun handleQaIntent(intent: Intent?) {
+    if (intent == null) return
+    if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) == 0) return
+    val action = intent.action ?: return
+    val prefix = intent.getStringExtra("bodyPrefix") ?: "SMSCLEANUP_TEST"
+    when (action) {
+      "com.dc16.sms.QA_INSERT_TEST" -> {
+        val count = intent.getIntExtra("count", 3)
+        val ids = access.insertTestSms(count, prefix)
+        writeQaResult("INSERT ok=${ids != null} ids=$ids prefix=$prefix")
+      }
+      "com.dc16.sms.QA_DELETE_TEST" -> {
+        val n = access.deleteTestSmsByPrefix(prefix)
+        writeQaResult("DELETE ok=${n != null} deleted=$n prefix=$prefix")
+      }
+      "com.dc16.sms.QA_DELETE_IDS" -> {
+        val ids = intent.getIntArrayExtra("ids")?.toList() ?: emptyList()
+        // 只允许删除 body 带测试前缀的 id，真实短信直接拒绝
+        val safe = access.filterTestIds(ids, prefix)
+        val r = access.deleteSmsBatch(safe)
+        writeQaResult(
+          "DELETE_IDS requested=$ids safe=$safe " +
+            "ok=${r[ChannelCodes.KEY_OK]} deleted=${r[ChannelCodes.KEY_DELETED]} " +
+            "failed=${r[ChannelCodes.KEY_FAILED]} error=${r[ChannelCodes.KEY_ERROR]} " +
+            "prefix=$prefix",
         )
-    }
-
-    /**
-     * 判断某个包是否已安装。
-     *
-     * 未在本应用 `<queries>` 中声明的包，在 Android 11+ 的包可见性限制下会抛
-     * NameNotFoundException，因此这里按"不可见即未安装"处理。
-     */
-    private fun isPackageInstalled(pkg: String): Boolean {
-        return try {
-            packageManager.getPackageInfo(pkg, 0) != null
-        } catch (e: PackageManager.NameNotFoundException) {
-            false
-        }
-    }
-
-    /**
-     * 将默认短信应用交还给系统短信应用。
-     *
-     * Android Q(10) 起默认短信应用由 RoleManager 角色机制管控，
-     * Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT 对第三方应用失效，且
-     * RoleManager 只允许应用为自己申请角色、无法代他人释放。因此在 Q 及以上
-     * 只能引导用户到系统的"默认应用"设置页手动切换。
-     *
-     * Q 以下仍可用 ACTION_CHANGE_DEFAULT 直接指定目标包名，由系统弹窗确认。
-     *
-     * @return "settings" 表示已打开系统默认应用设置页（需用户手动切换）；
-     *         "ok" 表示已发起系统切换流程（需用户在系统对话框确认）；
-     *         "no" 表示未找到可切换的系统短信应用或发起失败。
-     */
-    private fun resetDefaultSmsApp(): String {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            return try {
-                startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
-                "settings"
-            } catch (e: Exception) {
-                "no"
-            }
-        }
-
-        val targets = listOf(
-            "com.android.mms",
-            "com.google.android.apps.messaging",
+      }
+      "com.dc16.sms.QA_QUERY_STATE" -> {
+        val miui = access.isMiui()
+        val notif = access.miuiNotificationSmsState()
+        val read = access.hasReadSms()
+        val def = access.isDefaultSms()
+        writeQaResult("STATE miui=$miui notif=$notif read=$read default=$def")
+      }
+      "com.dc16.sms.QA_IMPORT_TEST" -> {
+        // 与 CSV 导入同一 insertSmsBatch 通道，仅写入带前缀的测试行
+        val rows = listOf(
+          mapOf<String, Any?>(
+            "address" to "10086",
+            "body" to "$prefix import #1",
+            "date" to System.currentTimeMillis(),
+            "type" to 1,
+            "sub_id" to 1,
+          ),
+          mapOf<String, Any?>(
+            "address" to "13800000000",
+            "body" to "$prefix import #2",
+            "date" to System.currentTimeMillis(),
+            "type" to 2,
+            "sub_id" to 1,
+          ),
         )
-        val installed = targets.firstOrNull(::isPackageInstalled) ?: return "no"
-
-        return try {
-            val intent = Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT)
-            intent.putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, installed)
-            startActivity(intent)
-            "ok"
-        } catch (e: Exception) {
-            "no"
-        }
+        val r = access.insertSmsBatch(rows)
+        writeQaResult(
+          "IMPORT_BATCH ok=${r[ChannelCodes.KEY_OK]} " +
+            "inserted=${r[ChannelCodes.KEY_INSERTED]} " +
+            "failed=${r[ChannelCodes.KEY_FAILED]} " +
+            "errors=${r[ChannelCodes.KEY_ERRORS]} prefix=$prefix",
+        )
+      }
     }
+  }
+
+  private fun writeQaResult(line: String) {
+    try {
+      java.io.File(filesDir, "qa_result.txt").writeText(line)
+      Log.i("QaIntent", line)
+    } catch (e: Exception) {
+      Log.e("QaIntent", "writeQaResult", e)
+    }
+  }
 }

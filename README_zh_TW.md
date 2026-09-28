@@ -1,94 +1,99 @@
-![LOGO](android/app/src/main/res/mipmap-xhdpi/ic_launcher.png)
-
 # 簡訊清理
 
-[简体中文](README_zh.md) | 繁體中文 | [English](README.md)
+[English](README.md) | [简体中文](README_zh.md) | 繁體中文
 
-- 簡訊清理是使用Flutter框架編寫的Android平台上讀取、批量刪除簡訊的清理工具。
-- 雖然UI框架Flutter支援跨平台，但僅實現了Android簡訊刪除功能。
 
-## 功能描述
+本機優先的 Android 簡訊 / 多媒體簡訊清理工具（Flutter + Kotlin）。瀏覽、篩選、多選、匯出、刪除簡訊與多媒體簡訊，資料只在本機處理，不上傳、不收集。
 
-- 獲取簡訊權限
-- 複製簡訊到剪貼簿
-- 設置/恢復預設簡訊應用
-- 關鍵字過濾簡訊信息
-- 按日期範圍篩選簡訊
-- 同號碼/同卡簡訊搜索
-- 從搜索結果移除/直接刪除簡訊
-- 一鍵批量刪除查詢結果簡訊
-- 一鍵導出所有簡訊到csv文件
+## 功能
 
-## 界面截圖
-![UI](assets/screenshot/ui.jpg)
+- 消息列表：按日期分組，卡片展示號碼 / 正文 / 時間 / SIM；多媒體簡訊帶「多媒體簡訊」徽章，含附件時標註
+- 篩選搜索：關鍵字、日期范圍、類型（收件匣 / 已傳送 / 僅多媒體簡訊）、同號、同卡
+- 多選操作：長按進入多選，按 `uid` 對齊（SMS/MMS 同號不衝突），篩選後不錯位；支持全選當前可見項
+- 刪除：單條滑刪 / 動作 Sheet 刪除 / 多選刪除 / FAB 批量刪除（均有確認）；按 `is_mms` 路由，不會誤刪對方同號行
+- 移出列表：本機隱藏，不刪系統資料，可重置
+- 匯出 CSV：全部或選中，RFC 4180 轉義 + BOM，系統分享；含 `is_mms` 列
+- 匯入 CSV：與匯出同格式；**只新增**寫入系統簡訊庫（需設為預設簡訊應用程式），不覆蓋、不刪除；**多媒體簡訊行跳過**（無法簡單重建）
+- 權限中心：讀簡訊、預設簡訊應用程式、一鍵檢查修複；MIUI 附帶「通知類簡訊」引導
+- 主題：8 色色盤 + 淺色 / 深色 / 跟隨系統
+- 多語言：簡體中文、繁體中文、English
 
-## 隱私說明
+### 多媒體簡訊支援範圍
 
-- 所有簡訊資料僅保存在**本機**。應用程式不發起任何網路請求，不會上傳、同步或自動分享任何資料。
-- 匯出的 CSV 檔案僅寫入應用程式暫存目錄，只在主動觸發匯出時透過系統分享面板分享。
-- 刪除簡訊不可復原，批次刪除前請確認篩選條件。
-- AndroidManifest 中宣告的權限及用途：
-  - `READ_SMS` / `RECEIVE_SMS` / `RECEIVE_MMS` / `RECEIVE_WAP_PUSH`：讀取與管理簡訊/多媒體訊息。
-  - `SEND_SMS`：預設簡訊應用程式角色所需（應用程式本身不傳送簡訊）。
-  - `READ_PHONE_STATE`：部分 Android 版本上預設簡訊應用程式角色所需。
-  - `READ_CONTACTS` / `READ_PROFILE` / `QUERY_ALL_PACKAGES`：隨簡訊外掛一併帶入但從未使用，已在 manifest 合併階段用 `tools:node="remove"` 剔除。
-  - 預設簡訊應用程式：Android 僅允許預設簡訊應用程式刪除簡訊，應用程式會引導暫時切換，並可還原原預設應用程式。
+納入統一資料面：**瀏覽 / 篩選 / 刪除 / 匯出**。正文摘要取 `content://mms/part` 的文本 part（text/plain、vcard 等）；無文本時顯示「[多媒體簡訊]」占位，含圖片/音频/視频附件時另標「含附件」。不做完整渲染（smil 布局 / 圖片音频播放）。
 
-## 開發環境
+**預設簡訊應用程式時的新多媒體簡訊**：`MmsReceiver` 會把 `WAP_PUSH_DELIVER` 通知 **元資料入庫**（發件人 / 時間 / 主題 / Message-ID / Content-Location）到 `content://mms/inbox` + `addr`，避免新多媒體簡訊整條丟失。完整 smil / 圖片 / 音频正文**不會下載重建**（依賴非公開 `PduPersister`，本應用不實現 MMS 客戶端）；列表正文為占位「[多媒體簡訊]」或主題摘要。需要完整多媒體簡訊內容時，請在系統設定里把預設簡訊應用程式改回系統「信息」後再接收（或用系統應用收下後回到本工具清理）。
 
-- Flutter 3.47.5 (stable)
-- Dart 3.13.4
-- Gradle 9.3.1
-- Android Gradle Plugin 9.1.0
-- Kotlin 2.4.10
-- compileSdk 37 / minSdk 26
-- JDK 17
+## 權限與系統要求
 
-以下指令假設 `flutter` / `dart` 已在 `PATH` 中。本專案開發時使用 [fvm](https://fvm.app) 管理的 stable 通道 SDK；若你的 SDK 安裝於其他位置，可參考 `AGENTS.md` 中的 PATH 前綴。
+| 能力 | 依賴 | 說明 |
+|------|------|------|
+| 讀取簡訊/多媒體簡訊 | `READ_SMS` | 列表、搜索、匯出；多媒體簡訊讀取同權限，無需額外申請 |
+| 刪除簡訊/多媒體簡訊 | 預設簡訊應用程式（`ROLE_SMS`） | Android 10+ 走 RoleManager |
+| 寫入 / 新簡訊入庫 | 預設簡訊應用程式 | `SmsReceiver` 在預設時收信入庫 |
+| 新多媒體簡訊入庫 | 預設簡訊應用程式 | `MmsReceiver` 寫通知元資料骨架（見「多媒體簡訊支援範圍」） |
 
-## 構建與發佈
+冷啟動不彈系統權限框；在設定或空態里主動申請。
 
-使用 fastforge 打包 release：
+### MIUI 注意
+
+MIUI 在 `READ_SMS` 之外還有私有 **「通知類簡訊」** 開關（應用信息 → 權限管理 → 其他權限）。不開通時只能讀到點對點簡訊，10086 / 銀行等通知類會全部不可見。
+
+該開關**無法用系統 API 代為授權**。應用在申請到讀簡訊權限後會自動彈出引導，一鍵跳轉 MIUI 權限頁；首頁也會在「可能未開通」時給出可關閉提示。
+
+## 建置與執行
 
 ```bash
-dart pub global activate fastforge
-fastforge release --name apk
+flutter pub get
+flutter run
+flutter test
+flutter analyze
+cd android && ./gradlew :app:testDebugUnitTest
+flutter build apk --debug
+flutter build apk --release
 ```
 
-產物輸出到 `dist/` 目錄。APK 使用 release 簽名，且僅打包 **arm64-v8a** 單 ABI。debug 構建使用標準除錯簽名；缺少 `android/key.properties` 時 release 構建回退為除錯簽名。
+需要 Flutter 3.47+（Dart 3.13+），Android minSdk 29。
 
-### CI 工作流
+## 發佈簽名
 
-| 工作流 | 觸發時機 | Flutter 渠道 | 內容 |
-| --- | --- | --- | --- |
-| `build.yml` | push main（版本 tag 除外）/ PR 新建或更新 | stable | `dart analyze` + `flutter test` + 構建 APK + 上傳 artifact |
-| `manual.yml` | 手動觸發 | beta / master / stable 可選（預設 stable） | `dart analyze` + `flutter test` + 構建 APK + 上傳 artifact |
-| `publish.yml` | 版本 tag（如 `1.6.1+250725`） | stable | 構建 APK + 建立草稿 Release |
+release 使用隨倉庫分發的簽名材料（與 1.x 一致）：
 
-### 構建注意事項
+- `android/key.properties` — 密碼與別名
+- `android/app/key/sms.keystore` — 金鑰庫（`storeFile` 相對 `android/app/`）
 
-- `permission_handler` 已升級到 `13.0.2`：v13 要求 compileSdk 37，因此 `android/app/build.gradle.kts` 硬編碼 `compileSdk = 37`（高於 Flutter 3.47 模板的 36），配合 AGP 9.1.0 + Android SDK Platform 37。權限程式碼遵循 v13 request-driven 模式（不從 `status` 推導 `permanentlyDenied`）。
-- 老外掛（如 `sms_advanced 1.1.0`，AGP 4.1 時代產物）缺少 `namespace` 且寫死 `compileSdk 31`，根 `android/build.gradle.kts` 中自動用 `project.group` 補全 namespace，並把舊庫模組的 compileSdk 抬升到 37。
-- lint 相關任務在 `android/build.gradle.kts` 中被跳過：舊外掛的 buildscript 釘老版本 AGP，與根工程 AGP 9.1.0 混載會導致 lint worker（`AndroidLintWorkAction`）崩潰，因此統一禁用 lint 系列任務，並為 `extract*Annotations` 任務生成佔位產物。
-- `android/gradle.properties` 中設定了 `kotlin.incremental=false`：Windows 上 Kotlin 增量編譯無法處理原始碼（C: 碟 pub 快取）與構建產物（D: 碟工程）跨磁碟的情況。
-- `sms_advanced` 外掛自身應用了 Kotlin Gradle Plugin，未來版本 Flutter 將拒絕構建，需留意替代方案。
-- 程式碼品質由 CI 中的 `dart analyze` + `flutter test` 保證。
-- 本地執行測試：`flutter test`（平台通道已 mock，無需真機）。
+```bash
+flutter build apk --release
+```
+
+若缺少 `key.properties`，release 會回退 debug 簽名（僅本機自測）。
 
 ## 專案結構
 
 ```
-Sms
-├─android              # Android工程配置
-├─assets               # 資源檔案目錄
-├─lib                  # Flutter原始碼目錄
-│  ├─main.dart         # APP入口與簡訊列表頁介面
-│  ├─controllers       # SmsListController：列表狀態與商業邏輯
-│  ├─l10n              # 國際化（ARB原始檔與生成程式碼）
-│  ├─services          # 資料存取與純邏輯（簡訊儲存庫 / 篩選 / CSV匯出）
-│  ├─utils             # 小型純函式（日期格式化）
-│  └─widgets           # 可重用介面元件（簡訊列表項）
-├─test                 # 單元測試與widget測試
-├─.github/workflows    # CI 工作流
-└─dist                 # 構建產物目錄
+lib/
+  main.dart                 # 入口
+  app.dart                  # 主題與 MaterialApp
+  theme/tokens.dart         # 色盤
+  models/sms_item.dart      # 簡訊模型
+  services/                 # 通道封裝 / CSV / 隱藏列表
+  features/
+    list/                   # 首頁、卡片、動作 Sheet
+    filter/                 # 篩選模型與彈層
+    delete/                 # 刪除確認
+    settings/               # 設定 / 主題 / 權限
+    widgets/                # 空態
+android/app/src/main/kotlin/com/dc16/sms/
+  MainActivity.kt           # MethodChannel 分發
+  SmsAccess.kt              # 查詢 / 刪除 / 權限 / MIUI
+  SmsReceiver.kt            # 預設簡訊時收信入庫
 ```
+
+
+## 隱私
+
+簡訊內容僅用於本機展示、篩選與匯出；無網路上傳，無統計上報。
+
+## 許可
+
+本項目采用 [MIT License](LICENSE) 開源。
