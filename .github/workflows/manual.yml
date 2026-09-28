@@ -1,0 +1,79 @@
+name: Manual operation
+
+on:
+  workflow_dispatch:
+    inputs:
+      flutter_channel:
+        default: "stable"
+        required: true
+        type: choice
+        options:
+          - beta
+          - master
+          - stable
+      build_release:
+        description: "Build release APK (needs signing secrets)"
+        default: false
+        required: false
+        type: boolean
+
+# 防止同一分支的多次手动触发并行执行。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          cache: gradle
+          java-version: "17"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ inputs.flutter_channel }}
+          cache: true
+
+      - name: Flutter doctor
+        run: flutter doctor --verbose
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Android unit tests
+        run: |
+          cd android
+          ./gradlew :app:testDebugUnitTest
+
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Build release APK
+        if: ${{ inputs.build_release }}
+        env:
+          RELEASE_STORE_FILE: ${{ secrets.RELEASE_STORE_FILE }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: flutter build apk --release
+
+      - name: Archive APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: sms-${{ inputs.flutter_channel }}
+          path: |
+            build/app/outputs/flutter-apk/*.apk
+          retention-days: 7

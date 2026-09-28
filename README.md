@@ -1,5 +1,7 @@
 # 短信清理
 
+[English](README_en.md)
+
 本地优先的 Android 短信 / 彩信清理工具（Flutter + Kotlin）。浏览、筛选、多选、导出、删除短信与彩信，数据只在本机处理，不上传、不收集。
 
 ## 功能
@@ -13,6 +15,7 @@
 - 导入 CSV：与导出同格式；**只新增**写入系统短信库（需设为默认短信应用），不覆盖、不删除；**彩信行跳过**（无法简单重建）
 - 权限中心：读短信、默认短信应用、一键检查修复；MIUI 附带「通知类短信」引导
 - 主题：8 色色盘 + 浅色 / 深色 / 跟随系统
+- 多语言：简体中文、繁体中文、English
 
 ### 彩信支持范围
 
@@ -44,11 +47,22 @@ flutter pub get
 flutter run                 # 调试
 flutter test                # 单测 / 组件测试
 flutter analyze
+cd android && ./gradlew :app:testDebugUnitTest   # Kotlin 原生单测
 flutter build apk --debug   # CI 同款：验证可编译（含 Kotlin）
 flutter build apk --release # 见下方「发布签名」
 ```
 
 需要 Flutter 3.47+（Dart 3.13+），Android minSdk 29。
+
+## CI 与发布
+
+| Workflow | 触发 | 内容 |
+|----------|------|------|
+| `ci.yml` | push / PR 到 `main`、`dev` | analyze → test → Kotlin 单测 → debug APK |
+| `publish.yml` | 版本 tag（如 `2.0.0`） | 同上 + release APK + 草稿 Release |
+| `manual.yml` | 手动 | 可选 Flutter 通道，可选 release 构建 |
+
+release 签名材料只放 CI Secrets 或本地 `android/key.properties`，绝不入库。
 
 ## 发布签名
 

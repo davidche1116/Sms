@@ -632,3 +632,631 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aboutMmsReceiveBody =>
       '浏览/筛选/删除/导出系统库中的彩信。本应用为默认时，新彩信仅入库元数据骨架，不下载完整正文。';
 }
+
+/// The translations for Chinese, as used in Taiwan (`zh_TW`).
+class AppLocalizationsZhTw extends AppLocalizationsZh {
+  AppLocalizationsZhTw() : super('zh_TW');
+
+  @override
+  String get appTitle => '簡訊清理';
+
+  @override
+  String get homeTitle => '簡訊';
+
+  @override
+  String selectedCount(int count) {
+    return '已選 $count';
+  }
+
+  @override
+  String loadedPartial(int loaded, int total) {
+    return '已載入 $loaded / $total 則';
+  }
+
+  @override
+  String loadedCount(int loaded) {
+    return '已載入 $loaded 則';
+  }
+
+  @override
+  String messageCount(int count) {
+    return '$count 則';
+  }
+
+  @override
+  String get selectAll => '全選';
+
+  @override
+  String get searchFilter => '搜尋 / 篩選';
+
+  @override
+  String get settings => '設定';
+
+  @override
+  String get more => '更多';
+
+  @override
+  String get exportSelected => '匯出所選';
+
+  @override
+  String get deleteSelected => '刪除所選';
+
+  @override
+  String get queryFailedRetry => '查詢失敗，下拉或點重試';
+
+  @override
+  String get deleteFailedNeedDefault => '刪除失敗：請先設為預設簡訊應用程式';
+
+  @override
+  String get deleteFailedRetry => '刪除失敗，請重試';
+
+  @override
+  String deletedCount(int count) {
+    return '已刪除 $count 則';
+  }
+
+  @override
+  String get alreadyDefaultSms => '已是預設簡訊應用程式';
+
+  @override
+  String get confirmInSystemDialog => '請在系統對話框中確認';
+
+  @override
+  String get confirmSetDefaultInDialog => '請在系統對話框中點「設為預設應用程式」';
+
+  @override
+  String get systemNoResult => '系統未回傳結果，可在設定中手動開啟';
+
+  @override
+  String get removedFromList => '已移出清單';
+
+  @override
+  String get nothingToDelete => '沒有可刪除的簡訊';
+
+  @override
+  String get needPermissionTitle => '需要簡訊權限';
+
+  @override
+  String get noMatchTitle => '沒有符合的簡訊';
+
+  @override
+  String get emptyTitle => '沒有簡訊';
+
+  @override
+  String get needPermissionBody => '授予讀取簡訊權限後可瀏覽、搜尋與匯出；刪除還需設為預設簡訊應用程式。';
+
+  @override
+  String get noMatchBody => '可以清除篩選後重試。';
+
+  @override
+  String get emptyBody => '下拉可重新載入。';
+
+  @override
+  String get requestSmsPermission => '申請簡訊權限';
+
+  @override
+  String get clearFilters => '清除篩選條件';
+
+  @override
+  String get reload => '重新載入';
+
+  @override
+  String get setDefaultForDelete => '設為預設簡訊應用程式（刪除需要）';
+
+  @override
+  String get deleteSmsTitle => '刪除簡訊？';
+
+  @override
+  String deleteSmsBody(int count) {
+    return '將刪除 $count 則簡訊。刪除後不可復原。';
+  }
+
+  @override
+  String get deleteLargeWarn => '數量較大（>3000），刪除可能需要更久。';
+
+  @override
+  String deleteProgress(int progress, int count) {
+    return '已完成 $progress / $count';
+  }
+
+  @override
+  String deleteCannotUndo(int count) {
+    return '已刪 $count，不可撤銷';
+  }
+
+  @override
+  String deletePartialFailed(int deleted, int total) {
+    return '已刪除 $deleted / $total 則後失敗';
+  }
+
+  @override
+  String deleteCancelled(int count) {
+    return '已取消，已刪除 $count 則';
+  }
+
+  @override
+  String get cancel => '取消';
+
+  @override
+  String get stopDelete => '停止';
+
+  @override
+  String get stoppingDelete => '停止中…';
+
+  @override
+  String get deleting => '刪除中…';
+
+  @override
+  String get confirmDelete => '確認刪除';
+
+  @override
+  String get keywordLabel => '關鍵字';
+
+  @override
+  String get startDate => '開始日期';
+
+  @override
+  String get endDate => '結束日期';
+
+  @override
+  String get typeLabel => '類型';
+
+  @override
+  String get typeAll => '全部';
+
+  @override
+  String get typeInbox => '僅收件匣';
+
+  @override
+  String get typeSent => '僅已傳送';
+
+  @override
+  String get typeMms => '僅多媒體簡訊';
+
+  @override
+  String get mmsBadge => '多媒體';
+
+  @override
+  String get mmsHasAttachment => '含附件';
+
+  @override
+  String get mmsBodyPlaceholder => '[多媒體簡訊]';
+
+  @override
+  String get mmsBodyWithAttachment => '[多媒體簡訊]·含附件';
+
+  @override
+  String get reset => '重設';
+
+  @override
+  String get done => '完成';
+
+  @override
+  String sameAddressChip(String address) {
+    return '同號 $address';
+  }
+
+  @override
+  String sameSimChip(int sim) {
+    return '同卡 $sim';
+  }
+
+  @override
+  String keywordChip(String keyword) {
+    return '「$keyword」';
+  }
+
+  @override
+  String get clearAllFilters => '清除全部';
+
+  @override
+  String get exportAllCsv => '匯出全部 CSV';
+
+  @override
+  String get importCsv => '匯入 CSV';
+
+  @override
+  String get importCsvHint => '寫入系統簡訊庫（需設為預設）';
+
+  @override
+  String get multiSelect => '多選';
+
+  @override
+  String simTime(int sim, String time) {
+    return '卡$sim · $time';
+  }
+
+  @override
+  String simBadge(int sim) {
+    return '卡$sim';
+  }
+
+  @override
+  String get sameAddressSms => '同號簡訊';
+
+  @override
+  String get sameAddressHint => '只看這個號碼的全部簡訊';
+
+  @override
+  String get sameSimSms => '同卡簡訊';
+
+  @override
+  String get copyAddress => '複製號碼';
+
+  @override
+  String get copiedAddress => '已複製號碼';
+
+  @override
+  String get copyBody => '複製內文';
+
+  @override
+  String get copiedBody => '已複製內文';
+
+  @override
+  String get delete => '刪除';
+
+  @override
+  String get deleteOneHint => '刪除這一則，刪除前確認';
+
+  @override
+  String get hideFromList => '移出清單';
+
+  @override
+  String get hideFromListHint => '僅本機隱藏；懸浮球刪除不會帶上它們';
+
+  @override
+  String get miuiBanner => '可能還看不到 10086 等通知簡訊，點此開啟 MIUI「通知類簡訊」';
+
+  @override
+  String get partialQueryBanner => '部分簡訊可能未載入';
+
+  @override
+  String get partialQueryBannerHint => '點此重試';
+
+  @override
+  String get dismissHint => '不再提示';
+
+  @override
+  String get miuiGuideTitle => '還要開啟「通知類簡訊」';
+
+  @override
+  String get miuiGuideBody =>
+      'MIUI 將 10086、銀行等通知簡訊單獨管控。請在下一頁開啟：權限管理 → 其他權限 → 通知類簡訊。';
+
+  @override
+  String get openMiuiNotifSms => '去開啟通知類簡訊';
+
+  @override
+  String get later => '稍後再說';
+
+  @override
+  String get stillNoPermission => '仍未取得權限，可到系統設定開啟';
+
+  @override
+  String get smsReadable => '已可讀取簡訊';
+
+  @override
+  String get openMiuiPermFailed => '開啟 MIUI 權限頁失敗';
+
+  @override
+  String get sectionAppearance => '外觀';
+
+  @override
+  String get themeColor => '主題色';
+
+  @override
+  String get darkMode => '深色模式';
+
+  @override
+  String get themeSystem => '跟隨系統';
+
+  @override
+  String get themeLight => '淺色';
+
+  @override
+  String get themeDark => '深色';
+
+  @override
+  String get sectionPermissions => '權限';
+
+  @override
+  String get smsPermission => '簡訊權限';
+
+  @override
+  String get smsPermissionGranted => '已授予 · 用於讀取與匯出';
+
+  @override
+  String get smsPermissionDenied => '未授予 · 點擊查看與申請';
+
+  @override
+  String get checking => '檢查中…';
+
+  @override
+  String get defaultSmsApp => '預設簡訊應用程式';
+
+  @override
+  String get defaultSmsIsThisApp => '本應用程式 · 點擊可還原系統簡訊';
+
+  @override
+  String get defaultSmsNotThisApp => '非本應用程式 · 點擊設為預設（刪除需要）';
+
+  @override
+  String get autoRepair => '一鍵檢查並修復';
+
+  @override
+  String get autoRepairHint => '依序申請讀取權限、設為預設簡訊';
+
+  @override
+  String get sectionData => '資料';
+
+  @override
+  String get exportSmsCsv => '匯出簡訊 CSV';
+
+  @override
+  String get exporting => '匯出中…';
+
+  @override
+  String get exportSmsHint => '匯出全部簡訊到檔案並分享';
+
+  @override
+  String get importSmsCsv => '匯入簡訊 CSV';
+
+  @override
+  String get importing => '匯入中…';
+
+  @override
+  String get importSmsHint => '只新增入庫，需設為預設簡訊應用程式';
+
+  @override
+  String get resetHiddenList => '重設本機隱藏清單';
+
+  @override
+  String get noHidden => '暫無已移出的簡訊';
+
+  @override
+  String hiddenCountLabel(int count) {
+    return '已移出 $count 則，重設後重新顯示';
+  }
+
+  @override
+  String get sectionAbout => '關於';
+
+  @override
+  String get version => '版本';
+
+  @override
+  String get privacy => '隱私說明';
+
+  @override
+  String get privacyHint => '資料僅在本機處理';
+
+  @override
+  String get privacyToast => '資料僅在本機處理，不上傳、不收集';
+
+  @override
+  String get footerTagline => '簡訊清理 · 本機工具';
+
+  @override
+  String get deleteAvailable => '刪除簡訊功能可用';
+
+  @override
+  String get restoreSystemSms => '還原為系統簡訊';
+
+  @override
+  String get restoreSystemSmsHint => '開啟系統「預設應用程式」設定，手動選擇「訊息」';
+
+  @override
+  String get keepAsIs => '保持現狀';
+
+  @override
+  String get openedDefaultSettingsPickOther => '已開啟系統預設應用程式設定，請選擇其他簡訊應用程式';
+
+  @override
+  String get notDefaultNow => '目前不是預設簡訊應用程式';
+
+  @override
+  String get openSettingsFailed => '開啟設定失敗';
+
+  @override
+  String get openedDefaultSettings => '已開啟系統預設應用程式設定';
+
+  @override
+  String get autoRepairReady => '已就緒：可讀可刪';
+
+  @override
+  String get autoRepairIncomplete => '仍有項目未就緒，請檢查上方狀態';
+
+  @override
+  String get hiddenListReset => '已重設本機隱藏清單';
+
+  @override
+  String get refreshStatus => '重新整理狀態';
+
+  @override
+  String get readSms => '讀取簡訊';
+
+  @override
+  String get readGrantedAppOps => '已授予 · AppOps 正常';
+
+  @override
+  String get readDeniedList => '未授予 · 無法讀取簡訊清單';
+
+  @override
+  String get defaultSmsDeleteOk => '本應用程式 · 刪除功能可用';
+
+  @override
+  String get defaultSmsDeleteNeed => '非本應用程式 · 刪除簡訊需要設為預設';
+
+  @override
+  String get miuiNotifSms => 'MIUI 通知類簡訊';
+
+  @override
+  String get miuiNotifAllowed => '已允許 · 通知類簡訊可見';
+
+  @override
+  String get miuiNotifLikelyOff => '可能未開通 · 10086 等可能讀不到';
+
+  @override
+  String get miuiNotifOff => '未開通 · 只能讀到點對點簡訊';
+
+  @override
+  String get miuiNotifSuggest => 'MIUI 附加權限 · 建議開通';
+
+  @override
+  String get permExplainMiui =>
+      '讀取與刪除相互獨立：讀清單只需簡訊權限；刪除必須是預設簡訊應用程式。MIUI 額外有「通知類簡訊」開關，不開通時 10086/銀行等通知類會讀不到。在系統中改掉預設簡訊後，系統可能同時收回讀取權限，回到本頁重新申請即可。';
+
+  @override
+  String get permExplain =>
+      '讀取與刪除相互獨立：讀清單只需簡訊權限；刪除必須是預設簡訊應用程式。在系統中改掉預設簡訊後，系統可能同時收回讀取權限，回到本頁重新申請即可。';
+
+  @override
+  String get setDefaultSms => '設為預設簡訊應用程式';
+
+  @override
+  String get openMiuiNotifSmsBtn => '開啟 MIUI 通知類簡訊';
+
+  @override
+  String get miuiPath => '路徑：應用程式資訊 → 權限管理 → 其他權限 → 通知類簡訊';
+
+  @override
+  String get openAppSettings => '開啟應用程式設定';
+
+  @override
+  String get openDefaultSmsSettings => '開啟系統預設應用程式設定';
+
+  @override
+  String get openAppSettingsFailed => '開啟應用程式設定失敗';
+
+  @override
+  String get openDefaultSettingsFailed => '開啟預設應用程式設定失敗';
+
+  @override
+  String get themeHint => '選擇強調色，立即作用於主按鈕、所選項目與圖示。';
+
+  @override
+  String get preset => '預設';
+
+  @override
+  String get custom => '自訂';
+
+  @override
+  String get colorValue => '顏色值';
+
+  @override
+  String get invalidColor => '請輸入合法顏色值，如 #2BAE67';
+
+  @override
+  String get applyCustomColor => '套用自訂顏色';
+
+  @override
+  String get preview => '預覽';
+
+  @override
+  String get primaryButtonSample => '主按鈕範例';
+
+  @override
+  String get filterChipSample => '篩選 Chip';
+
+  @override
+  String get sameAddressSample => '同號 10086';
+
+  @override
+  String get seedGreen => '綠';
+
+  @override
+  String get seedBlue => '藍';
+
+  @override
+  String get seedPurple => '紫';
+
+  @override
+  String get seedOrange => '橙';
+
+  @override
+  String get seedRed => '紅';
+
+  @override
+  String get seedCyan => '青';
+
+  @override
+  String get seedPink => '粉';
+
+  @override
+  String get seedGraphite => '石墨';
+
+  @override
+  String get dayUnknown => '未知';
+
+  @override
+  String get dayToday => '今天';
+
+  @override
+  String get dayYesterday => '昨天';
+
+  @override
+  String get exportFailedRetry => '匯出失敗，請重試';
+
+  @override
+  String get exportEmpty => '沒有可匯出的簡訊';
+
+  @override
+  String exportedShareText(int count) {
+    return '已匯出 $count 則簡訊';
+  }
+
+  @override
+  String get importCancelled => '已取消匯入';
+
+  @override
+  String get importReadFailed => '讀取檔案失敗';
+
+  @override
+  String get importEmptyFile => '檔案中沒有可匯入的簡訊';
+
+  @override
+  String get importUnknown => '未知錯誤';
+
+  @override
+  String get importNeedDefault => '匯入需先設為預設簡訊應用程式';
+
+  @override
+  String get importFailedRetry => '匯入失敗，請重試';
+
+  @override
+  String importFailedWith(String error) {
+    return '匯入失敗：$error';
+  }
+
+  @override
+  String importedPartial(int inserted, int parsed, int failed) {
+    return '已匯入 $inserted / $parsed 則（$failed 則失敗）';
+  }
+
+  @override
+  String importedAll(int inserted, int parsed) {
+    return '已匯入 $inserted / $parsed 則';
+  }
+
+  @override
+  String errorSummaryMore(int count) {
+    return ' 等 $count 則';
+  }
+
+  @override
+  String get errorSummarySeparator => '；';
+
+  @override
+  String get defaultSmsMmsWarnTitle => '多媒體簡訊接收有限制';
+
+  @override
+  String get defaultSmsMmsWarnBody =>
+      '作為預設簡訊應用程式時，新多媒體簡訊只入庫發件人/時間/主題，不下載完整內文與附件。需要完整多媒體簡訊請改回系統「訊息」接收。';
+
+  @override
+  String get aboutMmsReceiveTitle => '多媒體簡訊接收說明';
+
+  @override
+  String get aboutMmsReceiveBody =>
+      '瀏覽/篩選/刪除/匯出系統庫中的多媒體簡訊。本應用程式為預設時，新多媒體簡訊僅入庫中繼資料骨架，不下載完整內文。';
+}

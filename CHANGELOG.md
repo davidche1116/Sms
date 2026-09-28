@@ -5,7 +5,27 @@
 
 ## [Unreleased]
 
+### Added
+
+- **繁体中文（zh_TW）回归**：补齐 `lib/l10n/app_zh_TW.arb` 全量文案；`localeListResolutionCallback`
+  改为先精确匹配 language+country 再回落同语言，避免 `zh_TW` 被错配成简中
+- **英文 README**（`README_en.md`）；中文 README 语言切换与 CI / 发布表
+- 恢复社区文件：`SECURITY.md`（密钥不入库策略）、`AGENTS.md`、dependabot、
+  issue / PR 模板
+- 恢复 `publish.yml`（tag 发版）与 `manual.yml`（手动通道 / 可选 release）
+
 ### Fixed
+
+- **`kotlin.incremental=false` 回归**：Windows 下 pub cache（C:）与工程（D:）跨盘时
+  Kotlin 增量编译会炸（`:shared_preferences_android:compileDebugKotlin` 缓存写失败）；
+  main 已修，2.0 重写时丢失。恢复后 `:app:testDebugUnitTest` 可过
+- **启动图标降级**：恢复品牌 icon / adaptive icon（`mipmap-anydpi-v26`）/ `assets/icon` 源图；
+  补 `flutter_launcher_icons` 配置便于再生成
+- **应用名资源化**：`@string/app_name` + `values` / `values-zh` / `values-zh-rTW`
+- **ABI 过滤**：release 回归 `arm64-v8a` 单 ABI（AGP 9 需在 `defaultConfig.ndk` 清空再设）
+- 版本构建号回归 `+YYMMDD` 约定：`2.0.0+260928`
+
+### Fixed (previous)
 
 - **`querySms` 部分失败上报（P1-2）**：不再「静默不完整」。各子查询（SMS/MMS 主表与
   子箱、`mms/addr` 过滤与号码富化、`mms/part` 正文富化）独立收集异常，单路失败不丢
@@ -62,7 +82,7 @@
 ### TODO
 
 - Kotlin 侧字符串（通道/原生 toast）本次未抽取
-- 设置页暂无手动语言切换（跟随系统；不支持时回退中文）；后续可加 in-app locale 选择
+- 设置页暂无手动语言切换（已支持中/繁/英，跟随系统；不支持时回退中文）；后续可加 in-app locale 选择
 
 ### Security
 

@@ -65,6 +65,13 @@ class _SmsAppState extends State<SmsApp> {
       localeListResolutionCallback: (deviceLocales, supported) {
         if (widget.locale != null) return widget.locale;
         for (final l in deviceLocales ?? const <Locale>[]) {
+          // 先精确匹配 language+country（zh_TW → 繁中），再回落同语言。
+          for (final s in supported) {
+            if (s.languageCode == l.languageCode &&
+                s.countryCode == l.countryCode) {
+              return s;
+            }
+          }
           for (final s in supported) {
             if (s.languageCode == l.languageCode) return s;
           }

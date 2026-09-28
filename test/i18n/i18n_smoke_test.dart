@@ -70,4 +70,14 @@ void main() {
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
   });
+
+  testWidgets('zh_TW locale：首页标题/计数为繁体', (tester) async {
+    await pumpHome(tester, locale: const Locale('zh', 'TW'));
+
+    expect(find.text('簡訊'), findsOneWidget);
+    final l10n = AppLocalizations.of(tester.element(find.text('簡訊')));
+    expect(l10n.homeTitle, '簡訊');
+    expect(l10n.confirmDelete, '確認刪除');
+    expect(l10n.appTitle, '簡訊清理');
+  });
 }
