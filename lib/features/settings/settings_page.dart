@@ -46,11 +46,16 @@ class _SettingsPageState extends State<SettingsPage> {
   bool? _isDefault;
   int _hiddenCount = 0;
   bool _exporting = false;
+  bool _importing = false;
   String _version = '2.0.0';
+
+  /// 当前界面语言（跟随本次选择即时刷新；widget.locale 只是初值）。
+  Locale? _locale;
 
   @override
   void initState() {
     super.initState();
+    _locale = widget.locale;
     _refreshStatus();
     _refreshHiddenCount();
     _loadVersion();
@@ -192,7 +197,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   /// 导出全部短信 CSV（查库 → 写文件 → 分享）。
   Future<void> _exportAll() async {
-    if (_exporting) return;
+    if (_exporting || _importing) return;
     final l10n = AppLocalizations.of(context);
     setState(() => _exporting = true);
     try {
@@ -205,16 +210,16 @@ class _SettingsPageState extends State<SettingsPage> {
 
   /// 导入 CSV：只新增写入系统短信库。
   Future<void> _importCsv() async {
-    if (_exporting) return;
+    if (_exporting || _importing) return;
     final l10n = AppLocalizations.of(context);
-    setState(() => _exporting = true);
+    setState(() => _importing = true);
     try {
       final r = await importCsv(widget.repo);
       if (!mounted) return;
       _toast(importMessage(r, l10n));
       if (r.ok) await widget.onDataChanged?.call();
     } finally {
-      if (mounted) setState(() => _exporting = false);
+      if (mounted) setState(() => _importing = false);
     }
   }
 
@@ -269,7 +274,7 @@ class _SettingsPageState extends State<SettingsPage> {
               icon: Icons.language_outlined,
               iconBg: const Color(0xFF26A69A),
               title: l10n.language,
-              value: _localeName(l10n, widget.locale),
+              value: _localeName(l10n, _locale),
               onTap: () => _pickLocale(context),
             ),
           ]),
@@ -342,14 +347,14 @@ class _SettingsPageState extends State<SettingsPage> {
               iconBg: const Color(0xFF42A5F5),
               title: l10n.exportSmsCsv,
               subtitle: _exporting ? l10n.exporting : l10n.exportSmsHint,
-              onTap: _exporting ? null : _exportAll,
+              onTap: (_exporting || _importing) ? null : _exportAll,
             ),
             _row(
               icon: Icons.upload_file_outlined,
               iconBg: const Color(0xFF66BB6A),
               title: l10n.importSmsCsv,
-              subtitle: _exporting ? l10n.importing : l10n.importSmsHint,
-              onTap: _exporting ? null : _importCsv,
+              subtitle: _importing ? l10n.importing : l10n.importSmsHint,
+              onTap: (_exporting || _importing) ? null : _importCsv,
             ),
             _row(
               icon: Icons.visibility_off_outlined,
@@ -467,7 +472,7 @@ class _SettingsPageState extends State<SettingsPage> {
       showDragHandle: true,
       builder: (ctx) {
         final sheetL10n = AppLocalizations.of(ctx);
-        final current = widget.locale;
+        final current = _locale;
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -490,6 +495,7 @@ class _SettingsPageState extends State<SettingsPage> {
       },
     );
     if (result?.$1 != true) return;
+    setState(() => _locale = result!.$2);
     widget.onLocaleChanged?.call(result!.$2);
   }
 

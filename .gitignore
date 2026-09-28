@@ -54,3 +54,8 @@ keystore.properties
 *.keystore
 *.p12
 *.pem
+
+# 真机测试截图与 UI dump（含隐私，勿提交）
+test/device/shots/
+test/device/*.xml
+test/device/ui_*.xml

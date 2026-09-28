@@ -67,9 +67,11 @@ Future<bool> showConfirmDeleteSheet(
           if (ctx.mounted) setLocal(() {});
         });
         final running = progress.running;
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-          child: Column(
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -147,6 +149,7 @@ Future<bool> showConfirmDeleteSheet(
                 ],
               ),
             ],
+            ),
           ),
         );
       },

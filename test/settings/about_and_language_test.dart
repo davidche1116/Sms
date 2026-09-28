@@ -101,8 +101,9 @@ void main() {
     expect(find.text('简体中文'), findsWidgets);
     expect(find.text('繁體中文'), findsOneWidget);
     expect(find.text('English'), findsOneWidget);
-    // 弹层里点「English」后关闭
+    // 弹层里点「English」后，语言行应同步显示 English
     await tester.tap(find.text('English'));
     await tester.pumpAndSettle();
+    expect(find.text('English'), findsOneWidget);
   });
 }

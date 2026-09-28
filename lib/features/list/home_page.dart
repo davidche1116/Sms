@@ -48,6 +48,7 @@ class _HomePageState extends State<HomePage> {
   bool _loading = true;
   bool _needPermission = false;
   bool _exporting = false;
+  bool _importing = false;
   bool _miuiNotifHint = false;
   bool _miuiHintDismissed = false;
 
@@ -479,8 +480,11 @@ class _HomePageState extends State<HomePage> {
                           12,
                           88,
                         ),
-                        child: SizedBox(
-                          height: MediaQuery.sizeOf(context).height * 0.55,
+                        // 最小高度撑开视觉居中；内容更高时放宽，避免按钮被裁切。
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: MediaQuery.sizeOf(context).height * 0.55,
+                          ),
                           child: _buildEmptyView(),
                         ),
                       ),
@@ -650,7 +654,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _exportAll() async {
-    if (_exporting) return;
+    if (_exporting || _importing) return;
     final l10n = AppLocalizations.of(context);
     setState(() => _exporting = true);
     try {
@@ -663,16 +667,16 @@ class _HomePageState extends State<HomePage> {
 
   /// 导入 CSV：只新增写入系统短信库，不覆盖、不删除。
   Future<void> _importCsv() async {
-    if (_exporting) return;
+    if (_exporting || _importing) return;
     final l10n = AppLocalizations.of(context);
-    setState(() => _exporting = true);
+    setState(() => _importing = true);
     try {
       final r = await importCsv(_repo);
       if (!mounted) return;
       _toast(importMessage(r, l10n));
       if (r.ok) await _load();
     } finally {
-      if (mounted) setState(() => _exporting = false);
+      if (mounted) setState(() => _importing = false);
     }
   }
 

@@ -87,102 +87,143 @@ Future<SmsFilter?> showFilterSheet(BuildContext context, SmsFilter current) {
     showDragHandle: true,
     builder: (ctx) {
       final l10n = AppLocalizations.of(ctx);
-      return Padding(
+      // 键盘弹起时抬高弹层；按钮放固定底栏，永远完整可见（不进滚动区）。
+      return AnimatedPadding(
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
         padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          bottom: MediaQuery.viewInsetsOf(ctx).bottom + 16,
+          bottom: MediaQuery.viewInsetsOf(ctx).bottom,
         ),
-        child: StatefulBuilder(
-          builder: (ctx, setLocal) => SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(l10n.searchFilter, style: Theme.of(ctx).textTheme.titleLarge),
-                const SizedBox(height: 16),
-                TextField(
-                  decoration: InputDecoration(
-                    labelText: l10n.keywordLabel,
-                    prefixIcon: const Icon(Icons.search),
-                  ),
-                  onChanged: (v) => setLocal(() => f.keyword = v),
-                ),
-                const SizedBox(height: 12),
-                Row(
+        child: SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(ctx).height * 0.85,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: StatefulBuilder(
+                builder: (ctx, setLocal) => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.date_range_outlined),
-                        label: Text(
-                          f.start == null
-                              ? l10n.startDate
-                              : SmsFilter.fmtDate(f.start),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              l10n.searchFilter,
+                              style: Theme.of(ctx).textTheme.titleLarge,
+                            ),
+                            const SizedBox(height: 16),
+                            TextField(
+                              decoration: InputDecoration(
+                                labelText: l10n.keywordLabel,
+                                prefixIcon: const Icon(Icons.search),
+                              ),
+                              onChanged: (v) => setLocal(() => f.keyword = v),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    icon: const Icon(Icons.date_range_outlined),
+                                    label: Text(
+                                      f.start == null
+                                          ? l10n.startDate
+                                          : SmsFilter.fmtDate(f.start),
+                                    ),
+                                    onPressed: () async {
+                                      final d = await showDatePicker(
+                                        context: ctx,
+                                        initialDate: f.start ?? DateTime.now(),
+                                        firstDate: DateTime(2000),
+                                        lastDate: DateTime(2100),
+                                      );
+                                      if (d != null) setLocal(() => f.start = d);
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    icon: const Icon(Icons.date_range_outlined),
+                                    label: Text(
+                                      f.end == null
+                                          ? l10n.endDate
+                                          : SmsFilter.fmtDate(f.end),
+                                    ),
+                                    onPressed: () async {
+                                      final d = await showDatePicker(
+                                        context: ctx,
+                                        initialDate: f.end ?? DateTime.now(),
+                                        firstDate: DateTime(2000),
+                                        lastDate: DateTime(2100),
+                                      );
+                                      if (d != null) setLocal(() => f.end = d);
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            DropdownButtonFormField<int>(
+                              initialValue: f.type,
+                              decoration: InputDecoration(
+                                labelText: l10n.typeLabel,
+                              ),
+                              items: [
+                                DropdownMenuItem(
+                                  value: 0,
+                                  child: Text(l10n.typeAll),
+                                ),
+                                DropdownMenuItem(
+                                  value: 1,
+                                  child: Text(l10n.typeInbox),
+                                ),
+                                DropdownMenuItem(
+                                  value: 2,
+                                  child: Text(l10n.typeSent),
+                                ),
+                                DropdownMenuItem(
+                                  value: 3,
+                                  child: Text(l10n.typeMms),
+                                ),
+                              ],
+                              onChanged: (v) =>
+                                  setLocal(() => f.type = v ?? 0),
+                            ),
+                          ],
                         ),
-                        onPressed: () async {
-                          final d = await showDatePicker(
-                            context: ctx,
-                            initialDate: f.start ?? DateTime.now(),
-                            firstDate: DateTime(2000),
-                            lastDate: DateTime(2100),
-                          );
-                          if (d != null) setLocal(() => f.start = d);
-                        },
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.date_range_outlined),
-                        label: Text(
-                          f.end == null
-                              ? l10n.endDate
-                              : SmsFilter.fmtDate(f.end),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => setLocal(f.reset),
+                            child: Text(l10n.reset),
+                          ),
                         ),
-                        onPressed: () async {
-                          final d = await showDatePicker(
-                            context: ctx,
-                            initialDate: f.end ?? DateTime.now(),
-                            firstDate: DateTime(2000),
-                            lastDate: DateTime(2100),
-                          );
-                          if (d != null) setLocal(() => f.end = d);
-                        },
-                      ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () {
+                              // 收起键盘再回填，避免 IME 挡住动画
+                              FocusScope.of(ctx).unfocus();
+                              Navigator.pop(ctx, f);
+                            },
+                            child: Text(l10n.done),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<int>(
-                  initialValue: f.type,
-                  decoration: InputDecoration(labelText: l10n.typeLabel),
-                  items: [
-                    DropdownMenuItem(value: 0, child: Text(l10n.typeAll)),
-                    DropdownMenuItem(value: 1, child: Text(l10n.typeInbox)),
-                    DropdownMenuItem(value: 2, child: Text(l10n.typeSent)),
-                    DropdownMenuItem(value: 3, child: Text(l10n.typeMms)),
-                  ],
-                  onChanged: (v) => setLocal(() => f.type = v ?? 0),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => setLocal(f.reset),
-                        child: Text(l10n.reset),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () => Navigator.pop(ctx, f),
-                        child: Text(l10n.done),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+              ),
             ),
           ),
         ),

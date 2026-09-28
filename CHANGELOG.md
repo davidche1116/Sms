@@ -5,6 +5,19 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **筛选弹层键盘裁切按钮**：「重置/完成」移出滚动区做固定底栏，键盘下始终完整可点
+- **弹层安全区**：筛选 / 动作 Sheet / 删除确认统一 `SafeArea(top:false)`，适配手势导航等底部非安全区
+- **导出/导入状态串用**：设置页与首页拆分 `_exporting` / `_importing`，导出时不再误显「导入中…」
+
+- **空态按钮溢出**（真机横/矮屏）：`EmptyView` 改为可滚 + 有界高度撑开；`home_page`
+  去掉写死的 `0.55 * 屏高`，改 `minHeight`，按钮不再被裁切（BORDER OVERFLOWED）
+- **筛选弹层被键盘挡住「重置/完成」**：`AnimatedPadding` 跟随 `viewInsets`，
+  内容限高可滚；点「完成」先 `unfocus` 收起键盘
+- **切换语言后设置行仍显示旧值**：`SettingsPage` 用本地 `_locale` 即时刷新，
+  不再依赖 push 时捕获的 `widget.locale`
+
 ### Added
 
 - **应用内语言切换**：设置 → 外观「语言」四档（跟随系统 / 简体中文 / 繁體中文 / English），
