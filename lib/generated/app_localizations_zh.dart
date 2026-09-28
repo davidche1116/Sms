@@ -619,6 +619,64 @@ class AppLocalizationsZh extends AppLocalizations {
   String get errorSummarySeparator => '；';
 
   @override
+  String get insertErrNotDefault => '非默认短信应用';
+
+  @override
+  String get insertErrFailed => '写入失败';
+
+  @override
+  String get insertErrInvalid => '数据格式非法';
+
+  @override
+  String get insertErrUnknown => '未知错误';
+
+  @override
+  String get deleteErrNotDefault => '非默认短信应用';
+
+  @override
+  String get deleteErrFailed => '删除失败';
+
+  @override
+  String get deleteErrUnknown => '未知错误';
+
+  @override
+  String get language => '语言';
+
+  @override
+  String get languageSystem => '跟随系统';
+
+  @override
+  String get languageZh => '简体中文';
+
+  @override
+  String get languageZhTw => '繁體中文';
+
+  @override
+  String get languageEn => 'English';
+
+  @override
+  String get openSourceLicenses => '开源许可';
+
+  @override
+  String get openSourceLicensesHint => '第三方组件与许可证';
+
+  @override
+  String get feedback => '问题反馈';
+
+  @override
+  String get feedbackHint => 'GitHub Issues';
+
+  @override
+  String get feedbackOpenFailed => '无法打开浏览器，请手动访问项目仓库';
+
+  @override
+  String get privacyDialogTitle => '隐私说明';
+
+  @override
+  String get privacyDialogBody =>
+      '短信内容仅用于本机展示、筛选与导出；无网络上传，无统计上报。删除不可恢复，请在操作前确认。';
+
+  @override
   String get defaultSmsMmsWarnTitle => '彩信接收有限制';
 
   @override
@@ -1245,6 +1303,64 @@ class AppLocalizationsZhTw extends AppLocalizationsZh {
 
   @override
   String get errorSummarySeparator => '；';
+
+  @override
+  String get insertErrNotDefault => '非預設簡訊應用程式';
+
+  @override
+  String get insertErrFailed => '寫入失敗';
+
+  @override
+  String get insertErrInvalid => '資料格式非法';
+
+  @override
+  String get insertErrUnknown => '未知錯誤';
+
+  @override
+  String get deleteErrNotDefault => '非預設簡訊應用程式';
+
+  @override
+  String get deleteErrFailed => '刪除失敗';
+
+  @override
+  String get deleteErrUnknown => '未知錯誤';
+
+  @override
+  String get language => '語言';
+
+  @override
+  String get languageSystem => '跟隨系統';
+
+  @override
+  String get languageZh => '简体中文';
+
+  @override
+  String get languageZhTw => '繁體中文';
+
+  @override
+  String get languageEn => 'English';
+
+  @override
+  String get openSourceLicenses => '開源許可';
+
+  @override
+  String get openSourceLicensesHint => '第三方元件與授權條款';
+
+  @override
+  String get feedback => '問題回饋';
+
+  @override
+  String get feedbackHint => 'GitHub Issues';
+
+  @override
+  String get feedbackOpenFailed => '無法開啟瀏覽器，請手動造訪專案倉庫';
+
+  @override
+  String get privacyDialogTitle => '隱私說明';
+
+  @override
+  String get privacyDialogBody =>
+      '簡訊內容僅用於本機顯示、篩選與匯出；無網路上傳，無統計回報。刪除不可復原，請在操作前確認。';
 
   @override
   String get defaultSmsMmsWarnTitle => '多媒體簡訊接收有限制';

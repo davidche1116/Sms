@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../generated/app_localizations.dart';
 import '../../services/hidden_store.dart';
@@ -16,6 +17,8 @@ class SettingsPage extends StatefulWidget {
     required this.seed,
     required this.mode,
     required this.onThemeChanged,
+    this.locale,
+    this.onLocaleChanged,
     required this.repo,
     required this.hiddenStore,
     this.onDataChanged,
@@ -24,6 +27,10 @@ class SettingsPage extends StatefulWidget {
   final Color seed;
   final ThemeMode mode;
   final void Function(Color? seed, ThemeMode? mode) onThemeChanged;
+
+  /// 当前界面语言；null = 跟随系统。
+  final Locale? locale;
+  final void Function(Locale? locale)? onLocaleChanged;
   final SmsRepository repo;
   final HiddenStore hiddenStore;
 
@@ -258,6 +265,13 @@ class _SettingsPageState extends State<SettingsPage> {
               },
               onTap: () => _pickMode(context),
             ),
+            _row(
+              icon: Icons.language_outlined,
+              iconBg: const Color(0xFF26A69A),
+              title: l10n.language,
+              value: _localeName(l10n, widget.locale),
+              onTap: () => _pickLocale(context),
+            ),
           ]),
           _section(context, l10n.sectionPermissions),
           _group([
@@ -360,7 +374,25 @@ class _SettingsPageState extends State<SettingsPage> {
               iconBg: const Color(0xFF7E57C2),
               title: l10n.privacy,
               subtitle: l10n.privacyHint,
-              onTap: () => _toast(l10n.privacyToast),
+              onTap: () => _showPrivacyDialog(context),
+            ),
+            _row(
+              icon: Icons.gavel_outlined,
+              iconBg: const Color(0xFF5C6BC0),
+              title: l10n.openSourceLicenses,
+              subtitle: l10n.openSourceLicensesHint,
+              onTap: () => showLicensePage(
+                context: context,
+                applicationName: l10n.appTitle,
+                applicationVersion: _version,
+              ),
+            ),
+            _row(
+              icon: Icons.feedback_outlined,
+              iconBg: const Color(0xFFEF5350),
+              title: l10n.feedback,
+              subtitle: l10n.feedbackHint,
+              onTap: _openFeedback,
             ),
             _warnRow(
               context,
@@ -415,6 +447,78 @@ class _SettingsPageState extends State<SettingsPage> {
       },
     );
     if (m != null) widget.onThemeChanged(null, m);
+  }
+
+  String _localeName(AppLocalizations l10n, Locale? locale) {
+    if (locale == null) return l10n.languageSystem;
+    if (locale.languageCode == 'zh' && locale.countryCode == 'TW') {
+      return l10n.languageZhTw;
+    }
+    return switch (locale.languageCode) {
+      'zh' => l10n.languageZh,
+      'en' => l10n.languageEn,
+      _ => locale.toLanguageTag(),
+    };
+  }
+
+  Future<void> _pickLocale(BuildContext context) async {
+    final result = await showModalBottomSheet<(bool, Locale?)>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        final sheetL10n = AppLocalizations.of(ctx);
+        final current = widget.locale;
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final (label, value) in [
+                (sheetL10n.languageSystem, null),
+                (sheetL10n.languageZh, const Locale('zh')),
+                (sheetL10n.languageZhTw, const Locale('zh', 'TW')),
+                (sheetL10n.languageEn, const Locale('en')),
+              ])
+                ListTile(
+                  title: Text(label),
+                  trailing: current == value ? const Icon(Icons.check) : null,
+                  // 用 (true, value) 区分「点了跟随系统」与「点外部取消」。
+                  onTap: () => Navigator.pop(ctx, (true, value)),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+    if (result?.$1 != true) return;
+    widget.onLocaleChanged?.call(result!.$2);
+  }
+
+  void _showPrivacyDialog(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.privacyDialogTitle),
+        content: Text(l10n.privacyDialogBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(l10n.done),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openFeedback() async {
+    final l10n = AppLocalizations.of(context);
+    final uri = Uri.parse('https://github.com/davidche1116/Sms/issues');
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && mounted) _toast(l10n.feedbackOpenFailed);
+    } catch (_) {
+      if (mounted) _toast(l10n.feedbackOpenFailed);
+    }
   }
 
   Widget _section(BuildContext context, String title) => Padding(

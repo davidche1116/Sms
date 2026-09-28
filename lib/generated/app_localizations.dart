@@ -1227,6 +1227,120 @@ abstract class AppLocalizations {
   /// **'；'**
   String get errorSummarySeparator;
 
+  /// No description provided for @insertErrNotDefault.
+  ///
+  /// In zh, this message translates to:
+  /// **'非默认短信应用'**
+  String get insertErrNotDefault;
+
+  /// No description provided for @insertErrFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'写入失败'**
+  String get insertErrFailed;
+
+  /// No description provided for @insertErrInvalid.
+  ///
+  /// In zh, this message translates to:
+  /// **'数据格式非法'**
+  String get insertErrInvalid;
+
+  /// No description provided for @insertErrUnknown.
+  ///
+  /// In zh, this message translates to:
+  /// **'未知错误'**
+  String get insertErrUnknown;
+
+  /// No description provided for @deleteErrNotDefault.
+  ///
+  /// In zh, this message translates to:
+  /// **'非默认短信应用'**
+  String get deleteErrNotDefault;
+
+  /// No description provided for @deleteErrFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除失败'**
+  String get deleteErrFailed;
+
+  /// No description provided for @deleteErrUnknown.
+  ///
+  /// In zh, this message translates to:
+  /// **'未知错误'**
+  String get deleteErrUnknown;
+
+  /// No description provided for @language.
+  ///
+  /// In zh, this message translates to:
+  /// **'语言'**
+  String get language;
+
+  /// No description provided for @languageSystem.
+  ///
+  /// In zh, this message translates to:
+  /// **'跟随系统'**
+  String get languageSystem;
+
+  /// No description provided for @languageZh.
+  ///
+  /// In zh, this message translates to:
+  /// **'简体中文'**
+  String get languageZh;
+
+  /// No description provided for @languageZhTw.
+  ///
+  /// In zh, this message translates to:
+  /// **'繁體中文'**
+  String get languageZhTw;
+
+  /// No description provided for @languageEn.
+  ///
+  /// In zh, this message translates to:
+  /// **'English'**
+  String get languageEn;
+
+  /// No description provided for @openSourceLicenses.
+  ///
+  /// In zh, this message translates to:
+  /// **'开源许可'**
+  String get openSourceLicenses;
+
+  /// No description provided for @openSourceLicensesHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'第三方组件与许可证'**
+  String get openSourceLicensesHint;
+
+  /// No description provided for @feedback.
+  ///
+  /// In zh, this message translates to:
+  /// **'问题反馈'**
+  String get feedback;
+
+  /// No description provided for @feedbackHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'GitHub Issues'**
+  String get feedbackHint;
+
+  /// No description provided for @feedbackOpenFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法打开浏览器，请手动访问项目仓库'**
+  String get feedbackOpenFailed;
+
+  /// No description provided for @privacyDialogTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'隐私说明'**
+  String get privacyDialogTitle;
+
+  /// No description provided for @privacyDialogBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'短信内容仅用于本机展示、筛选与导出；无网络上传，无统计上报。删除不可恢复，请在操作前确认。'**
+  String get privacyDialogBody;
+
   /// No description provided for @defaultSmsMmsWarnTitle.
   ///
   /// In zh, this message translates to:

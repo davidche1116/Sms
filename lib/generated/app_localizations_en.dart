@@ -639,6 +639,65 @@ class AppLocalizationsEn extends AppLocalizations {
   String get errorSummarySeparator => '; ';
 
   @override
+  String get insertErrNotDefault => 'Not the default SMS app';
+
+  @override
+  String get insertErrFailed => 'Write failed';
+
+  @override
+  String get insertErrInvalid => 'Invalid row format';
+
+  @override
+  String get insertErrUnknown => 'Unknown error';
+
+  @override
+  String get deleteErrNotDefault => 'Not the default SMS app';
+
+  @override
+  String get deleteErrFailed => 'Delete failed';
+
+  @override
+  String get deleteErrUnknown => 'Unknown error';
+
+  @override
+  String get language => 'Language';
+
+  @override
+  String get languageSystem => 'Follow system';
+
+  @override
+  String get languageZh => '简体中文';
+
+  @override
+  String get languageZhTw => '繁體中文';
+
+  @override
+  String get languageEn => 'English';
+
+  @override
+  String get openSourceLicenses => 'Open source licenses';
+
+  @override
+  String get openSourceLicensesHint => 'Third-party components and licenses';
+
+  @override
+  String get feedback => 'Feedback';
+
+  @override
+  String get feedbackHint => 'GitHub Issues';
+
+  @override
+  String get feedbackOpenFailed =>
+      'Could not open the browser. Please visit the project repository manually.';
+
+  @override
+  String get privacyDialogTitle => 'Privacy';
+
+  @override
+  String get privacyDialogBody =>
+      'SMS content is used only on this device for display, filtering, and export. Nothing is uploaded or collected. Deletion cannot be undone.';
+
+  @override
   String get defaultSmsMmsWarnTitle => 'MMS receive is limited';
 
   @override

@@ -85,12 +85,12 @@ class CsvImportResult {
   bool get ok => error == null && !notDefault;
 
   /// 失败摘要（最多 3 条），供 toast/日志；无失败时为空串。
+  /// 文案按 `code` 本地化，不透出原生 `message`（可能是系统异常英文）。
   String errorSummaryOf(AppLocalizations l10n) {
     if (rowErrors.isEmpty) return '';
-    final shown = rowErrors.take(3).map((e) {
-      final msg = e.message?.trim();
-      return (msg == null || msg.isEmpty) ? e.code : '${e.code}: $msg';
-    }).join(l10n.errorSummarySeparator);
+    final shown = rowErrors.take(3).map((e) => e.labelOf(l10n)).join(
+      l10n.errorSummarySeparator,
+    );
     final more = rowErrors.length > 3
         ? l10n.errorSummaryMore(rowErrors.length)
         : '';

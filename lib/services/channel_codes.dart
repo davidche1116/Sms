@@ -4,6 +4,8 @@
 /// 业务代码只准引用本文件常量 / 枚举，禁止散落裸字面量。
 library;
 
+import '../generated/app_localizations.dart';
+
 /// 通道协议字面量（线格式，勿改值）。
 abstract final class ChannelCodes {
   // ---- setDefaultSms ----
@@ -265,8 +267,19 @@ class InsertRowError {
   /// [ChannelCodes.insertErrorInvalid] / [ChannelCodes.insertErrorUnknown]。
   final String code;
 
-  /// 原生补充说明，可能为 null。
+  /// 原生补充说明，可能为 null。仅供日志，**不要**直接展示给用户
+  /// （可能是系统异常英文/系统语言文案）；UI 请用 [labelOf]。
   final String? message;
+
+  /// 按 [code] 映射本地化文案；未知 code 回落到「未知错误」。
+  String labelOf(AppLocalizations l10n) => switch (code) {
+    // insert/delete 共用 `not_default` / `failed` / `unknown` 线值
+    ChannelCodes.insertErrorNotDefault => l10n.insertErrNotDefault,
+    ChannelCodes.insertErrorFailed => l10n.insertErrFailed,
+    ChannelCodes.insertErrorInvalid => l10n.insertErrInvalid,
+    ChannelCodes.deleteErrorUnknown => l10n.deleteErrUnknown,
+    _ => l10n.insertErrUnknown,
+  };
 
   /// 线协议 Map → 明细；字段缺失/形态异常时给安全默认。
   static InsertRowError fromWire(Object? raw) {

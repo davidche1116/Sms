@@ -3,12 +3,13 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'features/list/home_page.dart';
 import 'generated/app_localizations.dart';
+import 'services/locale_store.dart';
 import 'services/theme_store.dart';
 
 class SmsApp extends StatefulWidget {
   const SmsApp({super.key, this.locale});
 
-  /// 强制界面语言；null 跟随系统（不支持时回退中文）。
+  /// 强制界面语言（测试用）；null 时读 [LocaleStore]，再跟随系统。
   final Locale? locale;
 
   @override
@@ -17,6 +18,7 @@ class SmsApp extends StatefulWidget {
 
 class _SmsAppState extends State<SmsApp> {
   final _store = ThemeStore();
+  final _localeStore = LocaleStore();
 
   /// 递增代际：用户在加载完成前改主题时，丢弃在途的加载结果。
   int _themeGen = 0;
@@ -24,10 +26,14 @@ class _SmsAppState extends State<SmsApp> {
   Color seed = ThemeStore.defaultSeed;
   ThemeMode mode = ThemeStore.defaultMode;
 
+  /// 用户选择的界面语言；null = 跟随系统。
+  Locale? _preferredLocale;
+
   @override
   void initState() {
     super.initState();
     _loadTheme();
+    _loadLocale();
   }
 
   Future<void> _loadTheme() async {
@@ -40,6 +46,12 @@ class _SmsAppState extends State<SmsApp> {
     });
   }
 
+  Future<void> _loadLocale() async {
+    final l = await _localeStore.load();
+    if (!mounted) return;
+    setState(() => _preferredLocale = l);
+  }
+
   void _onThemeChanged(Color? c, ThemeMode? m) {
     _themeGen++;
     setState(() {
@@ -49,10 +61,15 @@ class _SmsAppState extends State<SmsApp> {
     _store.save(seed: c, mode: m);
   }
 
+  void _onLocaleChanged(Locale? locale) {
+    setState(() => _preferredLocale = locale);
+    _localeStore.save(locale);
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      locale: widget.locale,
+      locale: widget.locale ?? _preferredLocale,
       onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
       debugShowCheckedModeBanner: false,
       localizationsDelegates: const [
@@ -63,7 +80,9 @@ class _SmsAppState extends State<SmsApp> {
       ],
       supportedLocales: AppLocalizations.supportedLocales,
       localeListResolutionCallback: (deviceLocales, supported) {
+        // 测试强制 locale 优先，其次用户在设置里选的语言，最后跟随系统。
         if (widget.locale != null) return widget.locale;
+        if (_preferredLocale != null) return _preferredLocale;
         for (final l in deviceLocales ?? const <Locale>[]) {
           // 先精确匹配 language+country（zh_TW → 繁中），再回落同语言。
           for (final s in supported) {
@@ -86,6 +105,8 @@ class _SmsAppState extends State<SmsApp> {
         seed: seed,
         mode: mode,
         onThemeChanged: _onThemeChanged,
+        locale: widget.locale ?? _preferredLocale,
+        onLocaleChanged: _onLocaleChanged,
       ),
     );
   }

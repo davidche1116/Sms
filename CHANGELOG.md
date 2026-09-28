@@ -7,6 +7,16 @@
 
 ### Added
 
+- **应用内语言切换**：设置 → 外观「语言」四档（跟随系统 / 简体中文 / 繁體中文 / English），
+  `LocaleStore` 持久化；`localeListResolutionCallback` 先精确匹配 language+country
+- **关于组补全**：开源许可（`showLicensePage`）、问题反馈（GitHub Issues）、
+  隐私说明改为对话框（不再只有一句 toast）
+- **导入失败文案本地化**：`InsertRowError.labelOf` 按通道 `code` 映射中/繁/英，
+  不再透出原生 `message`（可能是系统异常英文）；Kotlin 侧无用户可见 Toast，
+  线协议 `warnings[].message` 保持固定英文（契约锁定），UI 一律按 code 本地化
+
+### Fixed
+
 - **繁体中文（zh_TW）回归**：补齐 `lib/l10n/app_zh_TW.arb` 全量文案；`localeListResolutionCallback`
   改为先精确匹配 language+country 再回落同语言，避免 `zh_TW` 被错配成简中
 - **英文 README**（`README_en.md`）；中文 README 语言切换与 CI / 发布表
@@ -81,8 +91,7 @@
 
 ### TODO
 
-- Kotlin 侧字符串（通道/原生 toast）本次未抽取
-- 设置页暂无手动语言切换（已支持中/繁/英，跟随系统；不支持时回退中文）；后续可加 in-app locale 选择
+- 真机验证：收新短信（SMS_DELIVER）入库闭环、非 MIUI 机型 ROLE_SMS 资格
 
 ### Security
 

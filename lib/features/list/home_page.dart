@@ -22,11 +22,17 @@ class HomePage extends StatefulWidget {
     required this.seed,
     required this.mode,
     required this.onThemeChanged,
+    this.locale,
+    this.onLocaleChanged,
   });
 
   final Color seed;
   final ThemeMode mode;
   final void Function(Color? seed, ThemeMode? mode) onThemeChanged;
+
+  /// 当前界面语言；null = 跟随系统。
+  final Locale? locale;
+  final void Function(Locale? locale)? onLocaleChanged;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -705,6 +711,8 @@ class _HomePageState extends State<HomePage> {
           seed: widget.seed,
           mode: widget.mode,
           onThemeChanged: widget.onThemeChanged,
+          locale: widget.locale,
+          onLocaleChanged: widget.onLocaleChanged,
           repo: _repo,
           hiddenStore: _hiddenStore,
           onDataChanged: _load,

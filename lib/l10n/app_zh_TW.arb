@@ -313,6 +313,27 @@
     }
   },
   "errorSummarySeparator": "；",
+  "insertErrNotDefault": "非預設簡訊應用程式",
+  "insertErrFailed": "寫入失敗",
+  "insertErrInvalid": "資料格式非法",
+  "insertErrUnknown": "未知錯誤",
+  "deleteErrNotDefault": "非預設簡訊應用程式",
+  "deleteErrFailed": "刪除失敗",
+  "deleteErrUnknown": "未知錯誤",
+
+  "language": "語言",
+  "languageSystem": "跟隨系統",
+  "languageZh": "简体中文",
+  "languageZhTw": "繁體中文",
+  "languageEn": "English",
+
+  "openSourceLicenses": "開源許可",
+  "openSourceLicensesHint": "第三方元件與授權條款",
+  "feedback": "問題回饋",
+  "feedbackHint": "GitHub Issues",
+  "feedbackOpenFailed": "無法開啟瀏覽器，請手動造訪專案倉庫",
+  "privacyDialogTitle": "隱私說明",
+  "privacyDialogBody": "簡訊內容僅用於本機顯示、篩選與匯出；無網路上傳，無統計回報。刪除不可復原，請在操作前確認。",
 
   "defaultSmsMmsWarnTitle": "多媒體簡訊接收有限制",
   "defaultSmsMmsWarnBody": "作為預設簡訊應用程式時，新多媒體簡訊只入庫發件人/時間/主題，不下載完整內文與附件。需要完整多媒體簡訊請改回系統「訊息」接收。",

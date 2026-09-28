@@ -78,8 +78,8 @@ void main() {
       expect(r.rowErrors[0].index, 1);
       expect(r.rowErrors[1].code, ChannelCodes.insertErrorUnknown);
       expect(importMessage(r, zh), '已导入 1 / 3 条（2 条失败）');
-      expect(r.errorSummaryOf(zh), contains('insert returned null'));
-      expect(r.errorSummaryOf(zh), contains('batch failed'));
+      expect(r.errorSummaryOf(zh), contains('写入失败'));
+      expect(r.errorSummaryOf(zh), contains('未知错误'));
     });
 
     test('非默认：toast 引导设默认，errorSummary 带 not_default', () async {
@@ -145,9 +145,9 @@ void main() {
             InsertRowError(index: i, code: 'failed', message: 'm$i'),
         ],
       );
-      expect(many.errorSummaryOf(zh), contains('m0'));
-      expect(many.errorSummaryOf(zh), contains('m2'));
-      expect(many.errorSummaryOf(zh), isNot(contains('m3')));
+      // 文案按 code 本地化，不再透出原生 message
+      expect(many.errorSummaryOf(zh), contains('写入失败'));
+      expect(many.errorSummaryOf(zh), isNot(contains('m0')));
       expect(many.errorSummaryOf(zh), contains('等 5 条'));
     });
 

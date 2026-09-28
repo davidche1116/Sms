@@ -313,6 +313,27 @@
     }
   },
   "errorSummarySeparator": "；",
+  "insertErrNotDefault": "非默认短信应用",
+  "insertErrFailed": "写入失败",
+  "insertErrInvalid": "数据格式非法",
+  "insertErrUnknown": "未知错误",
+  "deleteErrNotDefault": "非默认短信应用",
+  "deleteErrFailed": "删除失败",
+  "deleteErrUnknown": "未知错误",
+
+  "language": "语言",
+  "languageSystem": "跟随系统",
+  "languageZh": "简体中文",
+  "languageZhTw": "繁體中文",
+  "languageEn": "English",
+
+  "openSourceLicenses": "开源许可",
+  "openSourceLicensesHint": "第三方组件与许可证",
+  "feedback": "问题反馈",
+  "feedbackHint": "GitHub Issues",
+  "feedbackOpenFailed": "无法打开浏览器，请手动访问项目仓库",
+  "privacyDialogTitle": "隐私说明",
+  "privacyDialogBody": "短信内容仅用于本机展示、筛选与导出；无网络上传，无统计上报。删除不可恢复，请在操作前确认。",
 
   "defaultSmsMmsWarnTitle": "彩信接收有限制",
   "defaultSmsMmsWarnBody": "作为默认短信应用时，新彩信只入库发件人/时间/主题，不下载完整正文与附件。需要完整彩信请改回系统「信息」接收。",
