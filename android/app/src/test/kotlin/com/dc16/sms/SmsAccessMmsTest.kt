@@ -347,7 +347,7 @@ class SmsAccessMmsTest {
     access.querySms("10086")
     val mmsQ = stub.queryLog.filter { it.kind == "mms" }
     assertTrue(mmsQ.isNotEmpty())
-    assertTrue(mmsQ.all { it.selection != null && it.selection!!.startsWith("_id IN") })
+    assertTrue(mmsQ.all { it.selection?.startsWith("_id IN") == true })
   }
 
   @Test

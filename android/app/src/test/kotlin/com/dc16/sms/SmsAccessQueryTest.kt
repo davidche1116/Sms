@@ -349,7 +349,7 @@ class SmsAccessQueryTest {
     assertTrue("rowsConsumed=$consumed should be <= 50", consumed <= 50)
     // LIMIT 下推到 sortOrder
     assertTrue(lastSmsSort!!.contains("LIMIT 50"))
-    assertTrue(lastSmsSort!!.contains("date DESC"))
+    assertTrue(lastSmsSort?.contains("date DESC") == true)
   }
 
   // ---- querySms：address 过滤与错误 ----

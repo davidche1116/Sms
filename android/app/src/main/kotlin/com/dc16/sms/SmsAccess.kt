@@ -363,14 +363,15 @@ class SmsAccess(private val context: Context) {
     if (mmsAddrFilter != null && mmsAddrFilter.isEmpty()) {
       mms = StreamScan.EMPTY
     } else {
-      val pushIn = mmsAddrFilter != null && mmsAddrFilter.size <= MMS_ID_IN_MAX
-      val mmsSel = if (pushIn && mmsAddrFilter != null) {
-        "_id IN (${mmsAddrFilter.joinToString(",") { "?" }})"
+      val ids = mmsAddrFilter
+      val pushIn = ids != null && ids.size <= MMS_ID_IN_MAX
+      val mmsSel = if (pushIn) {
+        "_id IN (${ids.joinToString(",") { "?" }})"
       } else null
-      val mmsArgs = if (pushIn && mmsAddrFilter != null) {
-        mmsAddrFilter.map { it.toString() }.toTypedArray()
+      val mmsArgs = if (pushIn) {
+        ids.map { it.toString() }.toTypedArray()
       } else null
-      val memoryFilter = if (mmsAddrFilter != null && !pushIn) mmsAddrFilter else null
+      val memoryFilter = if (ids != null && !pushIn) ids else null
       mms = scanStream(
         query = TableQuery { proj, s, a, sort ->
           context.contentResolver.query(Telephony.Mms.CONTENT_URI, proj, s, a, sort)
