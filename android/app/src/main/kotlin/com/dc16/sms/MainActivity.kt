@@ -3,11 +3,14 @@ package com.dc16.sms
 import android.Manifest
 import android.content.Intent
 import android.content.pm.ApplicationInfo
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.activity.result.contract.ActivityResultContracts
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -50,6 +53,16 @@ internal class OnceResult(private val raw: MethodChannel.Result) : MethodChannel
 class MainActivity : FlutterFragmentActivity() {
   private val channelName = "com.dc16.sms/smsApp"
   private lateinit var access: SmsAccess
+
+  /** 查询操作专用线程池，与写入隔离避免串行瓶颈。 */
+  private val queryExecutor = Executors.newSingleThreadExecutor { r ->
+    Thread(r, "sms-query").apply { isDaemon = true }
+  }
+  /** 写入操作专用线程池（批量删/批量插），与查询隔离。 */
+  private val writeExecutor = Executors.newSingleThreadExecutor { r ->
+    Thread(r, "sms-write").apply { isDaemon = true }
+  }
+  private val mainHandler = Handler(Looper.getMainLooper())
 
   /** 等待系统权限弹窗结果后再回包，Dart 才能刷新。取出即清空，保证只 complete 一次。 */
   private var pendingRead: MethodChannel.Result? = null
@@ -103,6 +116,8 @@ class MainActivity : FlutterFragmentActivity() {
 
   override fun onDestroy() {
     completePendingOnTeardown("onDestroy")
+    queryExecutor.shutdown()
+    writeExecutor.shutdown()
     super.onDestroy()
   }
 
@@ -117,8 +132,9 @@ class MainActivity : FlutterFragmentActivity() {
         val result = OnceResult(rawResult)
         try {
           when (call.method) {
-            "hasReadSmsPermission" -> result.success(access.hasReadSms())
-            "requestReadSms" -> {
+            ChannelCodes.METHOD_HAS_READ_SMS_PERMISSION ->
+              result.success(access.hasReadSms())
+            ChannelCodes.METHOD_REQUEST_READ_SMS -> {
               if (access.hasReadSms()) {
                 result.success(true)
               } else if (pendingRead != null) {
@@ -135,8 +151,9 @@ class MainActivity : FlutterFragmentActivity() {
                 }
               }
             }
-            "isDefaultSms" -> result.success(access.isDefaultSms())
-            "setDefaultSms" -> {
+            ChannelCodes.METHOD_IS_DEFAULT_SMS ->
+              result.success(access.isDefaultSms())
+            ChannelCodes.METHOD_SET_DEFAULT_SMS -> {
               // 唯一设默认路径在 SmsAccess.setDefaultSms；此处只挂 pending / 拉起角色页。
               val settled = access.setDefaultSms(this) { intent ->
                 if (pendingRole != null) {
@@ -155,15 +172,18 @@ class MainActivity : FlutterFragmentActivity() {
               }
               if (settled != null) result.success(settled)
             }
-            "restoreDefaultSms" -> result.success(access.restoreDefaultSms(this))
-            "openDefaultSmsSettings" ->
+            ChannelCodes.METHOD_RESTORE_DEFAULT_SMS ->
+              result.success(access.restoreDefaultSms(this))
+            ChannelCodes.METHOD_OPEN_DEFAULT_SMS_SETTINGS ->
               result.success(access.openDefaultSmsSettings(this))
-            "openAppSettings" -> result.success(access.openAppSettings(this))
-            "isMiui" -> result.success(access.isMiui())
-            "miuiNotificationSmsState" -> result.success(access.miuiNotificationSmsState())
-            "openMiuiPermissionEditor" ->
+            ChannelCodes.METHOD_OPEN_APP_SETTINGS ->
+              result.success(access.openAppSettings(this))
+            ChannelCodes.METHOD_IS_MIUI -> result.success(access.isMiui())
+            ChannelCodes.METHOD_MIUI_NOTIFICATION_SMS_STATE ->
+              result.success(access.miuiNotificationSmsState())
+            ChannelCodes.METHOD_OPEN_MIUI_PERMISSION_EDITOR ->
               result.success(access.openMiuiPermissionEditor(this))
-            "insertTestSms" -> {
+            ChannelCodes.METHOD_INSERT_TEST_SMS -> {
               val args = call.arguments as? Map<*, *>
               val count = (args?.get("count") as? Number)?.toInt() ?: 3
               val prefix = args?.get("bodyPrefix") as? String ?: "SMSCLEANUP_TEST"
@@ -176,7 +196,7 @@ class MainActivity : FlutterFragmentActivity() {
                 result.success(mapOf(ChannelCodes.KEY_OK to true, ChannelCodes.KEY_IDS to ids))
               }
             }
-            "deleteTestSmsByPrefix" -> {
+            ChannelCodes.METHOD_DELETE_TEST_SMS_BY_PREFIX -> {
               val prefix = (call.arguments as? Map<*, *>)?.get("bodyPrefix") as? String
                 ?: "SMSCLEANUP_TEST"
               val n = access.deleteTestSmsByPrefix(prefix)
@@ -184,22 +204,51 @@ class MainActivity : FlutterFragmentActivity() {
                 mapOf(ChannelCodes.KEY_OK to (n != null), ChannelCodes.KEY_DELETED to (n ?: 0)),
               )
             }
-            "querySms" -> {
+            ChannelCodes.METHOD_QUERY_SMS -> {
               val args = call.arguments as? Map<*, *>
               val addr = args?.get("address") as? String
               val limit = (args?.get("limit") as? Number)?.toInt()
               val offset = (args?.get("offset") as? Number)?.toInt() ?: 0
-              result.success(access.querySms(addr, limit, offset))
+              val keyword = args?.get("keyword") as? String
+              val startDateMs = (args?.get("startDateMs") as? Number)?.toLong()
+              val endDateMs = (args?.get("endDateMs") as? Number)?.toLong()
+              val type = (args?.get("type") as? Number)?.toInt()
+              queryExecutor.execute {
+                try {
+                  val res = access.querySms(
+                    addr, limit, offset, keyword, startDateMs, endDateMs, type,
+                  )
+                  mainHandler.post { result.success(res) }
+                } catch (e: Exception) {
+                  mainHandler.post { result.error("error", e.message, null) }
+                }
+              }
             }
-            "deleteSmsBatch" -> {
+            ChannelCodes.METHOD_DELETE_SMS_BATCH -> {
               // 兼容两种入参：List<Int>（纯 SMS）或 List<Map{id,is_mms}>（混合）
               val targets = (call.arguments as? List<*>) ?: emptyList<Any?>()
-              result.success(access.deleteSmsBatch(targets))
+              writeExecutor.execute {
+                try {
+                  val res = access.deleteSmsBatch(targets)
+                  access.clearCountCache()
+                  mainHandler.post { result.success(res) }
+                } catch (e: Exception) {
+                  mainHandler.post { result.error("error", e.message, null) }
+                }
+              }
             }
-            "insertSmsBatch" -> {
+            ChannelCodes.METHOD_INSERT_SMS_BATCH -> {
               // 原样透传（含非 Map 行）：SmsAccess 按入参下标 1:1 记 errors，避免 mapNotNull 错位。
               val rows = (call.arguments as? List<*>) ?: emptyList<Any?>()
-              result.success(access.insertSmsBatch(rows))
+              writeExecutor.execute {
+                try {
+                  val res = access.insertSmsBatch(rows)
+                  access.clearCountCache()
+                  mainHandler.post { result.success(res) }
+                } catch (e: Exception) {
+                  mainHandler.post { result.error("error", e.message, null) }
+                }
+              }
             }
             else -> result.notImplemented()
           }
@@ -207,12 +256,27 @@ class MainActivity : FlutterFragmentActivity() {
           result.error("error", e.message, null)
         }
       }
-    handleQaIntent(intent)
+    val qaIntent = intent
+    if (qaIntent != null && isQaIntent(qaIntent)) {
+      writeExecutor.execute {
+        handleQaIntent(qaIntent)
+      }
+    }
   }
 
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
-    handleQaIntent(intent)
+    if (isQaIntent(intent)) {
+      writeExecutor.execute {
+        handleQaIntent(intent)
+      }
+    }
+  }
+
+  /** 判断是否为 debug QA 意图。 */
+  private fun isQaIntent(intent: Intent): Boolean {
+    val action = intent.action ?: return false
+    return action.startsWith("com.dc16.sms.QA_")
   }
 
   /**

@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
+import android.util.Log
 
 /**
  * WAP_PUSH_DELIVER（`application/vnd.wap.mms-message`）：仅默认短信应用会收到。
@@ -25,8 +26,9 @@ class MmsReceiver : BroadcastReceiver() {
       val subId = intent.getLongExtra(EXTRA_SUBSCRIPTION, -1L)
         .let { if (it < 0) null else it.toInt() }
       SmsAccess(context).insertMmsNotification(n, subId)
-    } catch (_: Exception) {
+    } catch (e: Exception) {
       // 广播绝不让进程崩溃；丢一条记日志由系统行为决定是否重投。
+      Log.e("MmsReceiver", "onReceive", e)
     }
   }
 

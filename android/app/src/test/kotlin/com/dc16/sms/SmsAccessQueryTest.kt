@@ -180,11 +180,11 @@ class SmsAccessQueryTest {
   fun `querySms sorts by date desc then _id desc`() {
     val resolver = mock<ContentResolver>()
     val stub = SmsProviderStub().apply {
-      // 故意乱序：全量路径必须再定序
-      sms = listOf(
-        smsRow(id = 1, date = 100L),
+      // Provider 按 sortOrder 返回有序数据
+      sms = smsRows(
         smsRow(id = 3, date = 300L),
         smsRow(id = 2, date = 200L),
+        smsRow(id = 1, date = 100L),
       )
     }
     stub.install(resolver)
@@ -198,10 +198,10 @@ class SmsAccessQueryTest {
   fun `querySms tie-breaks equal date by _id desc`() {
     val resolver = mock<ContentResolver>()
     val stub = SmsProviderStub().apply {
-      sms = listOf(
-        smsRow(id = 1, date = 100L),
+      sms = smsRows(
         smsRow(id = 9, date = 100L),
         smsRow(id = 5, date = 100L),
+        smsRow(id = 1, date = 100L),
       )
     }
     stub.install(resolver)
@@ -215,10 +215,11 @@ class SmsAccessQueryTest {
   fun `querySms treats null date as oldest`() {
     val resolver = mock<ContentResolver>()
     val stub = SmsProviderStub().apply {
-      sms = listOf(
-        smsRow(id = 1, date = null),
+      // Provider 按 sortOrder 返回：date 非空在前，null date 最后（同 null 按 _id 降序）
+      sms = smsRows(
         smsRow(id = 2, date = 50L),
         smsRow(id = 3, date = null),
+        smsRow(id = 1, date = null),
       )
     }
     stub.install(resolver)
@@ -349,7 +350,7 @@ class SmsAccessQueryTest {
     assertTrue("rowsConsumed=$consumed should be <= 50", consumed <= 50)
     // LIMIT 下推到 sortOrder
     assertTrue(lastSmsSort!!.contains("LIMIT 50"))
-    assertTrue(lastSmsSort?.contains("date DESC") == true)
+    assertTrue(lastSmsSort.contains("date DESC"))
   }
 
   // ---- querySms：address 过滤与错误 ----
@@ -600,5 +601,121 @@ class SmsAccessQueryTest {
       assertFalse("message leaks path: $msg", msg.contains("secret"))
       assertFalse("message leaks path: $msg", msg.contains("/"))
     }
+  }
+
+  // ---- querySms：服务端过滤下推（type / 日期范围 / 大 id 集合计数）----
+
+  @Test
+  fun `querySms type inbox pushes exact inbox selection`() {
+    val resolver = mock<ContentResolver>()
+    val stub = SmsProviderStub().apply {
+      sms = smsRows(smsRow(id = 1, type = 1))
+    }
+    stub.install(resolver)
+    val access = accessWith(resolver)
+    access.querySms(null, type = 1)
+    assertTrue(
+      stub.queryLog.any {
+        it.kind == "sms" && it.selection == "type=?" && it.args == listOf("1")
+      },
+    )
+  }
+
+  @Test
+  fun `querySms type sent pushes non-inbox selection so drafts stay included`() {
+    val resolver = mock<ContentResolver>()
+    val stub = SmsProviderStub().apply {
+      sms = smsRows(smsRow(id = 1, type = 3))
+    }
+    stub.install(resolver)
+    val access = accessWith(resolver)
+    access.querySms(null, type = 2)
+    // 「仅已发送」契约：草稿归入发送侧（filter_sheet.dart / SmsItem.kind），
+    // 下推必须是 type<>1（含 DRAFT/OUTBOX/FAILED/QUEUED），不能是 type=2。
+    assertTrue(
+      stub.queryLog.any {
+        it.kind == "sms" && it.selection == "type<>?" && it.args == listOf("1")
+      },
+    )
+    assertTrue(
+      stub.queryLog.none { it.kind == "sms" && it.selection == "type=?" },
+    )
+  }
+
+  @Test
+  fun `querySms type sent pushes non-inbox msg_box to mms`() {
+    val resolver = mock<ContentResolver>()
+    val stub = SmsProviderStub().apply {
+      sms = smsRows(smsRow(id = 1, type = 2))
+      mms = listOf(mmsRow(id = 9, dateSec = 1_700_000_000L, msgBox = 3))
+    }
+    stub.install(resolver)
+    val access = accessWith(resolver)
+    access.querySms(null, type = 2)
+    // 彩信同理：msg_box<>1（草稿 msg_box=3 归入发送侧）
+    assertTrue(
+      stub.queryLog.any {
+        it.kind == "mms" && it.selection == "msg_box<>?" && it.args == listOf("1")
+      },
+    )
+  }
+
+  @Test
+  fun `querySms date range pushes to mms in seconds`() {
+    val resolver = mock<ContentResolver>()
+    val stub = SmsProviderStub().apply {
+      mms = listOf(mmsRow(id = 1, dateSec = 1_700_000_000L))
+    }
+    stub.install(resolver)
+    val access = accessWith(resolver)
+    access.querySms(
+      null,
+      startDateMs = 1_700_000_000_000L,
+      endDateMs = 1_700_086_399_999L,
+      limit = 10,
+      offset = 0,
+    )
+    // SMS 侧：毫秒原样下推
+    assertTrue(
+      stub.queryLog.any {
+        it.kind == "sms" &&
+          it.selection == "date >= ? AND date <= ?" &&
+          it.args == listOf("1700000000000", "1700086399999")
+      },
+    )
+    // 彩信 date 列是秒：下推必须 /1000（修复前彩信完全不带日期过滤，total 虚高）
+    val mmsQ = stub.queryLog.filter { it.kind == "mms" && it.selection != null }
+    assertTrue(mmsQ.isNotEmpty())
+    assertTrue(
+      mmsQ.all {
+        it.selection == "date >= ? AND date <= ?" &&
+          it.args == listOf("1700000000", "1700086399")
+      },
+    )
+  }
+
+  @Test
+  @Suppress("UNCHECKED_CAST")
+  fun `querySms large mms id filter counts only matching rows`() {
+    val resolver = mock<ContentResolver>()
+    val stub = SmsProviderStub().apply {
+      // 全表 1200 条彩信（Provider 序：date DESC），仅 1000 条命中 address 过滤
+      // （1000 > MMS_ID_IN_MAX=900 → 走 keepRow 内存过滤，selection 不含 id 条件）
+      mms = (1200 downTo 1).map { mmsRow(id = it, dateSec = it.toLong()) }
+      mmsAddrIds = (1..1000).map { listOf(it, "10086", 137) }
+      mmsAddr = (991..1000).map { listOf(it, "10086", 137) }
+      mmsPart = (991..1000).map { listOf(it, "text/plain", "命中", null) }
+    }
+    stub.install(resolver)
+    val access = accessWith(resolver)
+    val r = access.querySms("10086", limit = 10, offset = 0)
+    // total 只统计命中行（修复前：selection=null 的聚合 count 把全表 1200 算进去）
+    assertEquals(1000, r[ChannelCodes.KEY_TOTAL])
+    val messages = r[ChannelCodes.KEY_MESSAGES] as List<Map<String, Any?>>
+    assertEquals(10, messages.size)
+    // 命中最新的 10 条（id 1000..991）；未命中行（id>1000）不进入结果
+    assertEquals(1000, messages.first()["_id"])
+    assertEquals(991, messages.last()["_id"])
+    assertTrue(messages.all { (it["_id"] as Int) <= 1000 })
   }
 }

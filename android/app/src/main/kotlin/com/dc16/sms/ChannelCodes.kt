@@ -8,6 +8,23 @@ package com.dc16.sms
  * 禁止散落裸字面量。
  */
 object ChannelCodes {
+  // ---- MethodChannel 方法名（线协议字符串，两端必须一致）----
+  const val METHOD_HAS_READ_SMS_PERMISSION = "hasReadSmsPermission"
+  const val METHOD_REQUEST_READ_SMS = "requestReadSms"
+  const val METHOD_IS_DEFAULT_SMS = "isDefaultSms"
+  const val METHOD_SET_DEFAULT_SMS = "setDefaultSms"
+  const val METHOD_RESTORE_DEFAULT_SMS = "restoreDefaultSms"
+  const val METHOD_OPEN_DEFAULT_SMS_SETTINGS = "openDefaultSmsSettings"
+  const val METHOD_OPEN_APP_SETTINGS = "openAppSettings"
+  const val METHOD_IS_MIUI = "isMiui"
+  const val METHOD_MIUI_NOTIFICATION_SMS_STATE = "miuiNotificationSmsState"
+  const val METHOD_OPEN_MIUI_PERMISSION_EDITOR = "openMiuiPermissionEditor"
+  const val METHOD_INSERT_TEST_SMS = "insertTestSms"
+  const val METHOD_DELETE_TEST_SMS_BY_PREFIX = "deleteTestSmsByPrefix"
+  const val METHOD_QUERY_SMS = "querySms"
+  const val METHOD_DELETE_SMS_BATCH = "deleteSmsBatch"
+  const val METHOD_INSERT_SMS_BATCH = "insertSmsBatch"
+
   // ---- setDefaultSms ----
   const val SET_DEFAULT_HAD = "had"
   const val SET_DEFAULT_NO = "no"
