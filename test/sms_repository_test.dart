@@ -67,10 +67,12 @@ void main() {
       expect(page.total, 1);
     });
 
-    test('按 date 降序映射，date 缺失视为最早', () async {
+    test('按 date 降序映射（Kotlin 已排序，Dart 透传）', () async {
       mockQuery((_) {
+        // Kotlin 已按 date 降序返回（date 缺失视为最早）
         return {
           'messages': [
+            row(3, 300),
             row(1, 100),
             {
               '_id': 2,
@@ -81,7 +83,6 @@ void main() {
               'type': 1,
               'sub_id': 1,
             },
-            row(3, 300),
           ],
           'total': 3,
           'error': null,

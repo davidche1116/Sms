@@ -1,12 +1,12 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../models/sms_item.dart';
-import 'channel_codes.dart';
+import '../utils/app_log.dart';
+import 'channel.dart';
 
-export 'channel_codes.dart';
+export 'channel.dart';
 
 class SmsQueryPermissionException implements Exception {
   const SmsQueryPermissionException();
@@ -62,14 +62,14 @@ class SmsRepository {
 
   /// `insertSmsBatch` 单次通道分片行数。
   ///
-  /// 单条 platform message 受 Binder ~1MB 限制；短信行很小，200 行足够安全，
+  /// 分片出于进度粒度、可取消性与序列化平滑的考虑，而非 Binder 大小限制（平台通道为同进程 JNI 直传，不经 Binder IPC）；短信行很小，200 行足够安全，
   /// 也给原生侧 applyBatch 同量级分片（见 Kotlin `INSERT_CHUNK`）留了余量。
   static const int insertChunkSize = 200;
 
   /// `deleteSmsBatchChunked` 单次通道分片条数（UI 级进度粒度）。
   ///
   /// 小于 Kotlin 内部 900 分片，保证大批次也能看到真实进度步进；
-  /// 单条 platform message 载荷很小，200 条远低于 Binder ~1MB 上限。
+  /// 单条 platform message 载荷很小，200 条远低于实际限制。
   static const int deleteChunkSize = 200;
 
   /// 见构造参数。
@@ -83,9 +83,12 @@ class SmsRepository {
 
   Future<bool> hasReadSmsPermission() async {
     try {
-      return await _ch.invokeMethod<bool>('hasReadSmsPermission') ?? false;
+      return await _ch.invokeMethod<bool>(
+            ChannelCodes.methodHasReadSmsPermission,
+          ) ??
+          false;
     } catch (e) {
-      debugPrint('hasReadSmsPermission: $e');
+      AppLog.w('hasReadSmsPermission: $e');
       return false;
     }
   }
@@ -97,24 +100,26 @@ class SmsRepository {
   /// [RequestReadSmsResult.timeout]，UI 可提示「系统未返回结果，可在设置中手动开启」。
   Future<RequestReadSmsResult> requestReadSms() async {
     try {
-      final ok = await _awaitSystem(_ch.invokeMethod<bool>('requestReadSms'));
+      final ok = await _awaitSystem(
+        _ch.invokeMethod<bool>(ChannelCodes.methodRequestReadSms),
+      );
       return (ok == true || await hasReadSmsPermission())
           ? RequestReadSmsResult.granted
           : RequestReadSmsResult.denied;
     } on TimeoutException {
-      debugPrint('requestReadSms: timeout after $systemResponseTimeout');
+      AppLog.w('requestReadSms: timeout after $systemResponseTimeout');
       return _readAfterNoResult();
     } on PlatformException catch (e) {
       if (e.code == ChannelCodes.errorLifecycle) {
-        debugPrint('requestReadSms: cancelled by activity lifecycle');
+        AppLog.w('requestReadSms: cancelled by activity lifecycle');
         return _readAfterNoResult();
       }
-      debugPrint('requestReadSms: $e');
+      AppLog.w('requestReadSms: $e');
       return (await hasReadSmsPermission())
           ? RequestReadSmsResult.granted
           : RequestReadSmsResult.denied;
     } catch (e) {
-      debugPrint('requestReadSms: $e');
+      AppLog.w('requestReadSms: $e');
       return (await hasReadSmsPermission())
           ? RequestReadSmsResult.granted
           : RequestReadSmsResult.denied;
@@ -130,9 +135,9 @@ class SmsRepository {
   /// true=默认 / false=非默认 / null=无法判定
   Future<bool?> isDefaultSms() async {
     try {
-      return await _ch.invokeMethod<bool>('isDefaultSms');
+      return await _ch.invokeMethod<bool>(ChannelCodes.methodIsDefaultSms);
     } catch (e) {
-      debugPrint('isDefaultSms: $e');
+      AppLog.w('isDefaultSms: $e');
       return null;
     }
   }
@@ -143,21 +148,23 @@ class SmsRepository {
   /// 完成切换则 [DefaultSmsResult.alreadyDefault]），绝不永久 pending。
   Future<DefaultSmsResult> setDefaultSms() async {
     try {
-      return DefaultSmsResult.fromWire(
-        await _awaitSystem(_ch.invokeMethod<String>('setDefaultSms')),
+      return parseDefaultSmsResult(
+        await _awaitSystem(
+          _ch.invokeMethod<String>(ChannelCodes.methodSetDefaultSms),
+        ),
       );
     } on TimeoutException {
-      debugPrint('setDefaultSms: timeout after $systemResponseTimeout');
+      AppLog.w('setDefaultSms: timeout after $systemResponseTimeout');
       return _defaultSmsAfterNoResult();
     } on PlatformException catch (e) {
       if (e.code == ChannelCodes.errorLifecycle) {
-        debugPrint('setDefaultSms: cancelled by activity lifecycle');
+        AppLog.w('setDefaultSms: cancelled by activity lifecycle');
         return _defaultSmsAfterNoResult();
       }
-      debugPrint('setDefaultSms: $e');
+      AppLog.w('setDefaultSms: $e');
       return DefaultSmsResult.error;
     } catch (e) {
-      debugPrint('setDefaultSms: $e');
+      AppLog.w('setDefaultSms: $e');
       return DefaultSmsResult.error;
     }
   }
@@ -171,20 +178,23 @@ class SmsRepository {
   /// 见 [RestoreDefaultResult]。
   Future<RestoreDefaultResult> restoreDefaultSms() async {
     try {
-      return RestoreDefaultResult.fromWire(
-        await _ch.invokeMethod<String>('restoreDefaultSms'),
+      return parseRestoreDefaultResult(
+        await _ch.invokeMethod<String>(ChannelCodes.methodRestoreDefaultSms),
       );
     } catch (e) {
-      debugPrint('restoreDefaultSms: $e');
+      AppLog.w('restoreDefaultSms: $e');
       return RestoreDefaultResult.error;
     }
   }
 
   Future<bool> openDefaultSmsSettings() async {
     try {
-      return await _ch.invokeMethod<bool>('openDefaultSmsSettings') ?? false;
+      return await _ch.invokeMethod<bool>(
+            ChannelCodes.methodOpenDefaultSmsSettings,
+          ) ??
+          false;
     } catch (e) {
-      debugPrint('openDefaultSmsSettings: $e');
+      AppLog.w('openDefaultSmsSettings: $e');
       return false;
     }
   }
@@ -192,18 +202,19 @@ class SmsRepository {
   /// 打开本应用系统设置（权限被长期拒绝时手动开启）。
   Future<bool> openAppSettings() async {
     try {
-      return await _ch.invokeMethod<bool>('openAppSettings') ?? false;
+      return await _ch.invokeMethod<bool>(ChannelCodes.methodOpenAppSettings) ??
+          false;
     } catch (e) {
-      debugPrint('openAppSettings: $e');
+      AppLog.w('openAppSettings: $e');
       return false;
     }
   }
 
   Future<bool> isMiui() async {
     try {
-      return await _ch.invokeMethod<bool>('isMiui') ?? false;
+      return await _ch.invokeMethod<bool>(ChannelCodes.methodIsMiui) ?? false;
     } catch (e) {
-      debugPrint('isMiui: $e');
+      AppLog.w('isMiui: $e');
       return false;
     }
   }
@@ -211,20 +222,25 @@ class SmsRepository {
   /// 见 [MiuiNotifState]。
   Future<MiuiNotifState> miuiNotificationSmsState() async {
     try {
-      return MiuiNotifState.fromWire(
-        await _ch.invokeMethod<String>('miuiNotificationSmsState'),
+      return parseMiuiNotifState(
+        await _ch.invokeMethod<String>(
+          ChannelCodes.methodMiuiNotificationSmsState,
+        ),
       );
     } catch (e) {
-      debugPrint('miuiNotificationSmsState: $e');
+      AppLog.w('miuiNotificationSmsState: $e');
       return MiuiNotifState.unknown;
     }
   }
 
   Future<bool> openMiuiPermissionEditor() async {
     try {
-      return await _ch.invokeMethod<bool>('openMiuiPermissionEditor') ?? false;
+      return await _ch.invokeMethod<bool>(
+            ChannelCodes.methodOpenMiuiPermissionEditor,
+          ) ??
+          false;
     } catch (e) {
-      debugPrint('openMiuiPermissionEditor: $e');
+      AppLog.w('openMiuiPermissionEditor: $e');
       return false;
     }
   }
@@ -236,24 +252,22 @@ class SmsRepository {
     String bodyPrefix = 'SMSCLEANUP_TEST',
   }) async {
     try {
-      final raw = await _ch.invokeMethod<dynamic>('insertTestSms', {
-        'count': count,
-        'bodyPrefix': bodyPrefix,
-      });
+      final raw = await _ch.invokeMethod<dynamic>(
+        ChannelCodes.methodInsertTestSms,
+        {'count': count, 'bodyPrefix': bodyPrefix},
+      );
       if (raw is! Map || raw[ChannelCodes.keyOk] != true) return null;
       return [
         for (final x in (raw[ChannelCodes.keyIds] as List? ?? const []))
           (x as num).toInt(),
       ];
     } catch (e) {
-      debugPrint('insertTestSms: $e');
+      AppLog.w('insertTestSms: $e');
       return null;
     }
   }
 
   Future<List<SmsItem>> queryAll() => _query(null);
-
-  Future<List<SmsItem>> queryByAddress(String address) => _query(address);
 
   /// 分页查询：`limit`/`offset` 与原生契约一致。
   /// 都不传则等价全量（兼容旧调用）；`total` 为去重后的库内总数。
@@ -261,8 +275,18 @@ class SmsRepository {
   /// [QueryError.permission] 抛 [SmsQueryPermissionException]；
   /// [QueryError.unknown] 抛普通异常；[QueryError.none] 正常返回。
   /// 有数据但部分子查询失败时返回 `partial=true` + `warnings`（不抛）。
+  ///
+  /// 可选筛选参数（服务端下推）：
+  /// - [keyword]：匹配 body 或 address（LIKE %keyword%）
+  /// - [startDateMs]：起始时间（毫秒），过滤 date >= startDateMs
+  /// - [endDateMs]：结束时间（毫秒），过滤 date <= endDateMs
+  /// - [type]：类型过滤，0=全部, 1=仅收件箱, 2=仅已发送, 3=仅彩信
   Future<SmsQueryPage> queryPage({
     String? address,
+    String? keyword,
+    int? startDateMs,
+    int? endDateMs,
+    int? type,
     int? limit,
     int? offset,
   }) async {
@@ -271,13 +295,17 @@ class SmsRepository {
     var partial = false;
     List<QueryWarning> warnings = const [];
     try {
-      final raw = await _ch.invokeMethod<dynamic>('querySms', {
+      final raw = await _ch.invokeMethod<dynamic>(ChannelCodes.methodQuerySms, {
         if (address != null && address.isNotEmpty) 'address': address,
+        if (keyword != null && keyword.isNotEmpty) 'keyword': keyword,
+        'startDateMs': ?startDateMs,
+        'endDateMs': ?endDateMs,
+        if (type != null && type > 0) 'type': type,
         'limit': ?limit,
         'offset': ?offset,
       });
       if (raw is! Map) return const SmsQueryPage(items: []);
-      switch (QueryError.fromWire(raw[ChannelCodes.keyError])) {
+      switch (parseQueryError(raw[ChannelCodes.keyError])) {
         case QueryError.none:
           break;
         case QueryError.permission:
@@ -290,14 +318,13 @@ class SmsRepository {
       partial = raw[ChannelCodes.keyPartial] == true;
       warnings = [
         for (final w in (raw[ChannelCodes.keyWarnings] as List? ?? const []))
-          QueryWarning.fromWire(w),
+          parseQueryWarning(w),
       ];
       list = rows.map(_mapRow).toList();
     } on MissingPluginException {
       return const SmsQueryPage(items: []);
     }
-    // 与 Kotlin 同序：date 降序（null 最早），_id 降序作稳定次键。
-    list.sort(_dateDesc);
+    // Kotlin 已按 date 降序（_id 降序次键）返回，此处不再重复排序。
     return SmsQueryPage(
       items: list,
       total: total,
@@ -327,13 +354,6 @@ class SmsRepository {
     );
   }
 
-  static int _dateDesc(SmsItem a, SmsItem b) {
-    final d = (b.dateMs ?? 0).compareTo(a.dateMs ?? 0);
-    if (d != 0) return d;
-    // 与 Kotlin 同序：is_mms 降序（uid 已把 MMS 抬到高位）+ id 降序。
-    return (b.uid ?? 0).compareTo(a.uid ?? 0);
-  }
-
   /// 见 [DeleteBatchResult]。按 `is_mms` 路由删除，SMS / MMS 不会误删对方同号行。
   ///
   /// 线协议 Map `{ok, deleted, failed, error, errors}`（见 CHANNEL_CONTRACT）；
@@ -346,10 +366,13 @@ class SmsRepository {
     ];
     if (targets.isEmpty) return const DeleteBatchResult.ok(0);
     try {
-      final raw = await _ch.invokeMethod<Object?>('deleteSmsBatch', targets);
-      return DeleteBatchResult.fromWire(raw);
+      final raw = await _ch.invokeMethod<Object?>(
+        ChannelCodes.methodDeleteSmsBatch,
+        targets,
+      );
+      return parseDeleteBatchResult(raw);
     } catch (e) {
-      debugPrint('deleteSmsBatch: $e');
+      AppLog.e('deleteSmsBatch: $e');
       return const DeleteBatchResult.failed(BatchFailure.native);
     }
   }
@@ -421,8 +444,7 @@ class SmsRepository {
   /// 批量插入（导入 CSV）。仅新增，不删不改。见 [InsertBatchResult]。
   ///
   /// 线协议 Map `{ok, inserted, failed, errors}`；兼容旧 `int?` / 通道异常。
-  /// 大列表按 [insertChunkSize] 分片过通道：单条 platform message 不超过
-  /// Binder ~1MB 上限；errors[].index 始终是**全局**入参下标。
+  /// 大列表按 [insertChunkSize] 分片过通道（进度粒度、可取消性、序列化平滑，而非 Binder 限制）；errors[].index 始终是**全局**入参下标。
   Future<InsertBatchResult> insertSmsBatch(
     List<Map<String, Object?>> rows,
   ) async {
@@ -441,8 +463,11 @@ class SmsRepository {
         message: e.message,
       );
       try {
-        final raw = await _ch.invokeMethod<Object?>('insertSmsBatch', chunk);
-        final r = InsertBatchResult.fromWire(raw);
+        final raw = await _ch.invokeMethod<Object?>(
+          ChannelCodes.methodInsertSmsBatch,
+          chunk,
+        );
+        final r = parseInsertBatchResult(raw);
         if (!r.ok) {
           // 非默认/整批失败：其后分片无意义，直接汇总返回。
           return InsertBatchResult(
@@ -457,7 +482,7 @@ class SmsRepository {
         failed += r.failed;
         errors.addAll(r.errors.map(remap));
       } catch (e) {
-        debugPrint('insertSmsBatch: $e');
+        AppLog.e('insertSmsBatch: $e');
         return InsertBatchResult(
           inserted: inserted,
           failed: failed + (rows.length - offset),

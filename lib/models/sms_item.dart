@@ -71,12 +71,12 @@ class SmsItem {
   }
 
   /// 今天只显时:分，更早显 MM-DD。
-  String get time {
+  String time({DateTime? todayStart}) {
     final d = date;
     if (d == null) return '';
-    final now = DateTime.now();
+    final today = todayStart ?? DateTime.now();
     final sameDay =
-        d.year == now.year && d.month == now.month && d.day == now.day;
+        d.year == today.year && d.month == today.month && d.day == today.day;
     if (sameDay) {
       return '${d.hour.toString().padLeft(2, '0')}:'
           '${d.minute.toString().padLeft(2, '0')}';
@@ -92,14 +92,14 @@ class SmsItem {
   }
 
   /// 今天 / 昨天 / YYYY-MM-DD（按自然日差值，正确处理跨月跨年）。
-  String dayLabelOf(AppLocalizations l10n) {
+  String dayLabelOf(AppLocalizations l10n, {DateTime? todayStart}) {
     final d = date;
     if (d == null) return l10n.dayUnknown;
-    final now = DateTime.now();
+    final today = todayStart ?? DateTime.now();
     final diff = DateTime(
-      now.year,
-      now.month,
-      now.day,
+      today.year,
+      today.month,
+      today.day,
     ).difference(DateTime(d.year, d.month, d.day)).inDays;
     if (diff == 0) return l10n.dayToday;
     if (diff == 1) return l10n.dayYesterday;

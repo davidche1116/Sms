@@ -17,168 +17,177 @@ void main() {
     });
   }
 
-  group('DefaultSmsResult.fromWire（setDefaultSms: had|no|error）', () {
+  group('parseDefaultSmsResult（setDefaultSms: had|no|error）', () {
     test('had → alreadyDefault', () {
       expect(
-        DefaultSmsResult.fromWire(ChannelCodes.setDefaultHad),
+        parseDefaultSmsResult(ChannelCodes.setDefaultHad),
         DefaultSmsResult.alreadyDefault,
       );
-      expect(DefaultSmsResult.fromWire('had'), DefaultSmsResult.alreadyDefault);
+      expect(parseDefaultSmsResult('had'), DefaultSmsResult.alreadyDefault);
     });
 
     test('no → requested', () {
       expect(
-        DefaultSmsResult.fromWire(ChannelCodes.setDefaultNo),
+        parseDefaultSmsResult(ChannelCodes.setDefaultNo),
         DefaultSmsResult.requested,
       );
-      expect(DefaultSmsResult.fromWire('no'), DefaultSmsResult.requested);
+      expect(parseDefaultSmsResult('no'), DefaultSmsResult.requested);
     });
 
     test('error → error', () {
       expect(
-        DefaultSmsResult.fromWire(ChannelCodes.error),
+        parseDefaultSmsResult(ChannelCodes.error),
         DefaultSmsResult.error,
       );
-      expect(DefaultSmsResult.fromWire('error'), DefaultSmsResult.error);
+      expect(parseDefaultSmsResult('error'), DefaultSmsResult.error);
     });
 
     test('未知字符串 / null → error（安全默认）', () {
-      expect(DefaultSmsResult.fromWire('ok'), DefaultSmsResult.error);
-      expect(DefaultSmsResult.fromWire(''), DefaultSmsResult.error);
-      expect(DefaultSmsResult.fromWire(null), DefaultSmsResult.error);
-      expect(DefaultSmsResult.fromWire('HAD'), DefaultSmsResult.error);
+      expect(parseDefaultSmsResult('ok'), DefaultSmsResult.error);
+      expect(parseDefaultSmsResult(''), DefaultSmsResult.error);
+      expect(parseDefaultSmsResult(null), DefaultSmsResult.error);
+      expect(parseDefaultSmsResult('HAD'), DefaultSmsResult.error);
     });
   });
 
   group(
-    'RestoreDefaultResult.fromWire（restoreDefaultSms: not_default|settings|error）',
+    'parseRestoreDefaultResult（restoreDefaultSms: not_default|settings|error）',
     () {
       test('not_default → notDefault', () {
         expect(
-          RestoreDefaultResult.fromWire(ChannelCodes.restoreNotDefault),
+          parseRestoreDefaultResult(ChannelCodes.restoreNotDefault),
           RestoreDefaultResult.notDefault,
         );
         expect(
-          RestoreDefaultResult.fromWire('not_default'),
+          parseRestoreDefaultResult('not_default'),
           RestoreDefaultResult.notDefault,
         );
       });
 
       test('settings → openedSettings', () {
         expect(
-          RestoreDefaultResult.fromWire(ChannelCodes.restoreSettings),
+          parseRestoreDefaultResult(ChannelCodes.restoreSettings),
           RestoreDefaultResult.openedSettings,
         );
         expect(
-          RestoreDefaultResult.fromWire('settings'),
+          parseRestoreDefaultResult('settings'),
           RestoreDefaultResult.openedSettings,
         );
       });
 
       test('error → error', () {
         expect(
-          RestoreDefaultResult.fromWire(ChannelCodes.error),
+          parseRestoreDefaultResult(ChannelCodes.error),
           RestoreDefaultResult.error,
         );
         expect(
-          RestoreDefaultResult.fromWire('error'),
+          parseRestoreDefaultResult('error'),
           RestoreDefaultResult.error,
         );
       });
 
       test('未知字符串 / null / 历史误记的 ok → error（安全默认）', () {
-        expect(RestoreDefaultResult.fromWire('ok'), RestoreDefaultResult.error);
-        expect(RestoreDefaultResult.fromWire(''), RestoreDefaultResult.error);
-        expect(RestoreDefaultResult.fromWire(null), RestoreDefaultResult.error);
+        expect(
+          parseRestoreDefaultResult('ok'),
+          RestoreDefaultResult.error,
+        );
+        expect(
+          parseRestoreDefaultResult(''),
+          RestoreDefaultResult.error,
+        );
+        expect(
+          parseRestoreDefaultResult(null),
+          RestoreDefaultResult.error,
+        );
       });
     },
   );
 
-  group('MiuiNotifState.fromWire（miuiNotificationSmsState）', () {
+  group('parseMiuiNotifState（miuiNotificationSmsState）', () {
     test('allow → allow', () {
       expect(
-        MiuiNotifState.fromWire(ChannelCodes.miuiAllow),
+        parseMiuiNotifState(ChannelCodes.miuiAllow),
         MiuiNotifState.allow,
       );
-      expect(MiuiNotifState.fromWire('allow'), MiuiNotifState.allow);
+      expect(parseMiuiNotifState('allow'), MiuiNotifState.allow);
     });
 
     test('likely_off → likelyOff', () {
       expect(
-        MiuiNotifState.fromWire(ChannelCodes.miuiLikelyOff),
+        parseMiuiNotifState(ChannelCodes.miuiLikelyOff),
         MiuiNotifState.likelyOff,
       );
-      expect(MiuiNotifState.fromWire('likely_off'), MiuiNotifState.likelyOff);
+      expect(parseMiuiNotifState('likely_off'), MiuiNotifState.likelyOff);
     });
 
     test('ignore → ignore（历史兼容）', () {
       expect(
-        MiuiNotifState.fromWire(ChannelCodes.miuiIgnore),
+        parseMiuiNotifState(ChannelCodes.miuiIgnore),
         MiuiNotifState.ignore,
       );
-      expect(MiuiNotifState.fromWire('ignore'), MiuiNotifState.ignore);
+      expect(parseMiuiNotifState('ignore'), MiuiNotifState.ignore);
     });
 
     test('deny → deny（历史兼容）', () {
       expect(
-        MiuiNotifState.fromWire(ChannelCodes.miuiDeny),
+        parseMiuiNotifState(ChannelCodes.miuiDeny),
         MiuiNotifState.deny,
       );
-      expect(MiuiNotifState.fromWire('deny'), MiuiNotifState.deny);
+      expect(parseMiuiNotifState('deny'), MiuiNotifState.deny);
     });
 
     test('unknown → unknown', () {
       expect(
-        MiuiNotifState.fromWire(ChannelCodes.miuiUnknown),
+        parseMiuiNotifState(ChannelCodes.miuiUnknown),
         MiuiNotifState.unknown,
       );
-      expect(MiuiNotifState.fromWire('unknown'), MiuiNotifState.unknown);
+      expect(parseMiuiNotifState('unknown'), MiuiNotifState.unknown);
     });
 
     test('未知字符串 / null → unknown（安全默认）', () {
-      expect(MiuiNotifState.fromWire('ALLOW'), MiuiNotifState.unknown);
-      expect(MiuiNotifState.fromWire('off'), MiuiNotifState.unknown);
-      expect(MiuiNotifState.fromWire(''), MiuiNotifState.unknown);
-      expect(MiuiNotifState.fromWire(null), MiuiNotifState.unknown);
+      expect(parseMiuiNotifState('ALLOW'), MiuiNotifState.unknown);
+      expect(parseMiuiNotifState('off'), MiuiNotifState.unknown);
+      expect(parseMiuiNotifState(''), MiuiNotifState.unknown);
+      expect(parseMiuiNotifState(null), MiuiNotifState.unknown);
     });
   });
 
-  group('QueryError.fromWire（querySms error: null|permission|unknown）', () {
+  group('parseQueryError（querySms error: null|permission|unknown）', () {
     test('null → none', () {
-      expect(QueryError.fromWire(null), QueryError.none);
+      expect(parseQueryError(null), QueryError.none);
     });
 
     test('permission → permission', () {
       expect(
-        QueryError.fromWire(ChannelCodes.queryErrorPermission),
+        parseQueryError(ChannelCodes.queryErrorPermission),
         QueryError.permission,
       );
-      expect(QueryError.fromWire('permission'), QueryError.permission);
+      expect(parseQueryError('permission'), QueryError.permission);
     });
 
     test('unknown → unknown', () {
       expect(
-        QueryError.fromWire(ChannelCodes.queryErrorUnknown),
+        parseQueryError(ChannelCodes.queryErrorUnknown),
         QueryError.unknown,
       );
-      expect(QueryError.fromWire('unknown'), QueryError.unknown);
+      expect(parseQueryError('unknown'), QueryError.unknown);
     });
 
     test('未知字符串 → unknown（安全默认）', () {
-      expect(QueryError.fromWire('Permission'), QueryError.unknown);
-      expect(QueryError.fromWire(''), QueryError.unknown);
-      expect(QueryError.fromWire(42), QueryError.unknown);
+      expect(parseQueryError('Permission'), QueryError.unknown);
+      expect(parseQueryError(''), QueryError.unknown);
+      expect(parseQueryError(42), QueryError.unknown);
     });
   });
 
-  group('QueryWarning.fromWire（querySms warnings[] 项）', () {
+  group('parseQueryWarning（querySms warnings[] 项）', () {
     test('Map{code,message} → 明细', () {
       const w = QueryWarning(
         code: ChannelCodes.warnSmsUriSecurity,
         message: 'sms query restricted',
       );
       expect(
-        QueryWarning.fromWire({
+        parseQueryWarning({
           ChannelCodes.keyCode: ChannelCodes.warnSmsUriSecurity,
           ChannelCodes.keyMessage: 'sms query restricted',
         }),
@@ -187,7 +196,7 @@ void main() {
     });
 
     test('缺 message 时为 null', () {
-      final w = QueryWarning.fromWire({
+      final w = parseQueryWarning({
         ChannelCodes.keyCode: 'mms_part_failed',
       });
       expect(w.code, ChannelCodes.warnMmsPartFailed);
@@ -195,20 +204,20 @@ void main() {
     });
 
     test('形态异常 / 非 Map → warnUnknown（安全默认，不抛）', () {
-      expect(QueryWarning.fromWire(null).code, ChannelCodes.warnUnknown);
+      expect(parseQueryWarning(null).code, ChannelCodes.warnUnknown);
       expect(
-        QueryWarning.fromWire('mms_part_failed').code,
+        parseQueryWarning('mms_part_failed').code,
         ChannelCodes.warnUnknown,
       );
-      expect(QueryWarning.fromWire(42).code, ChannelCodes.warnUnknown);
+      expect(parseQueryWarning(42).code, ChannelCodes.warnUnknown);
       expect(
-        QueryWarning.fromWire(<Object?, Object?>{}).code,
+        parseQueryWarning(<Object?, Object?>{}).code,
         ChannelCodes.warnUnknown,
       );
     });
 
     test('未知 code 原样保留，供日志诊断', () {
-      final w = QueryWarning.fromWire({ChannelCodes.keyCode: 'weird_code'});
+      final w = parseQueryWarning({ChannelCodes.keyCode: 'weird_code'});
       expect(w.code, 'weird_code');
     });
   });

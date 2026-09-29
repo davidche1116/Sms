@@ -26,7 +26,7 @@ void main() {
     test('type 缺省按收件处理；date 为 null 不崩溃', () {
       const e = SmsItem(body: 'a', address: 'b');
       expect(e.kind, SmsKind.received);
-      expect(e.time, '');
+      expect(e.time(), '');
       expect(e.dayLabelOf(zh), '未知');
       expect(e.dayLabelOf(en), 'Unknown');
     });
@@ -84,7 +84,7 @@ void main() {
       );
       expect(e.dayLabelOf(zh), '今天');
       expect(e.dayLabelOf(en), 'Today');
-      expect(e.time, '12:00');
+      expect(e.time(), '12:00');
     });
 
     test('昨天显示「昨天」（按自然日，跨月/跨年同样成立）', () {
@@ -100,7 +100,7 @@ void main() {
       );
       expect(e.dayLabelOf(zh), '昨天');
       expect(e.dayLabelOf(en), 'Yesterday');
-      expect(e.time, contains('-'));
+      expect(e.time(), contains('-'));
     });
 
     test('更早日期回退 YYYY-MM-DD / MM-DD', () {
@@ -108,7 +108,7 @@ void main() {
       final e = SmsItem(body: 'a', address: 'b', dateMs: ms);
       expect(e.dayLabelOf(zh), '2000-01-01');
       expect(e.dayLabelOf(en), '2000-01-01');
-      expect(e.time, '01-01');
+      expect(e.time(), '01-01');
     });
   });
 }
