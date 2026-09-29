@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../generated/app_localizations.dart';
 import '../../models/sms_item.dart';
+import '../widgets/app_messenger.dart';
 
 /// 列表项动作 Sheet（UI_DESIGN §6.1b）。
 Future<void> showSmsActionSheet(
@@ -18,18 +21,13 @@ Future<void> showSmsActionSheet(
     isScrollControlled: true,
     builder: (ctx) {
       final l10n = AppLocalizations.of(ctx);
-      void toast(String msg) {
-        ScaffoldMessenger.of(ctx)
-          ..clearSnackBars()
-          ..showSnackBar(
-            SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
-          );
-      }
 
       return SafeArea(
         top: false,
-        child: SizedBox(
-          height: MediaQuery.sizeOf(ctx).height * 0.75,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(ctx).height * 0.75,
+          ),
           child: Column(
             children: [
               const Padding(
@@ -55,7 +53,7 @@ Future<void> showSmsActionSheet(
                         e.address,
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
-                      subtitle: Text(l10n.simTime(e.sim, e.time)),
+                      subtitle: Text(l10n.simTime(e.sim, e.time())),
                     ),
                     const Divider(height: 1),
                     ListTile(
@@ -83,8 +81,10 @@ Future<void> showSmsActionSheet(
                       title: Text(l10n.copyAddress),
                       onTap: () {
                         Navigator.pop(ctx);
-                        Clipboard.setData(ClipboardData(text: e.address));
-                        toast(l10n.copiedAddress);
+                        unawaited(
+                          Clipboard.setData(ClipboardData(text: e.address)),
+                        );
+                        AppMessenger.show(ctx, l10n.copiedAddress);
                       },
                     ),
                     ListTile(
@@ -93,8 +93,10 @@ Future<void> showSmsActionSheet(
                       title: Text(l10n.copyBody),
                       onTap: () {
                         Navigator.pop(ctx);
-                        Clipboard.setData(ClipboardData(text: e.body));
-                        toast(l10n.copiedBody);
+                        unawaited(
+                          Clipboard.setData(ClipboardData(text: e.body)),
+                        );
+                        AppMessenger.show(ctx, l10n.copiedBody);
                       },
                     ),
                     ListTile(

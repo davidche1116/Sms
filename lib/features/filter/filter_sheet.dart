@@ -3,14 +3,27 @@ import 'package:flutter/material.dart';
 import '../../generated/app_localizations.dart';
 import '../../models/sms_item.dart';
 
+/// copyWith 的"不修改该字段"哨兵值。
+const Object unset = Object();
+
 /// 列表筛选条件。type：0 全部 / 1 仅收件箱 / 2 仅已发送（草稿归入发送侧）/ 3 仅彩信。
+/// 不可变对象，通过 [copyWith] 生成新实例。
 class SmsFilter {
-  String keyword = '';
-  DateTime? start;
-  DateTime? end;
-  int type = 0;
-  String? sameAddress;
-  int? sameSim;
+  final String keyword;
+  final DateTime? start;
+  final DateTime? end;
+  final int type;
+  final String? sameAddress;
+  final int? sameSim;
+
+  const SmsFilter({
+    this.keyword = '',
+    this.start,
+    this.end,
+    this.type = 0,
+    this.sameAddress,
+    this.sameSim,
+  });
 
   bool get active =>
       keyword.isNotEmpty ||
@@ -20,26 +33,27 @@ class SmsFilter {
       sameAddress != null ||
       sameSim != null;
 
-  void reset() {
-    keyword = '';
-    start = null;
-    end = null;
-    type = 0;
-    sameAddress = null;
-    sameSim = null;
+  /// 返回一个新实例，仅修改指定字段。
+  /// 使用 [unset] 表示"不修改该字段"，传 `null` 表示"清空该字段"。
+  SmsFilter copyWith({
+    Object? keyword = unset,
+    Object? start = unset,
+    Object? end = unset,
+    Object? type = unset,
+    Object? sameAddress = unset,
+    Object? sameSim = unset,
+  }) {
+    return SmsFilter(
+      keyword: keyword == unset ? this.keyword : keyword as String,
+      start: start == unset ? this.start : start as DateTime?,
+      end: end == unset ? this.end : end as DateTime?,
+      type: type == unset ? this.type : type as int,
+      sameAddress: sameAddress == unset
+          ? this.sameAddress
+          : sameAddress as String?,
+      sameSim: sameSim == unset ? this.sameSim : sameSim as int?,
+    );
   }
-
-  /// 完整拷贝 [other] 的全部字段。新增字段只需改这里，避免回写时漏字段。
-  void applyFrom(SmsFilter other) {
-    keyword = other.keyword;
-    start = other.start;
-    end = other.end;
-    type = other.type;
-    sameAddress = other.sameAddress;
-    sameSim = other.sameSim;
-  }
-
-  SmsFilter copy() => SmsFilter()..applyFrom(this);
 
   /// 单条是否命中筛选（不含隐藏列表）。可单测。
   bool matches(SmsItem e) {
@@ -88,7 +102,7 @@ class SmsFilter {
 
 /// 搜索 / 筛选弹层（单一入口，UI_DESIGN §6.3）。返回应用后的筛选；直接关闭返回 null。
 Future<SmsFilter?> showFilterSheet(BuildContext context, SmsFilter current) {
-  final f = current.copy();
+  SmsFilter f = current;
   return showModalBottomSheet<SmsFilter>(
     context: context,
     isScrollControlled: true,
@@ -96,6 +110,8 @@ Future<SmsFilter?> showFilterSheet(BuildContext context, SmsFilter current) {
     builder: (ctx) {
       final l10n = AppLocalizations.of(ctx);
       // 键盘弹起时抬高弹层；按钮放固定底栏，永远完整可见（不进滚动区）。
+      // Controller 在 StatefulBuilder 外创建一次，避免每次重建丢失光标位置。
+      final keywordController = TextEditingController(text: f.keyword);
       return AnimatedPadding(
         duration: const Duration(milliseconds: 120),
         curve: Curves.easeOut,
@@ -109,127 +125,147 @@ Future<SmsFilter?> showFilterSheet(BuildContext context, SmsFilter current) {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: StatefulBuilder(
-                builder: (ctx, setLocal) => Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Flexible(
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              l10n.searchFilter,
-                              style: Theme.of(ctx).textTheme.titleLarge,
-                            ),
-                            const SizedBox(height: 16),
-                            TextField(
-                              decoration: InputDecoration(
-                                labelText: l10n.keywordLabel,
-                                prefixIcon: const Icon(Icons.search),
+                builder: (ctx, setLocal) {
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                l10n.searchFilter,
+                                style: Theme.of(ctx).textTheme.titleLarge,
                               ),
-                              onChanged: (v) => setLocal(() => f.keyword = v),
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    icon: const Icon(Icons.date_range_outlined),
-                                    label: Text(
-                                      f.start == null
-                                          ? l10n.startDate
-                                          : SmsFilter.fmtDate(f.start),
-                                    ),
-                                    onPressed: () async {
-                                      final d = await showDatePicker(
-                                        context: ctx,
-                                        initialDate: f.start ?? DateTime.now(),
-                                        firstDate: DateTime(2000),
-                                        lastDate: DateTime(2100),
-                                      );
-                                      if (d != null) {
-                                        setLocal(() => f.start = d);
-                                      }
-                                    },
-                                  ),
+                              const SizedBox(height: 16),
+                              TextField(
+                                controller: keywordController,
+                                decoration: InputDecoration(
+                                  labelText: l10n.keywordLabel,
+                                  prefixIcon: const Icon(Icons.search),
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    icon: const Icon(Icons.date_range_outlined),
-                                    label: Text(
-                                      f.end == null
-                                          ? l10n.endDate
-                                          : SmsFilter.fmtDate(f.end),
-                                    ),
-                                    onPressed: () async {
-                                      final d = await showDatePicker(
-                                        context: ctx,
-                                        initialDate: f.end ?? DateTime.now(),
-                                        firstDate: DateTime(2000),
-                                        lastDate: DateTime(2100),
-                                      );
-                                      if (d != null) setLocal(() => f.end = d);
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            DropdownButtonFormField<int>(
-                              initialValue: f.type,
-                              decoration: InputDecoration(
-                                labelText: l10n.typeLabel,
+                                onChanged: (v) =>
+                                    setLocal(() => f = f.copyWith(keyword: v)),
                               ),
-                              items: [
-                                DropdownMenuItem(
-                                  value: 0,
-                                  child: Text(l10n.typeAll),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      icon: const Icon(
+                                        Icons.date_range_outlined,
+                                      ),
+                                      label: Text(
+                                        f.start == null
+                                            ? l10n.startDate
+                                            : SmsFilter.fmtDate(f.start),
+                                      ),
+                                      onPressed: () async {
+                                        final d = await showDatePicker(
+                                          context: ctx,
+                                          initialDate:
+                                              f.start ?? DateTime.now(),
+                                          firstDate: DateTime(2000),
+                                          lastDate: DateTime(2100),
+                                        );
+                                        if (d != null) {
+                                          setLocal(
+                                            () => f = f.copyWith(start: d),
+                                          );
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      icon: const Icon(
+                                        Icons.date_range_outlined,
+                                      ),
+                                      label: Text(
+                                        f.end == null
+                                            ? l10n.endDate
+                                            : SmsFilter.fmtDate(f.end),
+                                      ),
+                                      onPressed: () async {
+                                        final d = await showDatePicker(
+                                          context: ctx,
+                                          initialDate: f.end ?? DateTime.now(),
+                                          firstDate: DateTime(2000),
+                                          lastDate: DateTime(2100),
+                                        );
+                                        if (d != null) {
+                                          setLocal(
+                                            () => f = f.copyWith(end: d),
+                                          );
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              DropdownButtonFormField<int>(
+                                initialValue: f.type,
+                                decoration: InputDecoration(
+                                  labelText: l10n.typeLabel,
                                 ),
-                                DropdownMenuItem(
-                                  value: 1,
-                                  child: Text(l10n.typeInbox),
+                                items: [
+                                  DropdownMenuItem(
+                                    value: 0,
+                                    child: Text(l10n.typeAll),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 1,
+                                    child: Text(l10n.typeInbox),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 2,
+                                    child: Text(l10n.typeSent),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 3,
+                                    child: Text(l10n.typeMms),
+                                  ),
+                                ],
+                                onChanged: (v) => setLocal(
+                                  () => f = f.copyWith(type: v ?? 0),
                                 ),
-                                DropdownMenuItem(
-                                  value: 2,
-                                  child: Text(l10n.typeSent),
-                                ),
-                                DropdownMenuItem(
-                                  value: 3,
-                                  child: Text(l10n.typeMms),
-                                ),
-                              ],
-                              onChanged: (v) => setLocal(() => f.type = v ?? 0),
-                            ),
-                          ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => setLocal(f.reset),
-                            child: Text(l10n.reset),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () {
+                                keywordController.clear();
+                                setLocal(() => f = const SmsFilter());
+                              },
+                              child: Text(l10n.reset),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: () {
-                              // 收起键盘再回填，避免 IME 挡住动画
-                              FocusScope.of(ctx).unfocus();
-                              Navigator.pop(ctx, f);
-                            },
-                            child: Text(l10n.done),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: () {
+                                // 收起键盘再回填，避免 IME 挡住动画
+                                FocusScope.of(ctx).unfocus();
+                                Navigator.pop(ctx, f);
+                              },
+                              child: Text(l10n.done),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ),

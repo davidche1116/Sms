@@ -109,7 +109,7 @@ class PartialQueryBanner extends StatelessWidget {
   }
 }
 
-/// 筛选条件 Chips 条：删除即改 [filter] 并回调 [onChanged]。
+/// 筛选条件 Chips 条：删除即通过 [onChanged] 回调新筛选实例。
 class FilterChipsBar extends StatelessWidget {
   const FilterChipsBar({
     super.key,
@@ -118,7 +118,7 @@ class FilterChipsBar extends StatelessWidget {
   });
 
   final SmsFilter filter;
-  final VoidCallback onChanged;
+  final ValueChanged<SmsFilter> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -132,28 +132,19 @@ class FilterChipsBar extends StatelessWidget {
           if (filter.sameAddress != null)
             Chip(
               label: Text(l10n.sameAddressChip(filter.sameAddress!)),
-              onDeleted: () {
-                filter.sameAddress = null;
-                onChanged();
-              },
+              onDeleted: () => onChanged(filter.copyWith(sameAddress: null)),
               deleteIcon: const Icon(Icons.close, size: 18),
             ),
           if (filter.sameSim != null)
             Chip(
               label: Text(l10n.sameSimChip(filter.sameSim!)),
-              onDeleted: () {
-                filter.sameSim = null;
-                onChanged();
-              },
+              onDeleted: () => onChanged(filter.copyWith(sameSim: null)),
               deleteIcon: const Icon(Icons.close, size: 18),
             ),
           if (filter.keyword.isNotEmpty)
             Chip(
               label: Text(l10n.keywordChip(filter.keyword)),
-              onDeleted: () {
-                filter.keyword = '';
-                onChanged();
-              },
+              onDeleted: () => onChanged(filter.copyWith(keyword: '')),
               deleteIcon: const Icon(Icons.close, size: 18),
             ),
           if (filter.start != null || filter.end != null)
@@ -161,12 +152,8 @@ class FilterChipsBar extends StatelessWidget {
               label: Text(
                 '${SmsFilter.fmtDate(filter.start)} – ${SmsFilter.fmtDate(filter.end)}',
               ),
-              onDeleted: () {
-                filter
-                  ..start = null
-                  ..end = null;
-                onChanged();
-              },
+              onDeleted: () =>
+                  onChanged(filter.copyWith(start: null, end: null)),
               deleteIcon: const Icon(Icons.close, size: 18),
             ),
           if (filter.type != 0)
@@ -177,18 +164,12 @@ class FilterChipsBar extends StatelessWidget {
                 3 => l10n.typeMms,
                 _ => l10n.typeAll,
               }),
-              onDeleted: () {
-                filter.type = 0;
-                onChanged();
-              },
+              onDeleted: () => onChanged(filter.copyWith(type: 0)),
               deleteIcon: const Icon(Icons.close, size: 18),
             ),
           ActionChip(
             label: Text(l10n.clearAllFilters),
-            onPressed: () {
-              filter.reset();
-              onChanged();
-            },
+            onPressed: () => onChanged(const SmsFilter()),
           ),
         ],
       ),

@@ -11,6 +11,7 @@ class SmsCard extends StatelessWidget {
     required this.onDelete,
     required this.onTap,
     required this.onLongPress,
+    this.todayStart,
     this.selectMode = false,
     this.selected = false,
   });
@@ -21,6 +22,9 @@ class SmsCard extends StatelessWidget {
   final Future<bool> Function() onDelete;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+
+  /// 今日零点（由列表层缓存并传入），保证同一次渲染内 today/yesterday 判定一致。
+  final DateTime? todayStart;
   final bool selectMode;
   final bool selected;
 
@@ -33,7 +37,9 @@ class SmsCard extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Dismissible(
         key: ValueKey('sms_${e.uid ?? e.hashCode}'),
-        direction: DismissDirection.endToStart,
+        direction: selectMode
+            ? DismissDirection.none
+            : DismissDirection.endToStart,
         // 删除在 confirmDismiss 内完成：成功才划走，取消/失败卡片回弹
         confirmDismiss: (_) => onDelete(),
         background: Container(
@@ -131,7 +137,7 @@ class SmsCard extends StatelessWidget {
                               ),
                             ),
                             Text(
-                              e.time,
+                              e.time(todayStart: todayStart),
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                           ],

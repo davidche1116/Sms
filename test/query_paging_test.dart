@@ -37,7 +37,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  /// 返回每次 querySms 的 `{limit, offset}`，便于断言分页参数。
+  /// 返回每次 querySms 的 `{limit, offset, keyword?}`，便于断言分页参数。
   List<Map<String, dynamic>> mockPaged({
     required List<Map<String, dynamic>> all,
     bool Function(List<Map<String, dynamic>> page)? injectDup,
@@ -53,16 +53,31 @@ void main() {
           return false;
         case 'querySms':
           final args = Map<Object?, Object?>.from(call.arguments as Map? ?? {});
-          calls.add({'limit': args['limit'], 'offset': args['offset']});
+          final keyword = args['keyword'] as String?;
+          final callRecord = <String, dynamic>{
+            'limit': args['limit'],
+            'offset': args['offset'],
+          };
+          if (keyword != null) callRecord['keyword'] = keyword;
+          calls.add(callRecord);
+          // 模拟服务端 keyword 过滤
+          var filtered = all;
+          if (keyword != null && keyword.isNotEmpty) {
+            filtered = all.where((row) {
+              final body = row['body'] as String? ?? '';
+              final addr = row['address'] as String? ?? '';
+              return body.contains(keyword) || addr.contains(keyword);
+            }).toList();
+          }
           final limit = (args['limit'] as num?)?.toInt();
           final offset = (args['offset'] as num?)?.toInt() ?? 0;
-          var page = all.skip(offset);
+          var page = filtered.skip(offset);
           if (limit != null) page = page.take(limit);
           final rows = page.toList();
           if (injectDup?.call(rows) == true) {
             rows.addAll(rows.take(5).toList());
           }
-          return {'messages': rows, 'total': all.length, 'error': null};
+          return {'messages': rows, 'total': filtered.length, 'error': null};
         default:
           return null;
       }
@@ -105,7 +120,7 @@ void main() {
     expect(find.textContaining('已加载'), findsNothing);
   });
 
-  testWidgets('筛选激活时补齐全量（querySms 不带 limit）', (tester) async {
+  testWidgets('筛选激活时使用服务端筛选（带 keyword 参数分页）', (tester) async {
     final calls = mockPaged(all: buildRows(250));
     await pumpSmsApp(tester);
 
@@ -115,11 +130,39 @@ void main() {
     await tester.tap(find.text('完成'));
     await tester.pumpAndSettle();
 
-    // 最后一次 querySms 必须是全量（不带 limit）
-    expect(calls.last['limit'], isNull);
+    // 服务端筛选：带 keyword 参数，仍分页（limit=200）
+    expect(calls.last['limit'], 200);
+    expect(calls.last['keyword'], 'msg-250');
+    // mock 模拟服务端过滤后只返回匹配行
     expect(find.text('msg-250'), findsOneWidget);
     expect(find.text('msg-1'), findsNothing);
     expect(find.text('1 条'), findsOneWidget);
+  });
+
+  testWidgets('清除关键词 chip 后整库重载，不残留服务端过滤子集', (tester) async {
+    final calls = mockPaged(all: buildRows(250));
+    await pumpSmsApp(tester);
+
+    // 激活服务端关键词过滤 → 列表只剩匹配子集
+    await tester.tap(find.byIcon(Icons.search));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'msg-250');
+    await tester.tap(find.text('完成'));
+    await tester.pumpAndSettle();
+    expect(find.text('1 条'), findsOneWidget);
+
+    // 删除关键词 chip → 必须重新查询第一页（不带 keyword）
+    calls.clear();
+    await tester.tap(
+      find.descendant(of: find.byType(Chip), matching: find.byIcon(Icons.close)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(calls, [
+      {'limit': 200, 'offset': 0},
+    ]);
+    expect(find.text('msg-1'), findsOneWidget);
+    expect(find.textContaining('200 / 250 条'), findsOneWidget);
   });
 
   testWidgets('partial=true 时显示「部分短信可能未加载」横幅，可点按重试', (tester) async {
