@@ -50,7 +50,16 @@ jobs:
           cd android
           ./gradlew :app:testDebugUnitTest
 
-      # 签名材料随仓库（android/key.properties + android/app/key/sms.keystore）。
+      # 签名材料从 CI Secrets 注入（不再随仓库分发）。
+      - name: Setup signing key
+        run: |
+          mkdir -p android/app/key
+          echo "storePassword=${{ secrets.STORE_PASSWORD }}" > android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+          echo "storeFile=key/sms.keystore" >> android/key.properties
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/key/sms.keystore
+
       - name: Build release APK
         run: flutter build apk --release
 

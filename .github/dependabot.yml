@@ -11,6 +11,17 @@ updates:
     labels:
       - "dependencies"
 
+  # Gradle 依赖（Android）：每周检查一次。
+  - package-ecosystem: "gradle"
+    directory: "/android"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "build(deps)"
+    labels:
+      - "dependencies"
+
   # GitHub Actions：保持 action 版本不过期。
   - package-ecosystem: "github-actions"
     directory: "/"

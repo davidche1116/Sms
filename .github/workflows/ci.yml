@@ -6,12 +6,13 @@ on:
   pull_request:
     branches: [main, dev]
 
-# 全流程只跑 analyze / test / Kotlin 单测 / debug APK，不涉及发布签名。
-# release 签名材料随仓库（android/key.properties + android/app/key/sms.keystore）。
+# 全流程只跑 analyze / test / Kotlin 单测 / debug APK。
+# release 构建需要签名材料，从 CI Secrets 注入（不再随仓库分发）。
 jobs:
   analyze-test-build:
     name: Analyze, Test & Debug APK
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -21,6 +22,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
 
       - name: Setup Flutter (stable)
         uses: subosito/flutter-action@v2
@@ -34,19 +36,46 @@ jobs:
       - name: Pub get
         run: flutter pub get
 
-      - name: Analyze
-        run: flutter analyze
+      - name: Generate l10n
+        run: flutter gen-l10n
 
-      - name: Test
-        run: flutter test
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze
+        run: flutter analyze --fatal-infos --fatal-warnings
+
+      - name: Test with coverage
+        run: flutter test --coverage
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/lcov.info
 
       # Kotlin/Robolectric-or-JUnit 原生单测（ChannelCodes / SmsAccess / OnceResult）。
+      # TODO: 建议后续引入 ktlint 对 android/ 下的 Kotlin 代码做静态检查（当前 analysis_options.yaml
+      # 的 analyzer.exclude 排除了 android/**，Kotlin 侧无 Dart 分析器覆盖）。
       - name: Android unit tests
         run: |
           cd android
           ./gradlew :app:testDebugUnitTest
 
       # --debug 会走 Android 工具链（含 compileDebugKotlin），验证 Kotlin 侧能编过。
-      # release 构建依赖签名配置，不在 CI 强制。
       - name: Build debug APK
         run: flutter build apk --debug
+
+      # release 构建走 R8 混淆 + 正式签名，验证 minify 配置与签名材料可用。
+      - name: Setup signing key
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        run: |
+          mkdir -p android/app/key
+          echo "storePassword=${{ secrets.STORE_PASSWORD }}" > android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+          echo "storeFile=key/sms.keystore" >> android/key.properties
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/key/sms.keystore
+
+      - name: Build release APK
+        run: flutter build apk --release
