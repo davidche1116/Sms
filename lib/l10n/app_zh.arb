@@ -272,6 +272,7 @@
   "dayYesterday": "昨天",
 
   "exportFailedRetry": "导出失败，请重试",
+  "exportPartialWarning": "导出可能不完整，请重试", 
   "exportEmpty": "没有可导出的短信",
   "exportedShareText": "已导出 {count} 条短信",
   "@exportedShareText": {

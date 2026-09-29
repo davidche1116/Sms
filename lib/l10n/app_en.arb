@@ -188,6 +188,7 @@
   "dayYesterday": "Yesterday",
 
   "exportFailedRetry": "Export failed. Please retry.",
+  "exportPartialWarning": "Export may be incomplete. Please retry.",
   "exportEmpty": "Nothing to export",
   "exportedShareText": "Exported {count} messages",
   "importCancelled": "Import cancelled",

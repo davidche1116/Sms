@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sms/generated/app_localizations.dart';
-import 'package:sms/services/channel_codes.dart';
+import 'package:sms/services/channel.dart';
 import 'package:sms/services/locale_store.dart';
 
 import '../helpers/mock_sms_channel.dart';
@@ -32,7 +32,7 @@ void main() {
     final zh = lookupAppLocalizations(const Locale('zh'));
 
     test('按 code 本地化，不透出原生 message', () {
-      final e = InsertRowError(
+      const e = InsertRowError(
         index: 0,
         code: ChannelCodes.insertErrorFailed,
         message: 'insert returned null',
@@ -43,20 +43,20 @@ void main() {
 
     test('not_default / invalid / unknown', () {
       expect(
-        InsertRowError(
+        const InsertRowError(
           index: -1,
           code: ChannelCodes.insertErrorNotDefault,
         ).labelOf(zh),
         '非默认短信应用',
       );
       expect(
-        InsertRowError(
+        const InsertRowError(
           index: 0,
           code: ChannelCodes.insertErrorInvalid,
         ).labelOf(zh),
         '数据格式非法',
       );
-      expect(InsertRowError(index: 0, code: '???').labelOf(zh), '未知错误');
+      expect(const InsertRowError(index: 0, code: '???').labelOf(zh), '未知错误');
     });
   });
 

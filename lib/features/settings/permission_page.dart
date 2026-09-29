@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../generated/app_localizations.dart';
 import '../../services/sms_repository.dart';
+import '../widgets/app_messenger.dart';
 import 'miui_notif_guide.dart';
 
 /// 权限子页：实时展示读权限 / 默认短信状态，提供申请与修复入口
@@ -25,7 +28,7 @@ class _PermissionPageState extends State<PermissionPage> {
   @override
   void initState() {
     super.initState();
-    _refresh();
+    unawaited(_refresh());
   }
 
   Future<void> _refresh() async {
@@ -45,11 +48,7 @@ class _PermissionPageState extends State<PermissionPage> {
   }
 
   void _toast(String msg) {
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
-      ..showSnackBar(
-        SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
-      );
+    AppMessenger.show(context, msg);
   }
 
   Future<void> _run(Future<void> Function() action) async {

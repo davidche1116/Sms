@@ -272,6 +272,7 @@
   "dayYesterday": "昨天",
 
   "exportFailedRetry": "匯出失敗，請重試",
+  "exportPartialWarning": "匯出可能不完整，請重試",
   "exportEmpty": "沒有可匯出的簡訊",
   "exportedShareText": "已匯出 {count} 則簡訊",
   "@exportedShareText": {

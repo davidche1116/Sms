@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -32,8 +34,8 @@ class _SmsAppState extends State<SmsApp> {
   @override
   void initState() {
     super.initState();
-    _loadTheme();
-    _loadLocale();
+    unawaited(_loadTheme());
+    unawaited(_loadLocale());
   }
 
   Future<void> _loadTheme() async {
@@ -58,12 +60,12 @@ class _SmsAppState extends State<SmsApp> {
       if (c != null) seed = c;
       if (m != null) mode = m;
     });
-    _store.save(seed: c, mode: m);
+    unawaited(_store.save(seed: c, mode: m));
   }
 
   void _onLocaleChanged(Locale? locale) {
     setState(() => _preferredLocale = locale);
-    _localeStore.save(locale);
+    unawaited(_localeStore.save(locale));
   }
 
   @override
@@ -114,11 +116,14 @@ class _SmsAppState extends State<SmsApp> {
   ThemeData _theme(Brightness b, Color seed) {
     // fromSeed 会推导出另一套 primary，和色盘上的色块不一致。
     // 这里强制 primary = 用户所选颜色，保证「预设绿」和标题栏颜色相同。
-    final scheme = ColorScheme.fromSeed(seedColor: seed, brightness: b)
-        .copyWith(
-          primary: seed,
-          onPrimary: b == Brightness.light ? Colors.white : Colors.black,
-        );
+    final seedBrightness = ThemeData.estimateBrightnessForColor(seed);
+    final onPrimary = seedBrightness == Brightness.light
+        ? Colors.black
+        : Colors.white;
+    final scheme = ColorScheme.fromSeed(
+      seedColor: seed,
+      brightness: b,
+    ).copyWith(primary: seed, onPrimary: onPrimary);
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
