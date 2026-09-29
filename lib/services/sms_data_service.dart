@@ -6,11 +6,17 @@ import 'sms_repository.dart';
 
 /// 导出全量短信 CSV 并拉起系统分享。
 ///
-/// 必须覆盖全库，不能只用已加载分页。返回 null=成功（分享面板即反馈）；
-/// 否则为统一 toast 文案。不外抛。
+/// 分页查询逐页写入，避免全量加载到内存。返回 null=成功（分享面板即反馈）；
+/// 若导出过程中某页查询部分失败，返回部分失败警告文案；否则为统一 toast 文案。
+/// 不外抛。
 Future<String?> exportAll(SmsRepository repo, AppLocalizations l10n) async {
   try {
-    return await exportItems(await repo.queryAll(), l10n);
+    final r = await CsvExporter.exportPaged(repo, tag: 'all', l10n: l10n);
+    await CsvExporter.share(r, l10n);
+    if (r.partial) {
+      return l10n.exportPartialWarning;
+    }
+    return null;
   } catch (_) {
     return l10n.exportFailedRetry;
   }

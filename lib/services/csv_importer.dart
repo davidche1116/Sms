@@ -117,8 +117,8 @@ class CsvImporter {
       if (fields.length < 4) continue;
       // 可选 is_mms 列（第 6 列）：1 = 彩信，导入不重建
       if (fields.length > 5 && fields[5].trim() == '1') continue;
-      final address = fields[0];
-      final body = fields[1];
+      final address = _unescapeFormulaPrefix(fields[0]);
+      final body = _unescapeFormulaPrefix(fields[1]);
       final dateMs = _parseDateMs(fields[2]);
       final kind = _parseKind(fields[3]);
       final sim = fields.length > 4 ? (int.tryParse(fields[4].trim()) ?? 1) : 1;
@@ -213,6 +213,17 @@ class CsvImporter {
     if (s.isEmpty) return null;
     final d = DateTime.tryParse(s.replaceFirst(' ', 'T'));
     return d?.millisecondsSinceEpoch;
+  }
+
+  /// 去除导出时为防止公式注入添加的 `'` 前缀。
+  /// 仅当字段以 `'` 开头且下一字符为 `=`/`+`/`-`/`@` 时才去除。
+  static String _unescapeFormulaPrefix(String v) {
+    if (v.length >= 2 &&
+        v.startsWith("'") &&
+        (v[1] == '=' || v[1] == '+' || v[1] == '-' || v[1] == '@')) {
+      return v.substring(1);
+    }
+    return v;
   }
 
   /// RFC 4180 解析（支持引号字段内的逗号/换行/转义引号）。

@@ -17,6 +17,17 @@ void main() {
       expect(CsvExporter.escapeField('line1\nline2'), '"line1\nline2"');
       expect(CsvExporter.escapeField('a\r\nb'), '"a\r\nb"');
     });
+
+    test('公式注入字段加 \' 前缀，含需引号包裹的字段', () {
+      expect(CsvExporter.escapeField('=1+1'), "'=1+1");
+      expect(CsvExporter.escapeField('@cmd'), "'@cmd");
+      // 同时含引号/逗号的恶意公式：先加 ' 前缀再加引号（修复前引号分支漏防，
+      // Excel 打开仍会当公式执行）
+      expect(
+        CsvExporter.escapeField('=HYPERLINK("http://evil","x")'),
+        '"\'=HYPERLINK(""http://evil"",""x"")"',
+      );
+    });
   });
 
   group('CsvImporter 解析（与导出格式互逆）', () {
@@ -109,6 +120,15 @@ void main() {
       expect(rows[0].kind, SmsKind.received);
       expect(rows[1].kind, SmsKind.sent);
       expect(rows[1].sim, 2);
+    });
+
+    test('含引号的公式字段往返无损（剥回 \' 前缀）', () {
+      const raw = '=HYPERLINK("http://evil","x")';
+      final rows = CsvImporter.parse(
+        'address,body,date,kind,sub_id,is_mms\n'
+        '10086,${CsvExporter.escapeField(raw)},2026-01-01 00:00:00,received,1,0\n',
+      );
+      expect(rows.single.body, raw);
     });
   });
 }
