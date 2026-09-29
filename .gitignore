@@ -47,8 +47,10 @@ app.*.map.json
 # Widget Preview related
 .widget_preview/
 
-# 发布签名随仓库分发（与 1.x 一致）：android/key.properties + android/app/key/sms.keystore
-# 不忽略 keystore / key.properties
+# 发布签名密钥不再随仓库分发（安全）：使用 CI Secrets + 本地手动配置
+# 本地开发者需在 android/ 下手动创建 key.properties 和 key/sms.keystore
+android/key.properties
+android/app/key/*.keystore
 keystore.properties
 *.p12
 *.pem
@@ -58,3 +60,7 @@ test/device/shots/
 test/device/*.xml
 test/device/ui_*.xml
 
+# FVM Version Cache
+.fvm/
+# l10n generated files (regenerate with: flutter gen-l10n)
+lib/generated/
