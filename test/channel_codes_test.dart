@@ -35,10 +35,7 @@ void main() {
     });
 
     test('error → error', () {
-      expect(
-        parseDefaultSmsResult(ChannelCodes.error),
-        DefaultSmsResult.error,
-      );
+      expect(parseDefaultSmsResult(ChannelCodes.error), DefaultSmsResult.error);
       expect(parseDefaultSmsResult('error'), DefaultSmsResult.error);
     });
 
@@ -80,35 +77,20 @@ void main() {
           parseRestoreDefaultResult(ChannelCodes.error),
           RestoreDefaultResult.error,
         );
-        expect(
-          parseRestoreDefaultResult('error'),
-          RestoreDefaultResult.error,
-        );
+        expect(parseRestoreDefaultResult('error'), RestoreDefaultResult.error);
       });
 
       test('未知字符串 / null / 历史误记的 ok → error（安全默认）', () {
-        expect(
-          parseRestoreDefaultResult('ok'),
-          RestoreDefaultResult.error,
-        );
-        expect(
-          parseRestoreDefaultResult(''),
-          RestoreDefaultResult.error,
-        );
-        expect(
-          parseRestoreDefaultResult(null),
-          RestoreDefaultResult.error,
-        );
+        expect(parseRestoreDefaultResult('ok'), RestoreDefaultResult.error);
+        expect(parseRestoreDefaultResult(''), RestoreDefaultResult.error);
+        expect(parseRestoreDefaultResult(null), RestoreDefaultResult.error);
       });
     },
   );
 
   group('parseMiuiNotifState（miuiNotificationSmsState）', () {
     test('allow → allow', () {
-      expect(
-        parseMiuiNotifState(ChannelCodes.miuiAllow),
-        MiuiNotifState.allow,
-      );
+      expect(parseMiuiNotifState(ChannelCodes.miuiAllow), MiuiNotifState.allow);
       expect(parseMiuiNotifState('allow'), MiuiNotifState.allow);
     });
 
@@ -129,10 +111,7 @@ void main() {
     });
 
     test('deny → deny（历史兼容）', () {
-      expect(
-        parseMiuiNotifState(ChannelCodes.miuiDeny),
-        MiuiNotifState.deny,
-      );
+      expect(parseMiuiNotifState(ChannelCodes.miuiDeny), MiuiNotifState.deny);
       expect(parseMiuiNotifState('deny'), MiuiNotifState.deny);
     });
 
@@ -196,9 +175,7 @@ void main() {
     });
 
     test('缺 message 时为 null', () {
-      final w = parseQueryWarning({
-        ChannelCodes.keyCode: 'mms_part_failed',
-      });
+      final w = parseQueryWarning({ChannelCodes.keyCode: 'mms_part_failed'});
       expect(w.code, ChannelCodes.warnMmsPartFailed);
       expect(w.message, isNull);
     });

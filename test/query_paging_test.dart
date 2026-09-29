@@ -154,7 +154,10 @@ void main() {
     // 删除关键词 chip → 必须重新查询第一页（不带 keyword）
     calls.clear();
     await tester.tap(
-      find.descendant(of: find.byType(Chip), matching: find.byIcon(Icons.close)),
+      find.descendant(
+        of: find.byType(Chip),
+        matching: find.byIcon(Icons.close),
+      ),
     );
     await tester.pumpAndSettle();
 

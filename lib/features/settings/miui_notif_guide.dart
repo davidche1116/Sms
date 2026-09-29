@@ -33,9 +33,8 @@ Future<MiuiGuideAction?> showMiuiNotificationSmsSheet(BuildContext context) {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: Theme.of(
-                        ctx,
-                      ).colorScheme.primary.withValues(alpha: 0.12),
+                      color: Theme.of(ctx).colorScheme.primary
+                          .withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(Icons.sms_failed_outlined, size: 20),

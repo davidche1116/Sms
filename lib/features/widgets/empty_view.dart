@@ -60,9 +60,8 @@ class EmptyView extends StatelessWidget {
                 ? l10n.noMatchBody
                 : l10n.emptyBody,
             textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+            style: Theme.of(context).textTheme.bodyMedium
+                ?.copyWith(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 20),
           FilledButton(

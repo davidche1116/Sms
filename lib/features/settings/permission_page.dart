@@ -172,9 +172,8 @@ class _PermissionPageState extends State<PermissionPage> {
           const SizedBox(height: 16),
           Text(
             _isMiui ? l10n.permExplainMiui : l10n.permExplain,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+            style: Theme.of(context).textTheme.bodyMedium
+                ?.copyWith(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 20),
           if (_hasRead != true) ...[
@@ -211,9 +210,8 @@ class _PermissionPageState extends State<PermissionPage> {
             const SizedBox(height: 12),
             Text(
               l10n.miuiPath,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: 12),
           ],

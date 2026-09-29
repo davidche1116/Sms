@@ -71,9 +71,8 @@ class PartialQueryBanner extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
-        color: Theme.of(
-          context,
-        ).colorScheme.errorContainer.withValues(alpha: 0.35),
+        color: Theme.of(context).colorScheme.errorContainer
+            .withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
