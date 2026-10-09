@@ -34,7 +34,7 @@ dependencies:
   file_picker: ^13.1.0
   package_info_plus: ^10.2.1
   path_provider: ^2.1.6
-  share_plus: ^13.3.0
+  share_plus: ^13.3.1
   shared_preferences: ^2.5.5
   url_launcher: ^6.3.1
   flutter_localizations:
