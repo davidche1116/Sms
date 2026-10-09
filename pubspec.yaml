@@ -35,7 +35,7 @@ dependencies:
   package_info_plus: ^10.2.1
   path_provider: ^2.1.6
   share_plus: ^13.3.0
-  shared_preferences: ^2.5.5
+  shared_preferences: ^2.5.6
   url_launcher: ^6.3.1
   flutter_localizations:
     sdk: flutter
