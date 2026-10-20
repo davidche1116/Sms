@@ -139,15 +139,19 @@ class SmsAccess(val context: Context) {
 
   // ---- Query (delegated) ----
 
+  /**
+   * @param keywords 关键词组，组内 **OR**（空 = 不过滤）；单关键词也走这个入口。
+   */
   fun querySms(
     address: String?,
     limit: Int? = null,
     offset: Int = 0,
-    keyword: String? = null,
+    keywords: List<String> = emptyList(),
     startDateMs: Long? = null,
     endDateMs: Long? = null,
     type: Int? = null,
-  ): Map<String, Any?> = query.querySms(address, limit, offset, keyword, startDateMs, endDateMs, type)
+  ): Map<String, Any?> =
+    query.querySms(address, limit, offset, keywords, startDateMs, endDateMs, type)
 
   // ---- Delete / Insert (delegated) ----
 

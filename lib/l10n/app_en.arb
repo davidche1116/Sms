@@ -66,6 +66,33 @@
   "keywordChip": "“{keyword}”",
   "clearAllFilters": "Clear all",
 
+  "quickRangeLabel": "Time range",
+  "quickRange7d": "7 days ago",
+  "quickRange15d": "15 days ago",
+  "quickRange30d": "30 days ago",
+  "quickRange3m": "3 months ago",
+  "quickRange6m": "6 months ago",
+  "quickRange1y": "1 year ago",
+  "quickRangeHint": "Only messages older than that point, for cleaning up old ones",
+  "quickRangeChip": "{label} or older",
+  "@quickRangeChip": {
+    "placeholders": {
+      "label": {"type": "String"}
+    }
+  },
+  "keywordPresetLabel": "Common categories",
+  "presetVerification": "Verification codes",
+  "presetCarrier": "Carrier notices",
+  "presetBank": "Bank notices",
+  "presetEcommerce": "Shopping / delivery",
+  "presetPromo": "Promotions",
+  "presetChip": "Category: {name}",
+  "@presetChip": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+
   "exportAllCsv": "Export all CSV",
   "importCsv": "Import CSV",
   "importCsvHint": "Writes to the system SMS database (default app required)",

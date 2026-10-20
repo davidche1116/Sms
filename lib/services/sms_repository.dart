@@ -278,12 +278,15 @@ class SmsRepository {
   ///
   /// 可选筛选参数（服务端下推）：
   /// - [keyword]：匹配 body 或 address（LIKE %keyword%）
+  /// - [keywords]：类别预设展开的关键词组，组内 **OR**（LIKE %k% OR LIKE %k2% …）；
+  ///   非空时原生侧优先使用它，[keyword] 作为旧单值通道保留兜底
   /// - [startDateMs]：起始时间（毫秒），过滤 date >= startDateMs
   /// - [endDateMs]：结束时间（毫秒），过滤 date <= endDateMs
   /// - [type]：类型过滤，0=全部, 1=仅收件箱, 2=仅已发送, 3=仅彩信
   Future<SmsQueryPage> queryPage({
     String? address,
     String? keyword,
+    List<String>? keywords,
     int? startDateMs,
     int? endDateMs,
     int? type,
@@ -298,6 +301,7 @@ class SmsRepository {
       final raw = await _ch.invokeMethod<dynamic>(ChannelCodes.methodQuerySms, {
         if (address != null && address.isNotEmpty) 'address': address,
         if (keyword != null && keyword.isNotEmpty) 'keyword': keyword,
+        if (keywords != null && keywords.isNotEmpty) 'keywords': keywords,
         'startDateMs': ?startDateMs,
         'endDateMs': ?endDateMs,
         if (type != null && type > 0) 'type': type,

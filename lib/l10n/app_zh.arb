@@ -134,6 +134,33 @@
   },
   "clearAllFilters": "清除全部",
 
+  "quickRangeLabel": "时间范围",
+  "quickRange7d": "7天前",
+  "quickRange15d": "15天前",
+  "quickRange30d": "30天前",
+  "quickRange3m": "3个月前",
+  "quickRange6m": "6个月前",
+  "quickRange1y": "1年前",
+  "quickRangeHint": "只看该时间点之前的短信，用于清理旧短信",
+  "quickRangeChip": "{label}及更早",
+  "@quickRangeChip": {
+    "placeholders": {
+      "label": {"type": "String"}
+    }
+  },
+  "keywordPresetLabel": "常用类别",
+  "presetVerification": "验证码",
+  "presetCarrier": "运营商通知",
+  "presetBank": "银行通知",
+  "presetEcommerce": "电商 / 物流",
+  "presetPromo": "营销推广",
+  "presetChip": "类别：{name}",
+  "@presetChip": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+
   "exportAllCsv": "导出全部 CSV",
   "importCsv": "导入 CSV",
   "importCsvHint": "写入系统短信库（需设为默认）",

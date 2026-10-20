@@ -372,6 +372,90 @@ class SmsAccessQueryTest {
     )
   }
 
+  // ---- querySms：关键词组（类别预设），组内 OR ----
+
+  @Test
+  fun `querySms builds OR selection for keyword group`() {
+    val resolver = mock<ContentResolver>()
+    val stub = SmsProviderStub().apply {
+      sms = smsRows(smsRow(id = 1, body = "银行到账", date = 300L))
+    }
+    stub.install(resolver)
+    val access = accessWith(resolver)
+    access.querySms(null, keywords = listOf("银行", "尾号"))
+
+    val q = stub.queryLog.first { it.kind == "sms" && !it.isCount }
+    // 组内 OR，整体加括号：外层各条件用 AND 连接，不括起来会跟相邻条件短路错乱
+    assertEquals(
+      "((body LIKE ? OR address LIKE ?) OR (body LIKE ? OR address LIKE ?))",
+      q.selection,
+    )
+    // 每个词贡献 body / address 两个占位参数
+    assertEquals(listOf("%银行%", "%银行%", "%尾号%", "%尾号%"), q.args)
+  }
+
+  @Test
+  fun `querySms single keyword is still one LIKE pair`() {
+    val resolver = mock<ContentResolver>()
+    val stub = SmsProviderStub().apply {
+      sms = smsRows(smsRow(id = 1, body = "验证码 8888"))
+    }
+    stub.install(resolver)
+    val access = accessWith(resolver)
+    access.querySms(null, keywords = listOf("验证码"))
+
+    val q = stub.queryLog.first { it.kind == "sms" && !it.isCount }
+    assertEquals("((body LIKE ? OR address LIKE ?))", q.selection)
+    assertEquals(listOf("%验证码%", "%验证码%"), q.args)
+  }
+
+  @Test
+  fun `querySms combines keyword group with date range by AND`() {
+    val resolver = mock<ContentResolver>()
+    val stub = SmsProviderStub().apply {
+      sms = smsRows(smsRow(id = 1, body = "银行到账", date = 300L))
+    }
+    stub.install(resolver)
+    val access = accessWith(resolver)
+    access.querySms(
+      null,
+      keywords = listOf("银行"),
+      startDateMs = 100L,
+      endDateMs = 400L,
+    )
+
+    val q = stub.queryLog.first { it.kind == "sms" && !it.isCount }
+    val sel = q.selection!!
+    assertTrue(sel.contains(") AND date >= ?"))
+    assertTrue(sel.endsWith(" AND date <= ?"))
+    assertEquals(listOf("%银行%", "%银行%", "100", "400"), q.args)
+  }
+
+  @Test
+  fun `querySms queries mms part once with OR selection`() {
+    val resolver = mock<ContentResolver>()
+    val stub = SmsProviderStub()
+    stub.install(resolver)
+    val access = accessWith(resolver)
+    access.querySms(null, keywords = listOf("银行", "尾号"))
+
+    // 关键词组对彩信是一次 part 查询取并集，不是每个词查一次
+    val partQ = stub.queryLog.filter { it.kind == "part" }
+    assertEquals(1, partQ.size)
+    assertEquals("text LIKE ? OR text LIKE ?", partQ[0].selection)
+    assertEquals(listOf("%银行%", "%尾号%"), partQ[0].args)
+  }
+
+  @Test
+  fun `querySms empty keyword group queries unfiltered`() {
+    val resolver = mock<ContentResolver>()
+    val stub = SmsProviderStub()
+    stub.install(resolver)
+    val access = accessWith(resolver)
+    access.querySms(null, keywords = emptyList())
+    assertTrue(stub.queryLog.all { it.selection == null })
+  }
+
   @Test
   fun `querySms empty address queries unfiltered`() {
     val resolver = mock<ContentResolver>()

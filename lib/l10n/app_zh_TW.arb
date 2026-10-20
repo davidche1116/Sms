@@ -134,6 +134,33 @@
   },
   "clearAllFilters": "清除全部",
 
+  "quickRangeLabel": "時間範圍",
+  "quickRange7d": "7天前",
+  "quickRange15d": "15天前",
+  "quickRange30d": "30天前",
+  "quickRange3m": "3個月前",
+  "quickRange6m": "6個月前",
+  "quickRange1y": "1年前",
+  "quickRangeHint": "只看該時間點之前的簡訊，用來清理舊簡訊",
+  "quickRangeChip": "{label}及更早",
+  "@quickRangeChip": {
+    "placeholders": {
+      "label": {"type": "String"}
+    }
+  },
+  "keywordPresetLabel": "常用類別",
+  "presetVerification": "驗證碼",
+  "presetCarrier": "電信業者通知",
+  "presetBank": "銀行通知",
+  "presetEcommerce": "電商 / 物流",
+  "presetPromo": "行銷推廣",
+  "presetChip": "類別：{name}",
+  "@presetChip": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+
   "exportAllCsv": "匯出全部 CSV",
   "importCsv": "匯入 CSV",
   "importCsvHint": "寫入系統簡訊庫（需設為預設）",

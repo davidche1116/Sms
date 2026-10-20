@@ -55,4 +55,72 @@ void main() {
     expect(find.text('“流量”'), findsOneWidget);
     expect(find.textContaining('流量提醒'), findsOneWidget);
   });
+
+  testWidgets('类别预设「验证码」只保留验证码短信并回显 chip', (tester) async {
+    await pumpHome(tester);
+
+    await tester.tap(find.byIcon(Icons.search));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('验证码'));
+    await tester.tap(find.text('验证码'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('完成'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('类别：验证码'), findsOneWidget);
+    expect(find.textContaining('验证码 8888'), findsOneWidget);
+    expect(find.textContaining('流量提醒'), findsNothing);
+
+    // 取消类别 chip → 恢复全部
+    await tester.tap(
+      find.descendant(
+        of: find.widgetWithText(Chip, '类别：验证码'),
+        matching: find.byIcon(Icons.close),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('类别：验证码'), findsNothing);
+    expect(find.textContaining('流量提醒'), findsOneWidget);
+  });
+
+  testWidgets('时间预设「1年前」可勾选 / 取消，顶部 chip 同步', (tester) async {
+    await pumpHome(tester);
+
+    await tester.tap(find.byIcon(Icons.search));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('1年前'));
+    await tester.tap(find.text('1年前'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('完成'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1年前及更早'), findsOneWidget);
+
+    await tester.tap(
+      find.descendant(
+        of: find.widgetWithText(Chip, '1年前及更早'),
+        matching: find.byIcon(Icons.close),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('1年前及更早'), findsNothing);
+    expect(find.textContaining('流量提醒'), findsOneWidget);
+  });
+
+  testWidgets('手动输入关键词会取消已选类别预设（互斥）', (tester) async {
+    await pumpHome(tester);
+
+    await tester.tap(find.byIcon(Icons.search));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('验证码'));
+    await tester.tap(find.text('验证码'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, '流量');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('完成'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('类别：验证码'), findsNothing);
+    expect(find.text('“流量”'), findsOneWidget);
+  });
 }

@@ -44,6 +44,7 @@ internal class SmsQuery(private val smsAccess: SmsAccess) {
    *    都在 `offset+limit` 条处短路，归并后只物化本页，绝不全库 LinkedHashMap。
    * 3. **total** 与切页解耦：分页时用轻量 count（投影仅 `_id`），全量时用可用行数。
    *
+   * @param keywords 关键词组，**组内 OR**（body/address LIKE）；空 = 不过滤
    * @param limit null=全量（兼容旧调用）；非空时按 date 降序切页
    * @param offset 跳过条数，仅在 limit 非空时生效
    * @return messages + total + error(null|permission|unknown) + partial + warnings，
@@ -56,7 +57,7 @@ internal class SmsQuery(private val smsAccess: SmsAccess) {
     address: String?,
     limit: Int? = null,
     offset: Int = 0,
-    keyword: String? = null,
+    keywords: List<String> = emptyList(),
     startDateMs: Long? = null,
     endDateMs: Long? = null,
     type: Int? = null,
@@ -85,7 +86,7 @@ internal class SmsQuery(private val smsAccess: SmsAccess) {
     // Build WHERE clause with all filter conditions
     val (sel, args) = buildSelection(
       address = address,
-      keyword = keyword,
+      keywords = keywords,
       startDateMs = startDateMs,
       endDateMs = endDateMs,
       type = type,
@@ -126,7 +127,8 @@ internal class SmsQuery(private val smsAccess: SmsAccess) {
     // 彩信 keyword 在 part 表：同理，先查 part 表取匹配 mid，再与 MMS ID 集合求交。
     val warns = QueryWarns()
     val mmsAddrFilter = if (address.isNullOrEmpty()) null else queryMmsIdsByAddress(address, warns)
-    val mmsKeywordFilter = if (keyword.isNullOrEmpty()) null else queryMmsIdsByKeyword(keyword, warns)
+    val mmsKeywordFilter =
+        if (keywords.isEmpty()) null else queryMmsIdsByKeyword(keywords, warns)
     // 两个过滤器都非空时取交集；任一为空集则 MMS 直接短路
     val mmsIdFilter: Set<Int>? = when {
       mmsAddrFilter == null -> mmsKeywordFilter
@@ -241,12 +243,15 @@ internal class SmsQuery(private val smsAccess: SmsAccess) {
   /**
    * 构建 SMS 查询的 WHERE 条件和参数。
    *
-   * 支持：address 精确匹配、keyword LIKE 匹配 body/address、
+   * 支持：address 精确匹配、关键词组 LIKE 匹配 body/address（**组内 OR**）、
    * 日期范围、type 过滤（1=收件箱, 2=已发送（含草稿等非收件）, 3=草稿, 4=待发, 5=失败）。
+   *
+   * 关键词组整体加括号：外层各条件是 AND 连接，OR 不括起来会跟相邻条件短路错乱。
+   * 参数一律走 `?` 占位，无拼接，不存在注入面。
    */
   private fun buildSelection(
     address: String?,
-    keyword: String?,
+    keywords: List<String>,
     startDateMs: Long?,
     endDateMs: Long?,
     type: Int?,
@@ -259,11 +264,16 @@ internal class SmsQuery(private val smsAccess: SmsAccess) {
       argList.add(address)
     }
 
-    if (!keyword.isNullOrEmpty()) {
-      parts.add("(${Telephony.Sms.BODY} LIKE ? OR ${Telephony.Sms.ADDRESS} LIKE ?)")
-      val like = "%$keyword%"
-      argList.add(like)
-      argList.add(like)
+    if (keywords.isNotEmpty()) {
+      val clause = keywords.joinToString(" OR ") {
+        "(${Telephony.Sms.BODY} LIKE ? OR ${Telephony.Sms.ADDRESS} LIKE ?)"
+      }
+      parts.add("($clause)")
+      for (k in keywords) {
+        val like = "%$k%"
+        argList.add(like)
+        argList.add(like)
+      }
     }
 
     if (startDateMs != null) {
@@ -600,17 +610,20 @@ internal class SmsQuery(private val smsAccess: SmsAccess) {
   }
 
   /**
-   * 从 `content://mms/part` 取正文匹配关键词的 mid 集合。
+   * 从 `content://mms/part` 取正文命中**任一**关键词的 mid 集合。
    * MMS 正文存储在 part 表而非 mms 表，无法直接在 mms 查询中下推 keyword。
+   * 组内 OR：一次查询取并集（不是每个词查一次再合并）。
    * 失败回空集并记 warning。
    */
-  private fun queryMmsIdsByKeyword(keyword: String, warns: QueryWarns): Set<Int> = try {
+  private fun queryMmsIdsByKeyword(keywords: List<String>, warns: QueryWarns): Set<Int> = try {
     val ids = mutableSetOf<Int>()
+    val selection = keywords.joinToString(" OR ") { "${Telephony.Mms.Part.TEXT} LIKE ?" }
+    val selectionArgs = keywords.map { "%$it%" }.toTypedArray()
     context.contentResolver.query(
       SmsAccess.mmsPartUri(),
       arrayOf(Telephony.Mms.Part.MSG_ID),
-      "${Telephony.Mms.Part.TEXT} LIKE ?",
-      arrayOf("%$keyword%"),
+      selection,
+      selectionArgs,
       null,
     )?.use { c ->
       while (c.moveToNext()) {

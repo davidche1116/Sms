@@ -85,8 +85,9 @@ class SmsListController extends ChangeNotifier {
   // ---- 筛选条件判断 ----
   bool get hasServerSideFilter =>
       filter.keyword.isNotEmpty ||
-      filter.start != null ||
-      filter.end != null ||
+      filter.presetKeywordsForQuery.isNotEmpty ||
+      filter.effectiveStart != null ||
+      filter.effectiveEnd != null ||
       filter.type != 0;
 
   bool get hasClientSideOnlyFilter =>
@@ -98,20 +99,22 @@ class SmsListController extends ChangeNotifier {
     if (filter.keyword.isNotEmpty) {
       params['keyword'] = filter.keyword;
     }
-    if (filter.start != null) {
-      params['startDateMs'] = filter.start!.millisecondsSinceEpoch;
+    // 类别预设：多关键词 OR，原生侧一次下推（见 SmsQuery.buildSelection）。
+    final presets = filter.presetKeywordsForQuery;
+    if (presets.isNotEmpty) {
+      params['keywords'] = presets;
     }
-    if (filter.end != null) {
-      final endOfDay = DateTime(
-        filter.end!.year,
-        filter.end!.month,
-        filter.end!.day,
-        23,
-        59,
-        59,
-        999,
-      );
-      params['endDateMs'] = endOfDay.millisecondsSinceEpoch;
+    final start = filter.effectiveStart;
+    if (start != null) {
+      params['startDateMs'] = start.millisecondsSinceEpoch;
+    }
+    final end = filter.effectiveEnd;
+    if (end != null) {
+      // 快捷预设已是精确毫秒边界，不再扩到当天 23:59:59.999
+      final limit = filter.endExact
+          ? end
+          : DateTime(end.year, end.month, end.day, 23, 59, 59, 999);
+      params['endDateMs'] = limit.millisecondsSinceEpoch;
     }
     if (filter.type != 0) {
       params['type'] = filter.type;
@@ -135,6 +138,7 @@ class SmsListController extends ChangeNotifier {
         page = await repo.queryPage(
           address: params['address'] as String?,
           keyword: params['keyword'] as String?,
+          keywords: params['keywords'] as List<String>?,
           startDateMs: params['startDateMs'] as int?,
           endDateMs: params['endDateMs'] as int?,
           type: params['type'] as int?,
@@ -206,6 +210,7 @@ class SmsListController extends ChangeNotifier {
         page = await repo.queryPage(
           address: params['address'] as String?,
           keyword: params['keyword'] as String?,
+          keywords: params['keywords'] as List<String>?,
           startDateMs: params['startDateMs'] as int?,
           endDateMs: params['endDateMs'] as int?,
           type: params['type'] as int?,

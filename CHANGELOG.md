@@ -5,6 +5,24 @@
 
 ## [Unreleased]
 
+### Added
+
+- feat(filter): 时间快捷筛选——7 天 / 15 天 / 30 天 / 3 个月 / 6 个月 / 1 年**之前**
+  （「早于 N」语义，用于清理旧短信）。预设走独立字段 + 锚点快照：边界精确到毫秒，
+  不按「当天 23:59:59」扩展，翻页期间边界不漂移
+- feat(filter): 关键词类别预设——验证码 / 运营商通知 / 银行通知 / 电商物流 / 营销推广。
+  一个预设展开为一组关键词，组内 **OR**，通过新增的 `keywords` 通道参数下推到原生 SQL
+  （`SmsQuery.buildSelection`）与彩信 part 表查询，保持真分页
+- feat(i18n): 类别预设词表按界面语言切换（zh / zh_TW / en），显示名走 arb
+
+### Changed
+
+- refactor: `SmsFilter` 新增 `keywordGroup` / `preset` / `quickRange` / `quickAnchor`；
+  类别预设与手动关键词互斥、时间预设与自定义起止日期互斥；
+  顶部 Chip 条新增两类回显并可单独取消
+- refactor: 原生 `querySms` 的 `keyword: String?` 改为 `keywords: List<String>`
+  （单关键词走单元素列表；旧 `keyword` 参数保留为兜底）
+
 ## [1.9.0] - 2026-09-28
 
 1.9.0 在 1.8.0 之上做了一次结构性升级（界面 / 通道 / 彩信 / i18n / 分页），

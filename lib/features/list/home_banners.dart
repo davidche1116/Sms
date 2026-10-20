@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../generated/app_localizations.dart';
 import '../filter/filter_sheet.dart';
+import '../filter/keyword_presets.dart';
+import '../filter/quick_range.dart';
 
 /// MIUI「通知类短信」软提示横幅。
 class MiuiNotifBanner extends StatelessWidget {
@@ -146,13 +148,37 @@ class FilterChipsBar extends StatelessWidget {
               onDeleted: () => onChanged(filter.copyWith(keyword: '')),
               deleteIcon: const Icon(Icons.close, size: 18),
             ),
-          if (filter.start != null || filter.end != null)
+          if (filter.preset != null)
+            Chip(
+              label: Text(l10n.presetChip(presetLabel(l10n, filter.preset!))),
+              onDeleted: () => onChanged(
+                filter.copyWith(preset: null, keywordGroup: const <String>[]),
+              ),
+              deleteIcon: const Icon(Icons.close, size: 18),
+            ),
+          if (filter.quickRange != null)
             Chip(
               label: Text(
-                '${SmsFilter.fmtDate(filter.start)} – ${SmsFilter.fmtDate(filter.end)}',
+                l10n.quickRangeChip(quickRangeLabel(l10n, filter.quickRange!)),
               ),
-              onDeleted: () =>
-                  onChanged(filter.copyWith(start: null, end: null)),
+              onDeleted: () => onChanged(
+                filter.copyWith(quickRange: null, quickAnchor: null),
+              ),
+              deleteIcon: const Icon(Icons.close, size: 18),
+            ),
+          if (filter.effectiveStart != null || filter.effectiveEnd != null)
+            Chip(
+              label: Text(
+                '${SmsFilter.fmtDate(filter.effectiveStart)} – ${SmsFilter.fmtDate(filter.effectiveEnd)}',
+              ),
+              onDeleted: () => onChanged(
+                filter.copyWith(
+                  start: null,
+                  end: null,
+                  quickRange: null,
+                  quickAnchor: null,
+                ),
+              ),
               deleteIcon: const Icon(Icons.close, size: 18),
             ),
           if (filter.type != 0)

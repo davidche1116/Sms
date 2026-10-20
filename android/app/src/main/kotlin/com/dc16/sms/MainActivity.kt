@@ -210,13 +210,22 @@ class MainActivity : FlutterFragmentActivity() {
               val limit = (args?.get("limit") as? Number)?.toInt()
               val offset = (args?.get("offset") as? Number)?.toInt() ?: 0
               val keyword = args?.get("keyword") as? String
+              // 类别预设：一组关键词做 OR；旧端只发单个 keyword 时兜底成单元素列表
+              val rawKeywords = (args?.get("keywords") as? List<*>)
+                ?.mapNotNull { it as? String }
+                ?.filter { it.isNotEmpty() }
+                ?.distinct()
+                .orEmpty()
+              val keywords = rawKeywords.ifEmpty {
+                listOfNotNull(keyword).filter { it.isNotEmpty() }
+              }
               val startDateMs = (args?.get("startDateMs") as? Number)?.toLong()
               val endDateMs = (args?.get("endDateMs") as? Number)?.toLong()
               val type = (args?.get("type") as? Number)?.toInt()
               queryExecutor.execute {
                 try {
                   val res = access.querySms(
-                    addr, limit, offset, keyword, startDateMs, endDateMs, type,
+                    addr, limit, offset, keywords, startDateMs, endDateMs, type,
                   )
                   mainHandler.post { result.success(res) }
                 } catch (e: Exception) {

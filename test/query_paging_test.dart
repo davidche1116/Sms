@@ -37,7 +37,22 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  /// 返回每次 querySms 的 `{limit, offset, keyword?}`，便于断言分页参数。
+  /// 银行类样例：前 5 条命中「银行通知」预设，其余是普通短信。
+  List<Map<String, dynamic>> buildBankRows(int n) => [
+    for (var i = 0; i < n; i++)
+      {
+        '_id': i + 1,
+        'thread_id': 1,
+        'address': i < 5 ? '95588' : '10086',
+        'body': i < 5 ? '银行通知：尾号 8888 到账 100 元' : 'msg-${i + 1}',
+        'date': base.subtract(Duration(minutes: i)).millisecondsSinceEpoch,
+        'read': 1,
+        'type': 1,
+        'sub_id': 1,
+      },
+  ];
+
+  /// 返回每次 querySms 的 `{limit, offset, keyword?, keywords?}`，便于断言分页参数。
   List<Map<String, dynamic>> mockPaged({
     required List<Map<String, dynamic>> all,
     bool Function(List<Map<String, dynamic>> page)? injectDup,
@@ -54,19 +69,30 @@ void main() {
         case 'querySms':
           final args = Map<Object?, Object?>.from(call.arguments as Map? ?? {});
           final keyword = args['keyword'] as String?;
+          final keywords = (args['keywords'] as List?)
+              ?.whereType<String>()
+              .toList();
           final callRecord = <String, dynamic>{
             'limit': args['limit'],
             'offset': args['offset'],
           };
           if (keyword != null) callRecord['keyword'] = keyword;
+          if (keywords != null) callRecord['keywords'] = keywords;
           calls.add(callRecord);
-          // 模拟服务端 keyword 过滤
+          // 模拟服务端过滤：单关键词 OR 关键词组（组内 OR）
           var filtered = all;
           if (keyword != null && keyword.isNotEmpty) {
             filtered = all.where((row) {
               final body = row['body'] as String? ?? '';
               final addr = row['address'] as String? ?? '';
               return body.contains(keyword) || addr.contains(keyword);
+            }).toList();
+          }
+          if (keywords != null && keywords.isNotEmpty) {
+            filtered = all.where((row) {
+              final body = row['body'] as String? ?? '';
+              final addr = row['address'] as String? ?? '';
+              return keywords.any((k) => body.contains(k) || addr.contains(k));
             }).toList();
           }
           final limit = (args['limit'] as num?)?.toInt();
@@ -137,6 +163,28 @@ void main() {
     expect(find.text('msg-250'), findsOneWidget);
     expect(find.text('msg-1'), findsNothing);
     expect(find.text('1 条'), findsOneWidget);
+  });
+
+  testWidgets('类别预设走服务端筛选（带 keywords 参数分页，组内 OR）', (tester) async {
+    final calls = mockPaged(all: buildBankRows(250));
+    await pumpSmsApp(tester);
+
+    await tester.tap(find.byIcon(Icons.search));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('银行通知'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('完成'));
+    await tester.pumpAndSettle();
+
+    // 服务端筛选：带 keywords 列表（不是单个 keyword），仍分页
+    final kws = calls.last['keywords'] as List<String>?;
+    expect(kws, isNotNull);
+    expect(kws, contains('银行'));
+    expect(calls.last['keyword'], isNull);
+    expect(calls.last['limit'], 200);
+    // mock 模拟服务端 OR 过滤后只返回命中行
+    expect(find.text('5 条'), findsOneWidget);
+    expect(find.text('msg-250'), findsNothing);
   });
 
   testWidgets('清除关键词 chip 后整库重载，不残留服务端过滤子集', (tester) async {
